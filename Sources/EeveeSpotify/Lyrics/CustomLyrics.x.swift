@@ -16,7 +16,29 @@ var hasShownUnauthorizedPopUp = false
 private let geniusLyricsRepository = GeniusLyricsRepository()
 private let petitLyricsRepository = PetitLyricsRepository()
 
+// Fixed fallback priority used when the primary source fails.
+// The user's selected source (UserDefaults.lyricsSource) is always
+// tried first; on failure, the remaining sources here are tried in
+// this order (whichever one was already the primary is skipped).
+private let lyricsSourceFallbackChain: [LyricsSource] = [.musixmatch, .petit, .lrclib, .genius]
+
 //
+
+private func lyricsRepository(for source: LyricsSource) -> LyricsRepository {
+    switch source {
+    case .genius:
+        return geniusLyricsRepository
+    case .lrclib:
+        return LrclibLyricsRepository.shared
+    case .musixmatch:
+        return MusixmatchLyricsRepository.shared
+    case .petit:
+        return petitLyricsRepository
+    case .notReplaced:
+        // Never actually reached — callers filter this out beforehand.
+        return geniusLyricsRepository
+    }
+}
 
 private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
     guard
@@ -35,37 +57,50 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
     )
     
     let options = UserDefaults.lyricsOptions
-    var source = UserDefaults.lyricsSource
+    let primarySource = UserDefaults.lyricsSource
     
-    // switched to swift 5.8 syntax to compile with Theos on Linux.
-    var repository: LyricsRepository
-
-    switch source {
-    case .genius:
-        repository = geniusLyricsRepository
-    case .lrclib:
-        repository = LrclibLyricsRepository.shared
-    case .musixmatch:
-        repository = MusixmatchLyricsRepository.shared
-    case .petit:
-        repository = petitLyricsRepository
-    case .notReplaced:
+    if primarySource == .notReplaced {
         throw LyricsError.invalidSource
     }
     
-    let lyricsDto: LyricsDto
+    // Attempt order: primary source first, then the rest of the chain
+    // (only if Genius Fallback is enabled — this option now gates the
+    // whole chain, not just the final Genius step).
+    var attempts = [primarySource]
+    
+    if options.geniusFallback {
+        attempts += lyricsSourceFallbackChain.filter { $0 != primarySource }
+    }
     
     lyricsState = LyricsLoadingState()
     
-    do {
-        lyricsDto = try repository.getLyrics(searchQuery, options: options)
-    }
-    catch let error {
-        if let error = error as? LyricsError {
-            lyricsState.fallbackError = error
+    for (index, source) in attempts.enumerated() {
+        let isLastAttempt = index == attempts.count - 1
+        
+        do {
+            let lyricsDto = try lyricsRepository(for: source).getLyrics(searchQuery, options: options)
             
-            switch error {
-                
+            lyricsState.isEmpty = lyricsDto.lines.isEmpty
+            
+            lyricsState.wasRomanized = lyricsDto.romanization == .romanized
+                || (lyricsDto.romanization == .canBeRomanized && options.romanization)
+            
+            lyricsState.loadedSuccessfully = true
+            
+            return Lyrics.with {
+                $0.data = lyricsDto.toSpotifyLyricsData(source: source.description)
+            }
+        }
+        catch let error {
+            let lyricsError = error as? LyricsError
+            
+            // Keep the *first* (primary) failure reason for the UI,
+            // same as the original single-fallback behavior.
+            if index == 0 {
+                lyricsState.fallbackError = lyricsError ?? .unknownError
+            }
+            
+            switch lyricsError {
             case .invalidMusixmatchToken:
                 if !hasShownUnauthorizedPopUp {
                     PopUpHelper.showPopUp(
@@ -76,7 +111,7 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
                     
                     hasShownUnauthorizedPopUp.toggle()
                 }
-            
+                
             case .musixmatchRestricted:
                 if !hasShownRestrictedPopUp {
                     PopUpHelper.showPopUp(
@@ -91,33 +126,18 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
             default:
                 break
             }
+            
+            if isLastAttempt {
+                throw error
+            }
+            
+            // Otherwise fall through to the next source in the chain.
         }
-        else {
-            lyricsState.fallbackError = .unknownError
-        }
-        
-        if source == .genius || !UserDefaults.lyricsOptions.geniusFallback {
-            throw error
-        }
-        
-        source = .genius
-        repository = GeniusLyricsRepository()
-        
-        lyricsDto = try repository.getLyrics(searchQuery, options: options)
     }
     
-    lyricsState.isEmpty = lyricsDto.lines.isEmpty
-    
-    lyricsState.wasRomanized = lyricsDto.romanization == .romanized
-        || (lyricsDto.romanization == .canBeRomanized && UserDefaults.lyricsOptions.romanization)
-    
-    lyricsState.loadedSuccessfully = true
-
-    let lyrics = Lyrics.with {
-        $0.data = lyricsDto.toSpotifyLyricsData(source: source.description)
-    }
-    
-    return lyrics
+    // Unreachable: `attempts` always has at least one element, and the
+    // loop above returns or throws on its final iteration.
+    throw LyricsError.unknownError
 }
 
 func getLyricsDataForCurrentTrack(_ originalPath: String, originalLyrics: Lyrics? = nil) throws -> Data {
