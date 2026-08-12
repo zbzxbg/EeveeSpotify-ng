@@ -1,4 +1,4 @@
-基于[EeveeSpotify](https://github.com/whoeevee/EeveeSpotify)原版
+基于[EeveeSpotify](https://github.com/whoeevee/EeveeSpotify)更新
 
 
 ## 📌 说明
@@ -16,7 +16,7 @@
 
 ## ⚠️ 声明
 
-- 适配且仅适配 Spotify 9.1.0版本
+- 适配且仅适配 Spotify 9.1.0 版本
 - 这不是官方分支，仅是个人学习用途的修改版本
 - 不提供 IPA 包，请自行构建
 - 可能不提供技术支持，Issue 区不一定回复
@@ -38,7 +38,6 @@ Copyright (C) whoeevee
 
 ---
 
-🙏 致谢
 
 感谢 [whoeevee](https://github.com/whoeevee) 的卓越工作。
 
