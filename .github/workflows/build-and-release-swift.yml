@@ -28,19 +28,11 @@ jobs:
           brew install make dpkg ldid
           echo "$(brew --prefix make)/libexec/gnubin" >> "$GITHUB_PATH"
 
-      - name: Copy SwiftProtobuf (rootless)
+      - name: Build SwiftProtobuf from source
         run: |
-          mkdir -p swiftprotobuf-rootless && cd swiftprotobuf-rootless
-          wget https://github.com/whoeevee/swift-protobuf/releases/download/1.29.0/org.swift.protobuf.swiftprotobuf_1.29.0_iphoneos-arm64.deb
-          ar -x org.swift.protobuf.swiftprotobuf_1.29.0_iphoneos-arm64.deb
-          tar -xvf data.tar.lzma
-          mkdir -p $THEOS/lib/iphone/rootless
-          cp -r var/jb/Library/Frameworks/SwiftProtobuf.framework $THEOS/lib/iphone/rootless/
-
-      - name: Build rootless .deb
-        run: |
-          make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
-          ls -la packages/
+    git clone https://github.com/apple/swift-protobuf.git
+    cd swift-protobuf
+    swift build -c release
 
       - name: Upload deb
         uses: actions/upload-artifact@v4
