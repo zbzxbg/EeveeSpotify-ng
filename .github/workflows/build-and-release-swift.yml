@@ -25,7 +25,8 @@ jobs:
       - name: Install Dependencies
         run: |
           brew install make dpkg ldid
-          echo "$(brew --prefix make)/libexec/gnubin" >> $GITHUB_PATH
+          echo "$(brew --prefix make)/libexec/gnubin" >> "$GITHUB_PATH"
+
 
       - name: Build rootless .deb
         run: |
