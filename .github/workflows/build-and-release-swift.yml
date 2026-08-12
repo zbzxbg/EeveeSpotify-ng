@@ -30,10 +30,13 @@ jobs:
 
       - name: Build SwiftProtobuf from source
         run: |
+    # 克隆并编译
           git clone https://github.com/apple/swift-protobuf.git
           cd swift-protobuf
           swift build -c release
-    # 然后将生成的 framework 复制到 THEOS 目录
+    # 删除 Theos 中原有的 SwiftProtobuf.framework（如果有）
+          rm -rf $THEOS/lib/iphone/rootless/SwiftProtobuf.framework
+    # 复制新编译的 framework
           cp -r .build/release/SwiftProtobuf.framework $THEOS/lib/iphone/rootless/
 
      - name: Upload deb
