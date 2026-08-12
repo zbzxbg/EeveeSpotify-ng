@@ -1,4 +1,4 @@
-基于EeveeSpotify原版
+基于[EeveeSpotify](https://github.com/whoeevee/EeveeSpotify)原版
 
 
 ## 📌 说明
