@@ -52,13 +52,27 @@ jobs:
             exit 1
           fi
 
-      - name: Download SwiftProtobuf
+      - name: Build SwiftProtobuf from source (rootless arm64)
         run: |
-          wget https://github.com/whoeevee/swift-protobuf/releases/download/${{ env.SWIFTPROTOBUF_VERSION }}/org.swift.protobuf.swiftprotobuf_${{ env.SWIFTPROTOBUF_VERSION }}_iphoneos-arm.deb
-          wget https://github.com/whoeevee/swift-protobuf/releases/download/${{ env.SWIFTPROTOBUF_VERSION }}/org.swift.protobuf.swiftprotobuf_${{ env.SWIFTPROTOBUF_VERSION }}_iphoneos-arm64.deb
+          git clone --depth 1 --branch ${{ env.SWIFTPROTOBUF_VERSION }} https://github.com/apple/swift-protobuf.git
+          cd swift-protobuf
 
-          echo "SWIFTPROTOBUF_ROOTFUL=org.swift.protobuf.swiftprotobuf_${{ env.SWIFTPROTOBUF_VERSION }}_iphoneos-arm.deb" >> $GITHUB_ENV
-          echo "SWIFTPROTOBUF_ROOTLESS=org.swift.protobuf.swiftprotobuf_${{ env.SWIFTPROTOBUF_VERSION }}_iphoneos-arm64.deb" >> $GITHUB_ENV
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          TRIPLE=arm64-apple-ios14.0
+
+          swift build -c release \
+            --triple $TRIPLE \
+            -Xswiftc -sdk -Xswiftc $SDK \
+            --product SwiftProtobuf
+
+          # 把编译产物打包成 framework 结构
+          mkdir -p SwiftProtobuf.framework/Modules
+          cp .build/release/libSwiftProtobuf.dylib SwiftProtobuf.framework/SwiftProtobuf
+          cp .build/release/SwiftProtobuf.swiftmodule/*.swiftmodule SwiftProtobuf.framework/Modules/ 2>/dev/null || true
+          # 视情况补 Info.plist / module map，具体结构可以对照旧 .deb 解出来的 framework 目录
+
+          mkdir -p "$THEOS/lib/iphone/rootless"
+          cp -r SwiftProtobuf.framework "$THEOS/lib/iphone/rootless/"
 
       - name: Download OpenSpotifySafariExtension
         run: |
