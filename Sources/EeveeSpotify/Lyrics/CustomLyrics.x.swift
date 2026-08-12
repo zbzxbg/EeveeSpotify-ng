@@ -3,6 +3,44 @@ import SwiftUI
 
 //
 
+struct BaseLyricsGroup: HookGroup { }
+
+struct LegacyLyricsGroup: HookGroup { }
+struct ModernLyricsGroup: HookGroup { }
+
+var lyricsState = LyricsLoadingState()
+
+var hasShownRestrictedPopUp = false
+var hasShownUnauthorizedPopUp = false
+
+private let geniusLyricsRepository = GeniusLyricsRepository()
+private let petitLyricsRepository = PetitLyricsRepository()
+
+// Fixed fallback priority used when the primary source fails.
+// The user's selected source (UserDefaults.lyricsSource) is always
+// tried first; on failure, the remaining sources here are tried in
+// this order (whichever one was already the primary is skipped).
+private let lyricsSourceFallbackChain: [LyricsSource] = [.musixmatch, .petit, .lrclib, .genius]
+
+//
+
+private func lyricsRepository(for source: LyricsSource) -> LyricsRepository {
+    switch source {
+    case .genius:
+        return geniusLyricsRepository
+    case .lrclib:
+        return LrclibLyricsRepository.shared
+    case .musixmatch:
+        return MusixmatchLyricsRepository.shared
+    case .petit:
+        return petitLyricsRepository
+    case .notReplaced:
+        // Never actually reached — callers filter this out beforehand.
+        return geniusLyricsRepository
+    }
+}
+
+// ========== 修改后的 loadCustomLyricsForCurrentTrack（串行 + 2秒超时） ==========
 private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
     guard
         let track = statefulPlayer?.currentTrack() ??
@@ -26,7 +64,11 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
         throw LyricsError.invalidSource
     }
     
+    // Attempt order: primary source first, then the rest of the chain
+    // (only if Genius Fallback is enabled — this option now gates the
+    // whole chain, not just the final Genius step).
     var attempts = [primarySource]
+    
     if options.geniusFallback {
         attempts += lyricsSourceFallbackChain.filter { $0 != primarySource }
     }
@@ -58,12 +100,12 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
         if waitResult == .timedOut {
             // 该源超时，视为失败
             if index == 0 {
-                // 主源超时，设置 fallbackError 为超时（便于UI显示）
-                lyricsState.fallbackError = .timeout
+                // 主源超时，设置 fallbackError 为超时（但 LyricsError 可能没有 .timeout，改用 .unknownError）
+                lyricsState.fallbackError = .unknownError
             }
             if isLastAttempt {
-                // 所有源都尝试过，最后一个也超时，抛出超时错误
-                throw LyricsError.timeout
+                // 所有源都尝试过，最后一个也超时，抛出超时错误（同样使用 .unknownError）
+                throw LyricsError.unknownError
             } else {
                 continue  // 尝试下一个源
             }
@@ -90,24 +132,21 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
             switch lyricsError {
             case .invalidMusixmatchToken:
                 if !hasShownUnauthorizedPopUp {
-                    DispatchQueue.main.async {
-                        PopUpHelper.showPopUp(
-                            delayed: false,
-                            message: "musixmatch_unauthorized_popup".localized,
-                            buttonText: "OK".uiKitLocalized
-                        )
-                    }
+                    // 直接调用，不加 DispatchQueue.main.async（因为 showPopUp 内部已处理）
+                    PopUpHelper.showPopUp(
+                        delayed: false,
+                        message: "musixmatch_unauthorized_popup".localized,
+                        buttonText: "OK".uiKitLocalized
+                    )
                     hasShownUnauthorizedPopUp = true
                 }
             case .musixmatchRestricted:
                 if !hasShownRestrictedPopUp {
-                    DispatchQueue.main.async {
-                        PopUpHelper.showPopUp(
-                            delayed: false,
-                            message: "musixmatch_restricted_popup".localized,
-                            buttonText: "OK".uiKitLocalized
-                        )
-                    }
+                    PopUpHelper.showPopUp(
+                        delayed: false,
+                        message: "musixmatch_restricted_popup".localized,
+                        buttonText: "OK".uiKitLocalized
+                    )
                     hasShownRestrictedPopUp = true
                 }
             default:
@@ -131,4 +170,61 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
     
     // 理论上不会执行到这里（因为 attempts 非空，循环内必返回或抛出）
     throw LyricsError.unknownError
+}
+
+// ========== getLyricsDataForCurrentTrack（保持不变） ==========
+func getLyricsDataForCurrentTrack(_ originalPath: String, originalLyrics: Lyrics? = nil) throws -> Data {
+    guard
+        let track = statefulPlayer?.currentTrack() ??
+                    nowPlayingScrollViewController?.loadedTrack
+        else {
+            throw LyricsError.noCurrentTrack
+        }
+    
+    let trackIdentifier = track.trackIdentifier
+    
+    if !trackIdentifier.isEmpty && !originalPath.contains(trackIdentifier) {
+        throw LyricsError.trackMismatch
+    }
+    
+    var lyrics = try loadCustomLyricsForCurrentTrack()
+    
+    let lyricsColorsSettings = UserDefaults.lyricsColors
+    
+    if lyricsColorsSettings.displayOriginalColors, let originalLyrics = originalLyrics {
+        lyrics.colors = originalLyrics.colors
+    }
+    else {
+        let extractedColor = switch EeveeSpotify.hookTarget {
+        case .lastAvailableiOS14:
+            track.extractedColorHex()
+        default:
+            track.metadata()["extracted_color"]
+        }
+        
+        var color: Color
+        
+        if lyricsColorsSettings.useStaticColor {
+            color = Color(hex: lyricsColorsSettings.staticColor)
+        }
+        else if let extractedColor = extractedColor {
+            color = Color(hex: extractedColor)
+                .normalized(lyricsColorsSettings.normalizationFactor)
+        }
+        else if let uiColor = backgroundViewModel?.color() {
+            color = Color(uiColor)
+                .normalized(lyricsColorsSettings.normalizationFactor)
+        }
+        else {
+            color = Color.gray
+        }
+        
+        lyrics.colors = LyricsColors.with {
+            $0.backgroundColor = color.uInt32
+            $0.lineColor = Color.black.uInt32
+            $0.activeLineColor = Color.white.uInt32
+        }
+    }
+    
+    return try lyrics.serializedBytes()
 }
