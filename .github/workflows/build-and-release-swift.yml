@@ -30,11 +30,13 @@ jobs:
 
       - name: Build SwiftProtobuf from source
         run: |
-    git clone https://github.com/apple/swift-protobuf.git
-    cd swift-protobuf
-    swift build -c release
+          git clone https://github.com/apple/swift-protobuf.git
+          cd swift-protobuf
+          swift build -c release
+    # 然后将生成的 framework 复制到 THEOS 目录
+          cp -r .build/release/SwiftProtobuf.framework $THEOS/lib/iphone/rootless/
 
-      - name: Upload deb
+     - name: Upload deb
         uses: actions/upload-artifact@v4
         with:
           name: rootless-deb
