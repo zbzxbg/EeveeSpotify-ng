@@ -35,7 +35,7 @@
 原作者版权：
 Copyright (C) whoeevee
 
-本修改版本日期：2026.8.12
+最近修改版版本日期：2026.8.12
 
 完整协议见 [LICENSE](LICENSE) 文件。
 
