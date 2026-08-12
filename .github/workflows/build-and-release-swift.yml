@@ -1,7 +1,10 @@
-name: Build Swift Tweak
+name: Build EeveeSpotify .deb
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:   # 手动触发
+
+env:
+  SWIFTPROTOBUF_VERSION: "1.29.0"
 
 jobs:
   build:
@@ -11,37 +14,57 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: maxim-lobanov/setup-xcode@v1
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest-stable
+          xcode-version: '16.2.0'   # 与原仓库一致
 
       - name: Setup Theos
         uses: actions/checkout@v4
         with:
           repository: theos/theos
-          path: theos
-
+          path: ${{ github.workspace }}/theos
           submodules: recursive
 
-      - name: Install Dependencies
+      - name: Install build tools
         run: |
           brew install make dpkg ldid
-          echo "$(brew --prefix make)/libexec/gnubin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix make)/libexec/gnubin" >> $GITHUB_PATH
 
-      - name: Build SwiftProtobuf from source
+      - name: Copy SwiftProtobuf (rootful)
         run: |
-    # 克隆并编译
-          git clone https://github.com/apple/swift-protobuf.git
-          cd swift-protobuf
-          swift build -c release
-    # 删除 Theos 中原有的 SwiftProtobuf.framework（如果有）
-          rm -rf $THEOS/lib/iphone/rootless/SwiftProtobuf.framework
-    # 复制新编译的 framework
-          cp -r .build/release/SwiftProtobuf.framework $THEOS/lib/iphone/rootless/
+          mkdir swiftprotobuf && cd "$_"
+          wget https://github.com/whoeevee/swift-protobuf/releases/download/${{ env.SWIFTPROTOBUF_VERSION }}/org.swift.protobuf.swiftprotobuf_${{ env.SWIFTPROTOBUF_VERSION }}_iphoneos-arm.deb
+          ar -x org.swift.protobuf.swiftprotobuf_${{ env.SWIFTPROTOBUF_VERSION }}_iphoneos-arm.deb
+          tar -xvf data.tar.lzma
+          cp -r Library/Frameworks/SwiftProtobuf.framework $THEOS/lib
 
-     - name: Upload deb
-        uses: actions/upload-artifact@v4
+      - name: Copy SwiftProtobuf (rootless)
+        run: |
+          mkdir swiftprotobuf-rootless && cd "$_"
+          wget https://github.com/whoeevee/swift-protobuf/releases/download/${{ env.SWIFTPROTOBUF_VERSION }}/org.swift.protobuf.swiftprotobuf_${{ env.SWIFTPROTOBUF_VERSION }}_iphoneos-arm64.deb
+          ar -x org.swift.protobuf.swiftprotobuf_${{ env.SWIFTPROTOBUF_VERSION }}_iphoneos-arm64.deb
+          tar -xvf data.tar.lzma
+          cp -r var/jb/Library/Frameworks/SwiftProtobuf.framework $THEOS/lib/iphone/rootless
+
+      - name: Build rootful .deb
+        run: |
+          make package FINALPACKAGE=1
+          echo "filename=$(find . -not -name '*debug*' -path './packages/*' | cut -d/ -f3)" >> $GITHUB_ENV
+
+      - uses: actions/upload-artifact@v4
         with:
-          name: rootless-deb
-          path: packages/*.deb
+          name: ${{ env.filename }}
+          path: packages/${{ env.filename }}
+          if-no-files-found: error
+
+      - name: Build rootless .deb
+        run: |
+          make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
+          echo "filename=$(find . -name '*arm64*' -path './packages/*' | cut -d/ -f3)" >> $GITHUB_ENV
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.filename }}
+          path: packages/${{ env.filename }}
           if-no-files-found: error
