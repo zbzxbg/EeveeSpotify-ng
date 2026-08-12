@@ -19,7 +19,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: theos/theos
-          path: ${{ github.workspace }}/theos
+          path: theos
+
           submodules: recursive
 
       - name: Install Dependencies
