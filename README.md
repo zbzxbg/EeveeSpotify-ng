@@ -3,7 +3,7 @@
 
 ## 📌 说明
 
-本项目是 [EeveeSpotify](https://github.com/whoeevee/EeveeSpotifyReborn) 的个人自用修改分支，仅用于学习和日常使用。
+本项目是[EeveeSpotify](https://github.com/whoeevee/EeveeSpotifyReborn)的个人自用修改分支，仅用于学习和日常使用。
 
 原仓库因 DMCA 下架，本分支仅为个人维护，与原作者whoeevee无任何关联。
 
@@ -19,8 +19,8 @@
 - 适配且仅适配 Spotify 9.1.0 版本
 - 不提供 IPA 包，请自行构建
 - 可能不提供技术支持，Issue 区不一定回复
-- 歌词多级回退目前支持Msxm-PL-LRCLIB-Gen的歌词多级回退（实验性）
-- 目前暂不提供可调整的UI
+- 本插件含多个不可更改的实验性功能
+- 目前暂不提供可调整本仓库内功能的UI
 
 
 ---
@@ -32,7 +32,7 @@
 原作者版权：
 Copyright (C) whoeevee
 
-最近修改版版本日期：2026.8.12
+最近修改版版本日期：2026.8.13
 
 完整协议见 [LICENSE](LICENSE) 文件。
 
