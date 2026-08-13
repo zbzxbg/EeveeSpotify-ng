@@ -47,4 +47,4 @@ Copyright (C) whoeevee
 本项目为独立修改插件，与Spotify官方无任何关联。  
 仅供个人学习研究，使用风险自负。
 ---
-[更新日志]（https://github.com/zbzxbg/EeveeSpotifyReborn-ng/blob/swift/CHANGELOG.md）
+[更新日志]（https://github.com/zbzxbg/EeveeSpotifyReborn-ng/blob/swift/CHANGELOG.md） 
