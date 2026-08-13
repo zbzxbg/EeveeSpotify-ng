@@ -158,12 +158,12 @@ func getLyricsDataForCurrentTrack(_ originalPath: String, originalLyrics: Lyrics
         }
     }
     
-    guard let finalTrack = track else { 
+    // 解包 track，此时会遮蔽外部的可选型 track 变量，后续直接使用不可变的 track
+    guard let track = track else { 
         throw LyricsError.noCurrentTrack 
     } 
     
-    let trackIdentifier = finalTrack.trackIdentifier
-    // 如果经过了 300ms 等待依然不匹配，说明原请求已过期（例如快速连切），直接抛出错误
+    // 复用前面循环中已经更新好的 trackIdentifier，无需再次声明
     if !trackIdentifier.isEmpty && !originalPath.contains(trackIdentifier) { 
         throw LyricsError.trackMismatch 
     }
@@ -178,9 +178,9 @@ func getLyricsDataForCurrentTrack(_ originalPath: String, originalLyrics: Lyrics
     } else { 
         let extractedColor = switch EeveeSpotify.hookTarget { 
         case .lastAvailableiOS14: 
-            finalTrack.extractedColorHex() 
+            track.extractedColorHex() 
         default: 
-            finalTrack.metadata()["extracted_color"] 
+            track.metadata()["extracted_color"] 
         } 
         
         var color: Color 
