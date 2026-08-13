@@ -40,7 +40,7 @@ private func lyricsRepository(for source: LyricsSource) -> LyricsRepository {
     }
 }
 
-// ========== 修改后的 loadCustomLyricsForCurrentTrack（串行 + 2秒超时） ==========
+
 private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
     guard
         let track = statefulPlayer?.currentTrack() ??
@@ -83,7 +83,7 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
         var resultDto: LyricsDto?
         var requestError: Error?
         
-        // 在后台线程发起请求（不阻塞当前线程的等待）
+
         DispatchQueue.global(qos: .userInitiated).async {
             do {
                 let dto = try lyricsRepository(for: source).getLyrics(searchQuery, options: options)
@@ -94,26 +94,26 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
             semaphore.signal()
         }
         
-        // 等待信号，最多等 requestTimeout 秒
+
         let waitResult = semaphore.wait(timeout: .now() + requestTimeout)
         
         if waitResult == .timedOut {
-            // 该源超时，视为失败
+
             if index == 0 {
-                // 主源超时，设置 fallbackError 为超时（但 LyricsError 可能没有 .timeout，改用 .unknownError）
+
                 lyricsState.fallbackError = .unknownError
             }
             if isLastAttempt {
-                // 所有源都尝试过，最后一个也超时，抛出超时错误（同样使用 .unknownError）
+
                 throw LyricsError.unknownError
             } else {
-                continue  // 尝试下一个源
+                continue  
             }
         }
         
-        // 正常收到信号，检查结果
+
         if let dto = resultDto {
-            // 成功获取歌词
+
             lyricsState.isEmpty = dto.lines.isEmpty
             lyricsState.wasRomanized = dto.romanization == .romanized
                 || (dto.romanization == .canBeRomanized && options.romanization)
@@ -122,17 +122,17 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
                 $0.data = dto.toSpotifyLyricsData(source: source.description)
             }
         } else if let error = requestError {
-            // 请求返回错误
+
             let lyricsError = error as? LyricsError
             if index == 0 {
                 lyricsState.fallbackError = lyricsError ?? .unknownError
             }
             
-            // 处理 Musixmatch 特定错误（弹出提示）
+
             switch lyricsError {
             case .invalidMusixmatchToken:
                 if !hasShownUnauthorizedPopUp {
-                    // 直接调用，不加 DispatchQueue.main.async（因为 showPopUp 内部已处理）
+
                     PopUpHelper.showPopUp(
                         delayed: false,
                         message: "musixmatch_unauthorized_popup".localized,
@@ -154,12 +154,12 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
             }
             
             if isLastAttempt {
-                throw error  // 最后一个源失败，抛出错误
+                throw error  
             } else {
-                continue    // 继续尝试下一个源
+                continue    
             }
         } else {
-            // 理论上不可能（无结果也无错误）
+
             if isLastAttempt {
                 throw LyricsError.unknownError
             } else {
@@ -168,11 +168,11 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
         }
     }
     
-    // 理论上不会执行到这里（因为 attempts 非空，循环内必返回或抛出）
+
     throw LyricsError.unknownError
 }
 
-// ========== getLyricsDataForCurrentTrack（保持不变） ==========
+
 func getLyricsDataForCurrentTrack(_ originalPath: String, originalLyrics: Lyrics? = nil) throws -> Data {
     guard
         let track = statefulPlayer?.currentTrack() ??
