@@ -16,11 +16,8 @@ var hasShownUnauthorizedPopUp = false
 private let geniusLyricsRepository = GeniusLyricsRepository()
 private let petitLyricsRepository = PetitLyricsRepository()
 
-// Fixed fallback priority used when the primary source fails.
-// The user's selected source (UserDefaults.lyricsSource) is always
-// tried first; on failure, the remaining sources here are tried in
-// this order (whichever one was already the primary is skipped).
-private let lyricsSourceFallbackChain: [LyricsSource] = [.musixmatch, .petit, .lrclib, .genius]
+// 不再使用的回退链定义（保留仅为兼容，实际已改为函数内固定顺序）
+// private let lyricsSourceFallbackChain: [LyricsSource] = [.musixmatch, .petit, .lrclib, .genius]
 
 //
 
@@ -58,20 +55,9 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
     )
     
     let options = UserDefaults.lyricsOptions
-    let primarySource = UserDefaults.lyricsSource
     
-    if primarySource == .notReplaced {
-        throw LyricsError.invalidSource
-    }
-    
-    // Attempt order: primary source first, then the rest of the chain
-    // (only if Genius Fallback is enabled — this option now gates the
-    // whole chain, not just the final Genius step).
-    var attempts = [primarySource]
-    
-    if options.geniusFallback {
-        attempts += lyricsSourceFallbackChain.filter { $0 != primarySource }
-    }
+    // 强制使用固定顺序：Musixmatch -> Petit -> LRCLIB -> Genius
+    let attempts: [LyricsSource] = [.musixmatch, .petit, .lrclib, .genius]
     
     lyricsState = LyricsLoadingState()
     
@@ -83,7 +69,6 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
         var resultDto: LyricsDto?
         var requestError: Error?
         
-
         DispatchQueue.global(qos: .userInitiated).async {
             do {
                 let dto = try lyricsRepository(for: source).getLyrics(searchQuery, options: options)
@@ -94,26 +79,20 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
             semaphore.signal()
         }
         
-
         let waitResult = semaphore.wait(timeout: .now() + requestTimeout)
         
         if waitResult == .timedOut {
-
             if index == 0 {
-
                 lyricsState.fallbackError = .unknownError
             }
             if isLastAttempt {
-
                 throw LyricsError.unknownError
             } else {
-                continue  
+                continue
             }
         }
         
-
         if let dto = resultDto {
-
             lyricsState.isEmpty = dto.lines.isEmpty
             lyricsState.wasRomanized = dto.romanization == .romanized
                 || (dto.romanization == .canBeRomanized && options.romanization)
@@ -122,17 +101,14 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
                 $0.data = dto.toSpotifyLyricsData(source: source.description)
             }
         } else if let error = requestError {
-
             let lyricsError = error as? LyricsError
             if index == 0 {
                 lyricsState.fallbackError = lyricsError ?? .unknownError
             }
             
-
             switch lyricsError {
             case .invalidMusixmatchToken:
                 if !hasShownUnauthorizedPopUp {
-
                     PopUpHelper.showPopUp(
                         delayed: false,
                         message: "musixmatch_unauthorized_popup".localized,
@@ -154,12 +130,11 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
             }
             
             if isLastAttempt {
-                throw error  
+                throw error
             } else {
-                continue    
+                continue
             }
         } else {
-
             if isLastAttempt {
                 throw LyricsError.unknownError
             } else {
@@ -168,7 +143,6 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
         }
     }
     
-
     throw LyricsError.unknownError
 }
 
