@@ -120,7 +120,7 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
                     statusCode: 200,
                     httpVersion: "HTTP/1.1",
                     headerFields: headerFields
-                ) ?? HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: [:])!
+                ) ?? HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil)!
 
                 // 标记任务为“替换响应”，并缓存自定义数据
                 InterceptionContext.shared.setState(.replacingResponse, for: task)
