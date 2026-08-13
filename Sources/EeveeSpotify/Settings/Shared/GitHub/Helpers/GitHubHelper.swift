@@ -18,7 +18,7 @@ struct GitHubHelper {
     }
     
     func getLatestRelease() async throws -> GitHubRelease {
-        let data = try await perform("/repos/whoeevee/EeveeSpotifyReborn/releases/latest")
+        let data = try await perform("/repos/zbzxbg/EeveeSpotifyReborn-ng/releases/latest")
         return try decoder.decode(GitHubRelease.self, from: data)
     }
     
@@ -28,14 +28,14 @@ struct GitHubHelper {
     }
     
     func getContributors() async throws -> [GitHubUser] {
-        let data = try await perform("/repos/whoeevee/EeveeSpotifyReborn/contributors")
+        let data = try await perform("/repos/zbzxbg/EeveeSpotifyReborn-ng/contributors")
         return try decoder.decode([GitHubUser].self, from: data)
     }
     
     func getEeveeContributorSections() async throws -> [EeveeContributorSection] {
         let (data, _) = try await URLSession.shared.data(
             from: URL(
-                string: "https://raw.githubusercontent.com/whoeevee/EeveeSpotifyReborn/swift/contributors.json"
+                string: "https://raw.githubusercontent.com/zbzxbg/EeveeSpotifyReborn-ng/swift/contributors.json"
             )!
         )
         return try decoder.decode([EeveeContributorSection].self, from: data)
