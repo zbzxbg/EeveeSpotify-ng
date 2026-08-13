@@ -6,7 +6,21 @@
             {
                 "username": "zbzxbg",
                 "roles": [
-                    "Owner"
+                    "Maintainer",
+                    "Developer"
+                ]
+            },
+            {
+                "username": "whoeevee",
+                "roles": [
+                    "Original Creator",
+                    "Former Developer"
+                ]
+            },
+            {
+                "username": "asdfzxcvbn",
+                "roles": [
+                    "Former Collaborator"
                 ]
             }
         ]
