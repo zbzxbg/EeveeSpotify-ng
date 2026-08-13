@@ -7,7 +7,7 @@
 
 原仓库因 DMCA 下架，本分支仅为个人维护，与原作者whoeevee无任何关联。
 
-测试环境：iPhone 11  iOS 26.6 证书签名 签名软件LCSign
+测试环境：iPhone 11  iOS 26.6 证书签名 签名软件LCSign 无根deb
 
 ## 🔧 自用修改内容
 
