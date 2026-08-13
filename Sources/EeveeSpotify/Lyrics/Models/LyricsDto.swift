@@ -52,3 +52,66 @@ struct LyricsDto {
         return lyricsData
     }
 }
+
+// MARK: - Japanese Romanization
+
+extension String {
+    /// 使用 CFStringTokenizer 的日语形态分析引擎将假名/汉字转为平文式罗马音。
+    /// 相比 .toLatin(会把汉字当中文拼音处理),这里汉字会按日语读音转换。
+    func toJapaneseRomaji() -> String {
+        guard !isEmpty else { return self }
+
+        let cfText = self as CFString
+        let length = CFStringGetLength(cfText)
+        let locale = CFLocaleCreate(kCFAllocatorDefault, "ja" as CFString)
+
+        let options: CFOptionFlags = kCFStringTokenizerUnitWordBoundary
+            | kCFStringTokenizerAttributeLatinTranscription
+
+        let tokenizer = CFStringTokenizerCreate(
+            kCFAllocatorDefault, cfText, CFRangeMake(0, length), options, locale
+        )
+
+        var result = ""
+        var cursor: CFIndex = 0
+
+        func appendGap(upTo location: CFIndex) {
+            guard location > cursor else { return }
+            let gap = CFStringCreateWithSubstring(
+                kCFAllocatorDefault, cfText, CFRangeMake(cursor, location - cursor)
+            )
+            result += gap as String
+            cursor = location
+        }
+
+        func appendToken(_ text: String) {
+            if let last = result.last, !last.isWhitespace, !last.isNewline {
+                result += " "
+            }
+            result += text
+        }
+
+        var tokenType = CFStringTokenizerAdvanceToNextToken(tokenizer)
+        while !tokenType.isEmpty {
+            let range = CFStringTokenizerGetCurrentTokenRange(tokenizer)
+            appendGap(upTo: range.location)
+
+            if let romaji = CFStringTokenizerCopyCurrentTokenAttribute(
+                tokenizer, kCFStringTokenizerAttributeLatinTranscription
+            ) as? String {
+                appendToken(romaji)
+            } else {
+                let original = CFStringCreateWithSubstring(
+                    kCFAllocatorDefault, cfText, range
+                ) as String
+                appendToken(original)
+            }
+
+            cursor = range.location + range.length
+            tokenType = CFStringTokenizerAdvanceToNextToken(tokenizer)
+        }
+        appendGap(upTo: length)
+
+        return result
+    }
+}
