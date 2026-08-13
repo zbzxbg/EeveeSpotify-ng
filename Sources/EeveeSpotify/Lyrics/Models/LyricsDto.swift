@@ -35,7 +35,7 @@ struct LyricsDto {
             lyricsData.lines = sortedLines.map { line in
                 LyricsLine.with {
                     $0.content = (shouldRomanize && romanization == .canBeRomanized)
-                        ? line.content.toJapaneseRomaji()
+                        ? line.content.toJapaneseRomaji().capitalizingFirstLetterIfAlphabetic()
                         : line.content
                     $0.offsetMs = Int32(line.offsetMs ?? 0)
                 }
@@ -115,5 +115,12 @@ extension String {
         appendGap(upTo: length)
 
         return result
+    }
+
+    /// 把首字符大写，前提是首字符本身是字母。
+    /// 如果首字符是标点、符号或 ♪ 这类非字母字符，整行原样返回，不做任何处理。
+    func capitalizingFirstLetterIfAlphabetic() -> String {
+        guard let first = self.first, first.isLetter else { return self }
+        return first.uppercased() + self.dropFirst()
     }
 }
