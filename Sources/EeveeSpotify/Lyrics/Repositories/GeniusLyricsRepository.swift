@@ -108,17 +108,109 @@ class GeniusLyricsRepository: LyricsRepository {
         return matchingByTitle.first!
     }
     
+    // MARK: - 歌词行清洗辅助方法
+    
+    /// 将文本标准化为纯字母形式（小写、去重音、去数字、去空格和符号）
+    private func normalizedLabel(_ text: String) -> String {
+        let lowercased = text.lowercased()
+        let decomposed = lowercased.folding(options: .diacriticInsensitive, locale: .current)
+        return decomposed.filter { $0.isLetter }
+    }
+    
+    /// 所有需要去除的音乐段落标注词（标准化后只含字母）
+    private let musicSectionLabels: Set<String> = [
+        "intro", "introducao", "verse", "verso", "chorus", "refrao",
+        "prechorus", "prerefrao", "postchorus", "postrefrao", "posrefrao",
+        "bridge", "ponte", "hook", "gancho", "interlude", "interludio",
+        "solo", "instrumental", "outro", "encerramento", "drop", "break",
+        "breakdown", "fadeout", "presaida", "saida", "loop", "preoutro"
+    ]
+    
+    /// 判断一行是否为需要删除的歌词标题前缀（如 "LETRA DE \""、"Text of \"" 等）
+    private func isLanguagePrefixLine(_ line: String) -> Bool {
+        let patterns = [
+            "^letra de\\s+\"",
+            "^tekisuto o letra de\\s+\"",
+            "^text of\\s+\""
+        ]
+        for pattern in patterns {
+            if let _ = line.range(of: pattern, options: [.regularExpression, .caseInsensitive]) {
+                return true
+            }
+        }
+        return false
+    }
+    
+    /// 判断一行是否为音乐段落标注（可能带方括号、圆括号，或无括号独立成行）
+    private func isMusicSectionLabel(_ line: String) -> Bool {
+        // 提取所有圆括号和方括号内的内容
+        var bracketContents: [String] = []
+        
+        // 匹配圆括号
+        let roundRegex = "\\((.*?)\\)"
+        if let regex = try? NSRegularExpression(pattern: roundRegex, options: []) {
+            let nsLine = line as NSString
+            let matches = regex.matches(in: line, options: [], range: NSRange(location: 0, length: nsLine.length))
+            for match in matches {
+                if match.numberOfRanges > 0, let range = Range(match.range(at: 1), in: line) {
+                    bracketContents.append(String(line[range]))
+                }
+            }
+        }
+        
+        // 匹配方括号
+        let squareRegex = "\\[(.*?)\\]"
+        if let regex = try? NSRegularExpression(pattern: squareRegex, options: []) {
+            let nsLine = line as NSString
+            let matches = regex.matches(in: line, options: [], range: NSRange(location: 0, length: nsLine.length))
+            for match in matches {
+                if match.numberOfRanges > 0, let range = Range(match.range(at: 1), in: line) {
+                    bracketContents.append(String(line[range]))
+                }
+            }
+        }
+        
+        // 如果没有括号，直接检查整行标准化后是否为标注词
+        if bracketContents.isEmpty {
+            return musicSectionLabels.contains(normalizedLabel(line))
+        }
+        
+        // 移除所有括号及内容，检查剩余部分是否只含空白或标点
+        var remaining = line
+        let combinedPattern = "\\(.*?\\)|\\[.*?\\]"
+        if let regex = try? NSRegularExpression(pattern: combinedPattern, options: []) {
+            remaining = regex.stringByReplacingMatches(
+                in: remaining,
+                options: [],
+                range: NSRange(location: 0, length: (remaining as NSString).length),
+                withTemplate: ""
+            )
+        }
+        
+        let trimmedRemaining = remaining.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 剩余部分如果没有字母数字，说明括号外无有效歌词
+        let hasAlphanumeric = trimmedRemaining.rangeOfCharacter(from: .alphanumerics) != nil
+        if hasAlphanumeric {
+            return false
+        }
+        
+        // 检查所有括号内容是否都是标注词
+        for content in bracketContents {
+            if !musicSectionLabels.contains(normalizedLabel(content)) {
+                return false
+            }
+        }
+        return true
+    }
+    
     private func mapLyricsLines(_ rawLines: [String]) -> [String] {
         var lines = rawLines
-            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         
-        // 删除方括号标签，如 [Verse]
-        lines.removeAll { $0 ~= "\\[.*\\]" }
+        lines.removeAll { line in
+            isLanguagePrefixLine(line) || isMusicSectionLabel(line)
+        }
         
-        // 删除圆括号或无括号的段标签（如 (INTRO)、VERSO、REFRÃO）
-        lines.removeAll { Self.isSectionLabelLine($0) }
-        
-        // 删除开头和结尾的空行
         lines = Array(
             lines
                 .drop(while: { $0.isEmpty })
@@ -126,41 +218,6 @@ class GeniusLyricsRepository: LyricsRepository {
         )
         
         return lines
-    }
-    
-    // MARK: - 段标签清理
-    
-    private static let sectionTagRegex: NSRegularExpression = {
-        // 所有需要被整行移除的段标签（忽略大小写，兼容有无重音）
-        let tags = [
-            "INTRO", "INTRODUÇÃO", "INTRODUCAO",
-            "VERSE", "VERSO",
-            "CHORUS", "REFRÃO", "REFRAO",
-            "PRE-CHORUS", "PRÉ-REFRÃO", "PRE-REFRÃO", "PRÉ-REFRÃO",
-            "POST-CHORUS", "PÓS-REFRÃO", "POS-REFRÃO",
-            "BRIDGE", "PONTE",
-            "HOOK", "GANCHO",
-            "INTERLUDE", "INTERLÚDIO", "INTERLUDIO",
-            "SOLO", "INSTRUMENTAL",
-            "OUTRO", "ENCERRAMENTO",
-            "DROP",
-            "BREAK", "BREAKDOWN",
-            "FADE OUT",
-            "PRE-SAIDA", "SAIDA"
-        ]
-        
-        let escapedTags = tags.map { NSRegularExpression.escapedPattern(for: $0) }.joined(separator: "|")
-        // 匹配一行中一个或多个标签，每个标签可选地被半角或全角圆括号包围，括号前后可有空格
-        let pattern = #"^\s*(?:[\(（]?\s*(?:\#(escapedTags))\s*[\)）]?\s*)*$"#
-        return try! NSRegularExpression(pattern: pattern, options: .caseInsensitive)
-    }()
-    
-    private static func isSectionLabelLine(_ line: String) -> Bool {
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return false }
-        
-        let range = NSRange(trimmed.startIndex..<trimmed.endIndex, in: trimmed)
-        return sectionTagRegex.firstMatch(in: trimmed, options: [], range: range) != nil
     }
     
     func getLyrics(_ query: LyricsSearchQuery, options: LyricsOptions) throws -> LyricsDto {
