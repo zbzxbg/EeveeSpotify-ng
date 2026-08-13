@@ -118,7 +118,7 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
                 let okResponse = HTTPURLResponse(
                     url: url,
                     statusCode: 200,
-                    httpVersion: response.httpVersion ?? "HTTP/1.1",
+                    httpVersion: "HTTP/1.1"
                     headerFields: headerFields
                 ) ?? HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: [:])!
 
