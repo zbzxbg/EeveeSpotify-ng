@@ -1,54 +1,64 @@
 import Foundation
 
-struct LyricsDto {
-    var lines: [LyricsLineDto]
-    var timeSynced: Bool
-    var romanization: LyricsRomanizationStatus
-    var translation: LyricsTranslationDto?
-    
-    func toSpotifyLyricsData(source: String) -> LyricsData {
-        var lyricsData = LyricsData.with {
-            $0.timeSynchronized = timeSynced
-            $0.restriction = .unrestricted
-            $0.providedBy = "\(source) (EeveeSpotify)"
+extension String {
+    /// 使用 CFStringTokenizer 的日语形态分析引擎将假名/汉字转为平文式罗马音。
+    /// 相比 .toLatin，汉字会按日语读音而非拼音转换。
+    func toJapaneseRomaji() -> String {
+        guard !isEmpty else { return self }
+
+        let cfText = self as CFString
+        let length = CFStringGetLength(cfText)
+        let locale = CFLocaleCreate(kCFAllocatorDefault, "ja" as CFString)
+
+        // 必须把 Attribute flag 一起 OR 进 options，tokenizer 才会计算罗马音
+        let options: CFOptionFlags = kCFStringTokenizerUnitWordBoundary
+            | kCFStringTokenizerAttributeLatinTranscription
+
+        let tokenizer = CFStringTokenizerCreate(
+            kCFAllocatorDefault, cfText, CFRangeMake(0, length), options, locale
+        )
+
+        var result = ""
+        var cursor: CFIndex = 0
+
+        func appendGap(upTo location: CFIndex) {
+            guard location > cursor else { return }
+            let gap = CFStringCreateWithSubstring(
+                kCFAllocatorDefault, cfText, CFRangeMake(cursor, location - cursor)
+            )
+            result += gap as String
+            cursor = location
         }
-        
-        let shouldRomanize = UserDefaults.lyricsOptions.romanization
-        
-        if lines.isEmpty {
-            lyricsData.lines = [
-                LyricsLine.with {
-                    $0.content = "song_is_instrumental".localized
-                },
-                LyricsLine.with {
-                    $0.content = "let_the_music_play".localized
-                },
-                LyricsLine.with {
-                    $0.content = ""
-                }
-            ]
-        }
-        else {
-            let sortedLines = lines.sorted { 
-                ($0.offsetMs ?? 0) < ($1.offsetMs ?? 0)
+
+        func appendToken(_ text: String) {
+            if let last = result.last, !last.isWhitespace, !last.isNewline {
+                result += " "
             }
-            lyricsData.lines = sortedLines.map { line in
-                LyricsLine.with {
-                    $0.content = (shouldRomanize && romanization == .canBeRomanized)
-                        ? line.content.applyingTransform(.toLatin, reverse: false)!
-                        : line.content
-                    $0.offsetMs = Int32(line.offsetMs ?? 0)
-                }
-            }
+            result += text
         }
-        
-        if let translation = translation {
-            lyricsData.translation = LyricsTranslation.with {
-                $0.languageCode = translation.languageCode
-                $0.lines = translation.lines
+
+        var tokenType = CFStringTokenizerAdvanceToNextToken(tokenizer)
+        while !tokenType.isEmpty {
+            let range = CFStringTokenizerGetCurrentTokenRange(tokenizer)
+            appendGap(upTo: range.location)
+
+            if let romaji = CFStringTokenizerCopyCurrentTokenAttribute(
+                tokenizer, kCFStringTokenizerAttributeLatinTranscription
+            ) as? String {
+                appendToken(romaji)
+            } else {
+                // 非日语 token（英文单词、数字等）原样保留
+                let original = CFStringCreateWithSubstring(
+                    kCFAllocatorDefault, cfText, range
+                ) as String
+                appendToken(original)
             }
+
+            cursor = range.location + range.length
+            tokenType = CFStringTokenizerAdvanceToNextToken(tokenizer)
         }
-        
-        return lyricsData
+        appendGap(upTo: length)
+
+        return result
     }
 }
