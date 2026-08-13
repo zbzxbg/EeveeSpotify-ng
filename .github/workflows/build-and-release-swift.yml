@@ -120,6 +120,7 @@ jobs:
           path: packages/*.deb
           if-no-files-found: error
 
+      # 主要修改了这一步：去掉了 --generate-notes，加上了 --draft
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -127,4 +128,4 @@ jobs:
           gh release create "v${PACKAGE_VERSION}" \
             packages/*.deb \
             --title "EeveeSpotify ${PACKAGE_VERSION}" \
-            --generate-notes
+            --draft
