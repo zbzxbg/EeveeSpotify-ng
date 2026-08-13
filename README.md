@@ -49,3 +49,4 @@ Copyright (C) whoeevee
 仅供个人学习研究，使用风险自负。
 ---
 [更新日志](https://github.com/zbzxbg/EeveeSpotifyReborn-ng/blob/swift/CHANGELOG.md)
+[已知Bug](https://github.com/zbzxbg/EeveeSpotifyReborn-ng/blob/swift/Known-Bugs.md)
