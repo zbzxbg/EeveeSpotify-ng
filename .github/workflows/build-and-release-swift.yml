@@ -1,10 +1,19 @@
-name: Build Swift
+name: Build and Release Swift
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version"
+        required: true
+        type: string
+        default: "1.0.0"
 
 env:
   SWIFTPROTOBUF_VERSION: "1.29.0"
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -12,6 +21,7 @@ jobs:
 
     env:
       THEOS: ${{ github.workspace }}/theos
+      PACKAGE_VERSION: ${{ inputs.version }}
 
     steps:
       - name: Checkout Project
@@ -33,6 +43,13 @@ jobs:
         run: |
           brew install make dpkg ldid
           echo "$(brew --prefix make)/libexec/gnubin" >> "$GITHUB_PATH"
+
+      - name: Validate Version
+        run: |
+          if ! echo "$PACKAGE_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$'; then
+            echo "Invalid version: $PACKAGE_VERSION"
+            exit 1
+          fi
 
       - name: Install SwiftProtobuf (Rootful)
         run: |
@@ -61,22 +78,53 @@ jobs:
 
       - name: Build Rootful Package
         run: |
-          make package FINALPACKAGE=1
+          make clean package \
+            FINALPACKAGE=1 \
+            PACKAGE_VERSION="$PACKAGE_VERSION"
+
+      - name: Save Rootful Package
+        run: |
+          ROOTFUL=$(find packages -name '*iphoneos-arm.deb' -type f | head -n 1)
+
+          if [ -z "$ROOTFUL" ]; then
+            echo "Rootful package not found"
+            exit 1
+          fi
+
+          mv "$ROOTFUL" \
+            "packages/EeveeSpotify-${PACKAGE_VERSION}-rootful.deb"
 
       - name: Build Rootless Package
         run: |
-          make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
+          make clean package \
+            FINALPACKAGE=1 \
+            THEOS_PACKAGE_SCHEME=rootless \
+            PACKAGE_VERSION="$PACKAGE_VERSION"
 
-      - name: Upload Rootful Package
+      - name: Save Rootless Package
+        run: |
+          ROOTLESS=$(find packages -name '*iphoneos-arm64.deb' -type f | head -n 1)
+
+          if [ -z "$ROOTLESS" ]; then
+            echo "Rootless package not found"
+            exit 1
+          fi
+
+          mv "$ROOTLESS" \
+            "packages/EeveeSpotify-${PACKAGE_VERSION}-rootless.deb"
+
+      - name: Upload Packages
         uses: actions/upload-artifact@v4
         with:
-          name: rootful-deb
-          path: packages/*iphoneos-arm.deb
+          name: EeveeSpotify-${{ inputs.version }}
+          path: packages/*.deb
           if-no-files-found: error
 
-      - name: Upload Rootless Package
-        uses: actions/upload-artifact@v4
-        with:
-          name: rootless-deb
-          path: packages/*iphoneos-arm64.deb
-          if-no-files-found: error
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${PACKAGE_VERSION}" \
+            packages/*.deb \
+            --title "EeveeSpotify ${PACKAGE_VERSION}" \
+            --generate-notes
