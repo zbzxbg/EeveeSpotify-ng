@@ -5,7 +5,7 @@
 
 本项目是[EeveeSpotify](https://github.com/whoeevee/EeveeSpotifyReborn)的个人自用修改分支，仅用于学习和日常使用。
 
-原仓库因 DMCA 下架，本分支仅为个人维护，与原作者whoeevee无任何关联。
+原仓库因 [DMCA takedown](https://github.com/github/dmca/blob/master/2025/08/2025-08-14-spotify.md) 下架，本分支仅为个人维护，与原作者whoeevee无任何关联。
 
 测试环境：iPhone 11  iOS 26.6 证书签名 签名软件LCSign 无根deb
 
