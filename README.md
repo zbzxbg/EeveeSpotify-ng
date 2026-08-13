@@ -1,9 +1,9 @@
-基于[EeveeSpotify](https://github.com/whoeevee/EeveeSpotify)更新
+基于[EeveeSpotify](https://github.com/whoeevee/EeveeSpotifyReborn)更新
 
 
 ## 📌 说明
 
-本项目是 [EeveeSpotify](https://github.com/whoeevee/EeveeSpotify) 的个人自用修改分支，仅用于学习和日常使用。
+本项目是 [EeveeSpotify](https://github.com/whoeevee/EeveeSpotifyReborn) 的个人自用修改分支，仅用于学习和日常使用。
 
 原仓库因 DMCA 下架，本分支仅为个人维护，与原作者whoeevee无任何关联。
 
