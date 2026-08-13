@@ -63,7 +63,7 @@ extension String {
 
         let cfText = self as CFString
         let length = CFStringGetLength(cfText)
-        let locale = CFLocaleCreate(kCFAllocatorDefault, "ja" as CFString)
+        let locale = NSLocale(localeIdentifier: "ja") as CFLocale
 
         let options: CFOptionFlags = kCFStringTokenizerUnitWordBoundary
             | kCFStringTokenizerAttributeLatinTranscription
@@ -72,19 +72,24 @@ extension String {
             kCFAllocatorDefault, cfText, CFRangeMake(0, length), options, locale
         )
 
+        func substring(_ range: CFRange) -> String {
+            guard range.length > 0,
+                  let cf = CFStringCreateWithSubstring(kCFAllocatorDefault, cfText, range)
+            else { return "" }
+            return cf as String
+        }
+
         var result = ""
         var cursor: CFIndex = 0
 
         func appendGap(upTo location: CFIndex) {
             guard location > cursor else { return }
-            let gap = CFStringCreateWithSubstring(
-                kCFAllocatorDefault, cfText, CFRangeMake(cursor, location - cursor)
-            )
-            result += gap as String
+            result += substring(CFRangeMake(cursor, location - cursor))
             cursor = location
         }
 
         func appendToken(_ text: String) {
+            guard !text.isEmpty else { return }
             if let last = result.last, !last.isWhitespace, !last.isNewline {
                 result += " "
             }
@@ -101,10 +106,7 @@ extension String {
             ) as? String {
                 appendToken(romaji)
             } else {
-                let original = CFStringCreateWithSubstring(
-                    kCFAllocatorDefault, cfText, range
-                ) as String
-                appendToken(original)
+                appendToken(substring(range))
             }
 
             cursor = range.location + range.length
