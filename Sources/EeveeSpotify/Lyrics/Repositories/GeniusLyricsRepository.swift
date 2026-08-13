@@ -20,7 +20,7 @@ class GeniusLyricsRepository: LyricsRepository {
     }
     
     private func perform(
-        _ path: String, 
+        _ path: String,
         query: [String:Any] = [:]
     ) throws -> GeniusDataResponse? {
         var stringUrl = "\(apiUrl)\(path)"
@@ -108,12 +108,85 @@ class GeniusLyricsRepository: LyricsRepository {
         return matchingByTitle.first!
     }
     
+    // MARK: - 歌词行过滤
+    
+    /// 标准化字符串：忽略大小写和重音符号
+    private func normalizedString(_ s: String) -> String {
+        s.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+         .lowercased()
+         .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
+    /// 段落标记关键词集合（已标准化）
+    private static let sectionKeywords: Set<String> = {
+        let keywords = [
+            "intro", "introducao", "introdução",
+            "verse", "verso",
+            "chorus", "refrao", "refrão",
+            "pre-chorus", "pre-refrao", "pré-refrão",
+            "post-chorus", "pos-refrao", "pós-refrão",
+            "bridge", "ponte",
+            "hook", "gancho",
+            "interlude", "interludio", "interlúdio",
+            "solo", "instrumental",
+            "outro", "encerramento",
+            "drop",
+            "break", "breakdown",
+            "fade out"
+        ]
+        return Set(keywords.map { $0.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current).lowercased() })
+    }()
+    
+    /// 标题前缀（已标准化）
+    private static let titlePrefixes: [String] = {
+        let prefixes = [
+            "letra de \"",
+            "tekisuto o letra de \"",
+            "text of \""
+        ]
+        return prefixes.map { $0.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current).lowercased() }
+    }()
+    
+    /// 判断一行是否是段落标记或标题行
+    private func isSectionHeader(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        
+        let normalizedLine = normalizedString(trimmed)
+        
+        // 检查标题前缀，如 LETRA DE "xxx"
+        if Self.titlePrefixes.contains(where: { normalizedLine.hasPrefix($0) }) {
+            return true
+        }
+        
+        // 检查圆括号包裹的段落标记，如 (INTRO)
+        if trimmed.hasPrefix("(") && trimmed.hasSuffix(")") {
+            let inner = trimmed.dropFirst().dropLast()
+            let normalizedInner = normalizedString(String(inner))
+            if Self.sectionKeywords.contains(normalizedInner) {
+                return true
+            }
+        }
+        
+        // 检查无括号的独立段落标记，如 VERSO、REFRAO
+        if Self.sectionKeywords.contains(normalizedLine) {
+            return true
+        }
+        
+        return false
+    }
+    
     private func mapLyricsLines(_ rawLines: [String]) -> [String] {
         var lines = rawLines
             .map { $0.trimmingCharacters(in: .whitespaces) }
         
-        lines.removeAll { $0 ~= "\\[.*\\]" }
-
+        // 移除方括号标记（原有逻辑）以及新的段落标记/标题行
+        lines.removeAll { line in
+            line.range(of: "\\[.*\\]", options: .regularExpression) != nil ||
+            isSectionHeader(line)
+        }
+        
+        // 去除开头和结尾的空行
         lines = Array(
             lines
                 .drop(while: { $0.isEmpty })
