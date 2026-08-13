@@ -9,8 +9,13 @@ struct EeveeSettingsVersionView: View {
         latestVersion = String(release.tagName.dropFirst(5)) // swiftX.X
     }
     
+    // 🔽 修改：只有正式版才提示更新
     private var isUpdateAvailable: Bool {
-        latestVersion != nil && latestVersion != EeveeSpotify.version
+        guard let latest = latestVersion else { return false }
+        // 检查是否为测试版（包含 -beta.）
+        let isBeta = latest.contains("-beta.")
+        // 版本不同 && 不是测试版 → 显示更新
+        return latest != EeveeSpotify.version && !isBeta
     }
     
     var body: some View {
@@ -18,7 +23,7 @@ struct EeveeSettingsVersionView: View {
             if isUpdateAvailable {
                 Link(
                     "update_available".localized,
-                    destination: URL(string: "https://github.com/zbzxbg/EeveeSpotifyReborn-ng/releases")!
+                    destination: URL(string: "https://github.com/zbzxbg/EeveeSpotifyReborn-ng/releases")!  // ✅ 已修改地址
                 )
             }
         } footer: {
