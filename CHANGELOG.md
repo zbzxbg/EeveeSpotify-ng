@@ -51,5 +51,13 @@
 -  优化 Genius歌词删除标识术语不全的问题
 
 </details>
+### 08.15
+
+<details>
+<summary><b>v0.1.0-beta.5</b></summary>
+
+-  优化 Genius歌词删除标识术语不全的问题
+
+</details>
 
 </details>
