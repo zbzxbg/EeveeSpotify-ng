@@ -88,27 +88,9 @@ extension String {
             cursor = location
         }
 
-        // 是否需要在 token 前插入空格：如果结果末尾已经是空白/换行，
-        // 或者末尾是开括号/开引号类字符(「、(、[、" 等),就不需要再加空格,
-        // 避免出现 "「 Genki" 这种开头多一个空格的情况。
-        func needsSpace(beforeAppendingTo result: String) -> Bool {
-            guard let last = result.last, !last.isWhitespace, !last.isNewline else {
-                return false
-            }
-            if let scalar = last.unicodeScalars.first {
-                switch scalar.properties.generalCategory {
-                case .openPunctuation, .initialPunctuation:
-                    return false
-                default:
-                    break
-                }
-            }
-            return true
-        }
-
         func appendToken(_ text: String) {
             guard !text.isEmpty else { return }
-            if needsSpace(beforeAppendingTo: result) {
+            if let last = result.last, !last.isWhitespace, !last.isNewline {
                 result += " "
             }
             result += text
@@ -136,35 +118,9 @@ extension String {
     }
 
     /// 把首字符大写，前提是首字符本身是字母。
-    /// 现在允许前导空白：跳过前导空白后，检查第一个非空白字符。
-    /// 如果该字符是字母，则大写它；如果是「，则跳过「及「后的空白，
-    /// 将紧跟的字母大写。
-    /// 只处理字符串开头附近的第一个「，后续的「不处理。
+    /// 如果首字符是标点、符号或 ♪ 这类非字母字符，整行原样返回，不做任何处理。
     func capitalizingFirstLetterIfAlphabetic() -> String {
-        // 找到第一个非空白字符
-        guard let firstNonWhitespaceIndex = self.firstIndex(where: { !$0.isWhitespace && !$0.isNewline }) else {
-            return self
-        }
-        
-        let leading = self[..<firstNonWhitespaceIndex] // 前导空白
-        let rest = self[firstNonWhitespaceIndex...]    // 从第一个非空白开始
-
-        guard let first = rest.first else { return self }
-        
-        if first.isLetter {
-            return String(leading) + first.uppercased() + String(rest.dropFirst())
-        }
-        
-        if first == "「" {
-            let afterQuote = rest.dropFirst()
-            let leadingWhitespace = afterQuote.prefix(while: { $0.isWhitespace })
-            let remainder = afterQuote.dropFirst(leadingWhitespace.count)
-            
-            if let letter = remainder.first, letter.isLetter {
-                return String(leading) + "「" + String(leadingWhitespace) + letter.uppercased() + String(remainder.dropFirst())
-            }
-        }
-        
-        return self
+        guard let first = self.first, first.isLetter else { return self }
+        return first.uppercased() + self.dropFirst()
     }
 }
