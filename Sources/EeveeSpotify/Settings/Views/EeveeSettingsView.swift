@@ -89,6 +89,13 @@ struct EeveeSettingsView: View {
                 )
             }
             
+            // MARK: - 新增
+            Button {
+                // 点击后的操作暂时不写，可以以后添加跳转
+            } label: {
+                NgzhwmSectionView()
+            }
+            
             //
             
             Section(footer: Text("reset_data_description".localized)) {
