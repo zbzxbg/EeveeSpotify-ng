@@ -108,109 +108,79 @@ class GeniusLyricsRepository: LyricsRepository {
         return matchingByTitle.first!
     }
     
-    // MARK: - 歌词行清洗辅助方法
+    // MARK: - Non-lyric line filtering
     
-    /// 将文本标准化为纯字母形式（小写、去重音、去数字、去空格和符号）
-    private func normalizedLabel(_ text: String) -> String {
-        let lowercased = text.lowercased()
-        let decomposed = lowercased.folding(options: .diacriticInsensitive, locale: .current)
-        return decomposed.filter { $0.isLetter }
-    }
-    
-    /// 所有需要去除的音乐段落标注词（标准化后只含字母）
-    private let musicSectionLabels: Set<String> = [
-        "intro", "introducao", "verse", "verso", "chorus", "refrao",
-        "prechorus", "prerefrao", "postchorus", "postrefrao", "posrefrao",
-        "bridge", "ponte", "hook", "gancho", "interlude", "interludio",
-        "solo", "instrumental", "outro", "encerramento", "drop", "break",
-        "breakdown", "fadeout", "presaida", "saida", "loop", "preoutro"
-    ]
-    
-    /// 判断一行是否为需要删除的歌词标题前缀（如 "LETRA DE \""、"Text of \"" 等）
-    private func isLanguagePrefixLine(_ line: String) -> Bool {
-        let patterns = [
-            "^letra de\\s+\"",
-            "^tekisuto o letra de\\s+\"",
-            "^text of\\s+\""
+    /// Section-marker keywords (English + Portuguese). Matched AFTER diacritic
+    /// folding + uppercasing, so REFRÃO / REFRAO / refrão / Pré-Refrão all
+    /// normalize to the same token.
+    private static let sectionMarkerPattern: String = {
+        let markers = [
+            "INTRO(DUCAO)?",
+            "VERSE", "VERSO",
+            "CHORUS", "REFRAO",
+            "PRE[- ]?CHORUS", "PRE[- ]?REFRAO",
+            "POST?[- ]?CHORUS", "POS[- ]?REFRAO",
+            "BRIDGE", "PONTE",
+            "HOOK", "GANCHO",
+            "INTERLUDE", "INTERLUDIO",
+            "SOLO", "INSTRUMENTAL",
+            "OUTRO", "ENCERRAMENTO",
+            "DROP",
+            "BREAK(DOWN)?",
+            "FADE[ ]?OUT",
+            "LOOP",
+            "PRE[- ]?OUTRO",
+            "PRE[- ]?SAIDA",
+            "SAIDA"
         ]
-        for pattern in patterns {
-            if let _ = line.range(of: pattern, options: [.regularExpression, .caseInsensitive]) {
-                return true
-            }
-        }
-        return false
+        return "(?:\(markers.joined(separator: "|")))"
+    }()
+    
+    /// Trims, strips diacritics, uppercases — for case/accent-insensitive matching.
+    private func normalizedForMarkerMatch(_ line: String) -> String {
+        return line
+            .trimmingCharacters(in: .whitespaces)
+            .folding(options: .diacriticInsensitive, locale: nil)
+            .uppercased()
     }
     
-    /// 判断一行是否为音乐段落标注（可能带方括号、圆括号，或无括号独立成行）
-    private func isMusicSectionLabel(_ line: String) -> Bool {
-        // 提取所有圆括号和方括号内的内容
-        var bracketContents: [String] = []
+    /// True if the line is structural metadata rather than actual lyric content:
+    /// bracketed tags, parenthesized section markers, bare section-marker lines,
+    /// or `Letra de "..."` / `Text of "..."` style headers.
+    private func isNonLyricLine(_ line: String) -> Bool {
+        let normalized = normalizedForMarkerMatch(line)
+        guard !normalized.isEmpty else { return false }
         
-        // 匹配圆括号
-        let roundRegex = "\\((.*?)\\)"
-        if let regex = try? NSRegularExpression(pattern: roundRegex, options: []) {
-            let nsLine = line as NSString
-            let matches = regex.matches(in: line, options: [], range: NSRange(location: 0, length: nsLine.length))
-            for match in matches {
-                if match.numberOfRanges > 0, let range = Range(match.range(at: 1), in: line) {
-                    bracketContents.append(String(line[range]))
-                }
-            }
+        // [Any bracketed tag], e.g. [Chorus], [Verse 1: Artist]
+        if normalized ~= "^\\[.*\\]$" {
+            return true
         }
         
-        // 匹配方括号
-        let squareRegex = "\\[(.*?)\\]"
-        if let regex = try? NSRegularExpression(pattern: squareRegex, options: []) {
-            let nsLine = line as NSString
-            let matches = regex.matches(in: line, options: [], range: NSRange(location: 0, length: nsLine.length))
-            for match in matches {
-                if match.numberOfRanges > 0, let range = Range(match.range(at: 1), in: line) {
-                    bracketContents.append(String(line[range]))
-                }
-            }
+        // (Structural marker) only — NOT arbitrary parenthesized ad-libs,
+        // e.g. (INTRO), (LOOP), (PRE-OUTRO), (OUTRO), (PRE-SAIDA), (SAIDA)
+        if normalized ~= "^\\(\\s*\(GeniusLyricsRepository.sectionMarkerPattern)\\s*\\d*\\s*\\)$" {
+            return true
         }
         
-        // 如果没有括号，直接检查整行标准化后是否为标注词
-        if bracketContents.isEmpty {
-            return musicSectionLabels.contains(normalizedLabel(line))
+        // Bare marker with no brackets at all, e.g. a standalone "VERSO" line
+        if normalized ~= "^\(GeniusLyricsRepository.sectionMarkerPattern)\\s*\\d*\\s*:?\\s*$" {
+            return true
         }
         
-        // 移除所有括号及内容，检查剩余部分是否只含空白或标点
-        var remaining = line
-        let combinedPattern = "\\(.*?\\)|\\[.*?\\]"
-        if let regex = try? NSRegularExpression(pattern: combinedPattern, options: []) {
-            remaining = regex.stringByReplacingMatches(
-                in: remaining,
-                options: [],
-                range: NSRange(location: 0, length: (remaining as NSString).length),
-                withTemplate: ""
-            )
+        // Header lines: LETRA DE "..." / TEKISUTO O LETRA DE "..." / TEXT OF "..."
+        if normalized ~= "^(TEKISUTO\\s+O\\s+LETRA DE|LETRA DE|TEXT OF)\\s*[\"'\u{201C}\u{2018}]" {
+            return true
         }
         
-        let trimmedRemaining = remaining.trimmingCharacters(in: .whitespacesAndNewlines)
-        // 剩余部分如果没有字母数字，说明括号外无有效歌词
-        let hasAlphanumeric = trimmedRemaining.rangeOfCharacter(from: .alphanumerics) != nil
-        if hasAlphanumeric {
-            return false
-        }
-        
-        // 检查所有括号内容是否都是标注词
-        for content in bracketContents {
-            if !musicSectionLabels.contains(normalizedLabel(content)) {
-                return false
-            }
-        }
-        return true
+        return false
     }
     
     private func mapLyricsLines(_ rawLines: [String]) -> [String] {
         var lines = rawLines
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .map { $0.trimmingCharacters(in: .whitespaces) }
         
-        lines.removeAll { line in
-            isLanguagePrefixLine(line) || isMusicSectionLabel(line)
-        }
-        
+        lines.removeAll { isNonLyricLine($0) }
+
         lines = Array(
             lines
                 .drop(while: { $0.isEmpty })
