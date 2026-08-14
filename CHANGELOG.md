@@ -1,7 +1,7 @@
 # 更新日志
 
 <details open>
-<summary><b>2026年</b>（共10个版本）</summary>
+<summary><b>2026年</b>（共11个版本）</summary>
 
 ### 08.12
 
@@ -97,5 +97,10 @@
 <details>
 <summary><b>v1.0.0-alpha.1</b></summary>
 - 设置入口 给本仓库的功能单独添加可点击的UI
+</details>
+
+<details>
+<summary><b>v1.0.0-alpha.2</b></summary>
+- UI 给本仓库的功能单独添加可点击的UI(歌词/语言罗马化)
 
 </details>
