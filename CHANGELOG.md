@@ -6,7 +6,7 @@
 ### 08.12
 
 <details>
-<summary><b>v0.0.0</b></summary>
+<summary><b>v0.1.0-alpha.1</b></summary>
 
 - 新功能 歌词多级回退实现
 - 优化 EeveeSpotify菜单内的中文翻译
