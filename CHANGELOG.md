@@ -1,7 +1,7 @@
 # 更新日志
 
 <details open>
-<summary><b>2026年</b>（共9个版本）</summary>
+<summary><b>2026年</b>（共10个版本）</summary>
 
 ### 08.12
 
@@ -92,6 +92,7 @@
 
 - 1.目前中文/韩文的罗马字内容会原样返回
 - 2.歌词回退为强制性多级回退
+</details>
 
 <details>
 <summary><b>v1.0.0-alpha.1</b></summary>
