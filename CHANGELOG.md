@@ -1,7 +1,7 @@
 # 更新日志
 
 <details open>
-<summary><b>2026年</b>（共6个版本）</summary>
+<summary><b>2026年</b>（共8个版本）</summary>
 
 ### 08.12
 
