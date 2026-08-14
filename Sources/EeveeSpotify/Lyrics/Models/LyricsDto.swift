@@ -88,9 +88,27 @@ extension String {
             cursor = location
         }
 
+        // 是否需要在 token 前插入空格：如果结果末尾已经是空白/换行，
+        // 或者末尾是开括号/开引号类字符(「、(、[、" 等),就不需要再加空格,
+        // 避免出现 "「 Genki" 这种开头多一个空格的情况。
+        func needsSpace(beforeAppendingTo result: String) -> Bool {
+            guard let last = result.last, !last.isWhitespace, !last.isNewline else {
+                return false
+            }
+            if let scalar = last.unicodeScalars.first {
+                switch scalar.properties.generalCategory {
+                case .openPunctuation, .initialQuotePunctuation:
+                    return false
+                default:
+                    break
+                }
+            }
+            return true
+        }
+
         func appendToken(_ text: String) {
             guard !text.isEmpty else { return }
-            if let last = result.last, !last.isWhitespace, !last.isNewline {
+            if needsSpace(beforeAppendingTo: result) {
                 result += " "
             }
             result += text
@@ -118,9 +136,9 @@ extension String {
     }
 
     /// 把首字符大写，前提是首字符本身是字母。
-    /// 如果首字符是「，则跳过「本身，尝试把「后面紧跟的那个字符大写(前提它是字母)，
-    /// 「原样保留在最前面。
-    /// 如果首字符是其他非字母字符(标点、♪ 等)，整行原样返回，不做任何处理。
+    /// 如果首字符是「，则跳过「本身(以及「后面可能残留的空白),
+    /// 尝试把紧跟着的那个字符大写(前提它是字母),「保留在最前面。
+    /// 如果首字符是其他非字母字符(标点、♪ 等),整行原样返回,不做任何处理。
     func capitalizingFirstLetterIfAlphabetic() -> String {
         guard let first = self.first else { return self }
 
@@ -129,9 +147,11 @@ extension String {
         }
 
         if first == "「" {
-            let rest = self.dropFirst()
-            if let second = rest.first, second.isLetter {
-                return "「" + second.uppercased() + rest.dropFirst()
+            let afterQuote = self.dropFirst()
+            let leadingWhitespace = afterQuote.prefix(while: { $0.isWhitespace })
+            let remainder = afterQuote.dropFirst(leadingWhitespace.count)
+            if let letter = remainder.first, letter.isLetter {
+                return "「" + leadingWhitespace + letter.uppercased() + remainder.dropFirst()
             }
         }
 
