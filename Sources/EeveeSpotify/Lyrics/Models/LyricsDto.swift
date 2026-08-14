@@ -97,7 +97,7 @@ extension String {
             }
             if let scalar = last.unicodeScalars.first {
                 switch scalar.properties.generalCategory {
-                case .openPunctuation, .initialPunctuation:
+                case .openPunctuation, .initialQuotePunctuation:
                     return false
                 default:
                     break
@@ -136,25 +136,35 @@ extension String {
     }
 
     /// 把首字符大写，前提是首字符本身是字母。
-    /// 如果首字符是「，则跳过「本身(以及「后面可能残留的空白),
-    /// 尝试把紧跟着的那个字符大写(前提它是字母),「保留在最前面。
-    /// 如果首字符是其他非字母字符(标点、♪ 等),整行原样返回,不做任何处理。
+    /// 现在允许前导空白：跳过前导空白后，检查第一个非空白字符。
+    /// 如果该字符是字母，则大写它；如果是「，则跳过「及「后的空白，
+    /// 将紧跟的字母大写。
+    /// 只处理字符串开头附近的第一个「，后续的「不处理。
     func capitalizingFirstLetterIfAlphabetic() -> String {
-        guard let first = self.first else { return self }
-
-        if first.isLetter {
-            return first.uppercased() + self.dropFirst()
+        // 找到第一个非空白字符
+        guard let firstNonWhitespaceIndex = self.firstIndex(where: { !$0.isWhitespace && !$0.isNewline }) else {
+            return self
         }
+        
+        let leading = self[..<firstNonWhitespaceIndex] // 前导空白
+        let rest = self[firstNonWhitespaceIndex...]    // 从第一个非空白开始
 
+        guard let first = rest.first else { return self }
+        
+        if first.isLetter {
+            return String(leading) + first.uppercased() + String(rest.dropFirst())
+        }
+        
         if first == "「" {
-            let afterQuote = self.dropFirst()
+            let afterQuote = rest.dropFirst()
             let leadingWhitespace = afterQuote.prefix(while: { $0.isWhitespace })
             let remainder = afterQuote.dropFirst(leadingWhitespace.count)
+            
             if let letter = remainder.first, letter.isLetter {
-                return "「" + leadingWhitespace + letter.uppercased() + remainder.dropFirst()
+                return String(leading) + "「" + String(leadingWhitespace) + letter.uppercased() + String(remainder.dropFirst())
             }
         }
-
+        
         return self
     }
 }
