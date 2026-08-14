@@ -29,10 +29,8 @@
 
 本项目遵循原项目的GNU General Public License v3.0。
 
-原作者版权：
-Copyright (C) whoeevee
 
-最近修改版版本日期：2026.8.13
+最近修改版版本日期：2026.8.14
 
 完整协议见 [LICENSE](LICENSE) 文件。
 
