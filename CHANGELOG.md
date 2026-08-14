@@ -63,8 +63,13 @@
 <details>
 <summary><b>v0.1.0-beta.6</b></summary>
 
- - 修复 罗马字转换后,行首为「时无法大写后续第一个字母的问题
+ - 修复 罗马字转换后,行首为「时无法大写后续第一个字母的问题❌
 
 </details>
+
+<details>
+<summary><b>v0.1.0-beta.7</b></summary>
+
+ - 修复 罗马字转换后,行首为「时无法大写后续第一个字母的问题
 
 </details>
