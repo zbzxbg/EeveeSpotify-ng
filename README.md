@@ -20,7 +20,6 @@
 - 不提供 IPA 包，请自行构建
 - 可能不提供技术支持，Issue 区不一定回复
 - 本插件含多个不可更改的实验性功能
-- 目前测试可调整本仓库内功能的UI ing……
 
 
 ---
@@ -46,5 +45,6 @@
 本项目为独立修改插件，与Spotify官方无任何关联。  
 仅供个人学习研究，使用风险自负。
 ---
-[更新日志](https://github.com/zbzxbg/EeveeSpotifyReborn-ng/blob/swift/CHANGELOG.md)
-[已知Bug](https://github.com/zbzxbg/EeveeSpotifyReborn-ng/blob/swift/Known-Bugs.md)
+- 目前测试可调整本仓库内功能的UI ing……
+- [更新日志](https://github.com/zbzxbg/EeveeSpotifyReborn-ng/blob/swift/CHANGELOG.md)
+- [已知Bug](https://github.com/zbzxbg/EeveeSpotifyReborn-ng/blob/swift/Known-Bugs.md)
