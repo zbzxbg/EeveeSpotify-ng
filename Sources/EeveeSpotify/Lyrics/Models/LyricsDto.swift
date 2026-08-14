@@ -97,7 +97,7 @@ extension String {
             }
             if let scalar = last.unicodeScalars.first {
                 switch scalar.properties.generalCategory {
-                case .openPunctuation, .initialQuotePunctuation:
+                case .openPunctuation, .initialPunctuation:
                     return false
                 default:
                     break
