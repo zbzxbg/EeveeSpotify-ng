@@ -42,13 +42,10 @@ struct EeveeSettingsVersionView: View {
         }
     }
     
-    // 🔽 修改：只有正式版才提示更新
+    // 版本不同即提示更新（不再区分是否测试版）
     private var isUpdateAvailable: Bool {
         guard let latest = latestVersion else { return false }
-        // 检查是否为测试版（包含 -beta.）
-        let isBeta = latest.contains("-beta.")
-        // 版本不同 && 不是测试版 → 显示更新
-        return latest != EeveeSpotify.version && !isBeta
+        return latest != EeveeSpotify.version
     }
     
     var body: some View {
