@@ -2,9 +2,9 @@ import SwiftUI
 
 struct NgzhwmTranslateSettingsView: View {
     // 使用 @AppStorage 自动保存到 UserDefaults，默认值都是 true（开启罗马化）
-    @AppStorage("ngzhwm_chineseRomanization") var chineseRomanization: Bool = true
-    @AppStorage("ngzhwm_japaneseRomanization") var japaneseRomanization: Bool = true
-    @AppStorage("ngzhwm_koreanRomanization") var koreanRomanization: Bool = true
+    @AppStorage("ngzhwm_chineseRomanization") var chineseRomanization: Bool = false
+    @AppStorage("ngzhwm_japaneseRomanization") var japaneseRomanization: Bool = false
+    @AppStorage("ngzhwm_koreanRomanization") var koreanRomanization: Bool = false
     
     var body: some View {
         List {
