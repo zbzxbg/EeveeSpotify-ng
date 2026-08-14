@@ -118,9 +118,23 @@ extension String {
     }
 
     /// 把首字符大写，前提是首字符本身是字母。
-    /// 如果首字符是标点、符号或 ♪ 这类非字母字符，整行原样返回，不做任何处理。
+    /// 如果首字符是「，则跳过「本身，尝试把「后面紧跟的那个字符大写(前提它是字母)，
+    /// 「原样保留在最前面。
+    /// 如果首字符是其他非字母字符(标点、♪ 等)，整行原样返回，不做任何处理。
     func capitalizingFirstLetterIfAlphabetic() -> String {
-        guard let first = self.first, first.isLetter else { return self }
-        return first.uppercased() + self.dropFirst()
+        guard let first = self.first else { return self }
+
+        if first.isLetter {
+            return first.uppercased() + self.dropFirst()
+        }
+
+        if first == "「" {
+            let rest = self.dropFirst()
+            if let second = rest.first, second.isLetter {
+                return "「" + second.uppercased() + rest.dropFirst()
+            }
+        }
+
+        return self
     }
 }
