@@ -1,12 +1,45 @@
 import SwiftUI
 
+private enum VersionCheckError: Error {
+    case timedOut
+}
+
 struct EeveeSettingsVersionView: View {
     @State private var latestVersion: String?
     @State private var isPresentingContributorsSheet = false
     
-    private func loadVersion() async throws {
-        let release = try await GitHubHelper.shared.getLatestRelease()
-        latestVersion = String(release.tagName.dropFirst(5)) // swiftX.X
+    // 限时 15 秒查询最新版本；超时或请求失败都视为"假装查询成功、且没有新版本"，
+    // 避免 UI 一直卡在"正在检查更新"。
+    private func loadVersion() async {
+        do {
+            let release = try await withTimeout(seconds: 15) {
+                try await GitHubHelper.shared.getLatestRelease()
+            }
+            latestVersion = String(release.tagName.dropFirst(5)) // swiftX.X
+        } catch {
+            latestVersion = EeveeSpotify.version
+        }
+    }
+    
+    private func withTimeout<T: Sendable>(
+        seconds: TimeInterval,
+        operation: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                throw VersionCheckError.timedOut
+            }
+            
+            guard let result = try await group.next() else {
+                throw VersionCheckError.timedOut
+            }
+            group.cancelAll()
+            return result
+        }
     }
     
     // 🔽 修改：只有正式版才提示更新
@@ -53,7 +86,7 @@ struct EeveeSettingsVersionView: View {
         
         .onAppear {
             Task {
-                try await loadVersion()
+                await loadVersion()
             }
         }
     }
