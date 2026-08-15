@@ -1,12 +1,6 @@
 import Foundation
 import Orion
 
-private func emptyLyricsResponseData() -> Data {
-    (try? Lyrics.with {
-        $0.data = LyricsData()
-    }.serializedBytes()) ?? Data()
-}
-
 // MARK: - 线程安全的拦截上下文（按 taskIdentifier 隔离）
 final class InterceptionContext {
     static let shared = InterceptionContext()
@@ -136,19 +130,8 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
                 orig.URLSession(session, dataTask: task, didReceiveResponse: okResponse, completionHandler: handler)
                 return
             } catch {
-                // 无法生成自定义歌词时仍返回可解析的空歌词，避免官方歌词透传。
-                let emptyData = emptyLyricsResponseData()
-                let headerFields = response.allHeaderFields as? [String: String] ?? [:]
-                let okResponse = HTTPURLResponse(
-                    url: url,
-                    statusCode: 200,
-                    httpVersion: "HTTP/1.1",
-                    headerFields: headerFields
-                ) ?? HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil)!
-
-                InterceptionContext.shared.setState(.replacingResponse, for: task)
-                InterceptionContext.shared.setCustomData(emptyData, for: task)
-                orig.URLSession(session, dataTask: task, didReceiveResponse: okResponse, completionHandler: handler)
+                // 自定义歌词失败时透传原始响应，让官方错误流程处理，不再伪造空歌词。
+                orig.URLSession(session, dataTask: task, didReceiveResponse: response, completionHandler: handler)
                 return
             }
         }
@@ -213,18 +196,17 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
 
         switch state {
         case .replacingResponse:
-            // 使用缓存的自定义歌词数据，若缓存丢失则重新生成或回退为空数据
-            let data: Data
+            // 使用缓存的自定义歌词数据；缓存丢失时将错误交给官方流程。
             if let cached = InterceptionContext.shared.getCustomData(for: task) {
-                data = cached
+                sendDataAndComplete(cached, task: task, session: session, error: nil)
             } else {
                 do {
-                    data = try getLyricsDataForCurrentTrack(url.path)
+                    let data = try getLyricsDataForCurrentTrack(url.path)
+                    sendDataAndComplete(data, task: task, session: session, error: nil)
                 } catch {
-                    data = emptyLyricsResponseData()
+                    orig.URLSession(session, task: task, didCompleteWithError: error)
                 }
             }
-            sendDataAndComplete(data, task: task, session: session, error: nil)
 
         case .buffering:
             guard error == nil else {
@@ -267,14 +249,9 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
                     sendDataAndComplete(buffer, task: task, session: session, error: nil)
                 }
             } catch {
-                // 歌词解析/生成失败时不回退到 Spotify 官方歌词，避免官方框架混入。
+                // 歌词解析/生成失败时透传错误，让歌词组件按官方错误流程处理。
                 if url.isLyrics {
-                    sendDataAndComplete(
-                        emptyLyricsResponseData(),
-                        task: task,
-                        session: session,
-                        error: nil
-                    )
+                    orig.URLSession(session, task: task, didCompleteWithError: error)
                 } else {
                     sendDataAndComplete(buffer, task: task, session: session, error: nil)
                 }

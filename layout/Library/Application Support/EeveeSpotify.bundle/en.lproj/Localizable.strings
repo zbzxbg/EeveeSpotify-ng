@@ -53,10 +53,7 @@ enter_user_token_message = "In order to use Musixmatch, you need to retrieve you
 genius_fallback = "Genius Fallback";
 genius_fallback_description = "Load lyrics from Genius if there is a problem with %@.";
 
-show_fallback_reasons = "Show Fallback Reasons";
 
-hide_lyrics_on_error = "Hide on Error";
-hide_lyrics_on_error_description = "Remove the lyrics component if lyrics fail to load.";
 
 romanized_lyrics = "Romanized Lyrics";
 romanized_lyrics_description = "Display romanized lyrics for Japanese, Korean, and Chinese.";
@@ -101,7 +98,6 @@ could_not_share_popup = "Couldn’t share to the selected destination or LiveCon
 
 /* MARK: Lyrics */
 
-fallback_attribute = "Fallback";
 romanized_attribute = "Romanized";
 
 musixmatch_unauthorized_popup = "The tweak is unable to load lyrics from Musixmatch due to Unauthorized error. Please check or update your Musixmatch token. If you use an iPad, you should get the token from the Musixmatch app for iPad.";
