@@ -104,7 +104,7 @@
 - UI 给本仓库的功能单独添加可点击的UI(歌词/语言罗马化)
 </details>
 
-### 08.14
+### 08.15
 
 <details>
 <summary><b>v1.0.0-alpha.3</b></summary>
