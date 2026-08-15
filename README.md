@@ -48,4 +48,3 @@
 ---
 - [更新日志](https://github.com/zbzxbg/EeveeSpotifyReborn-ng/blob/swift/CHANGELOG.md)
 - [已知Bug](https://github.com/zbzxbg/EeveeSpotifyReborn-ng/blob/swift/Known-Bugs.md)
-- 感谢ChatGPT，Claude，DeepSeek，Gemini，Grok，GLM，Manus的参与（
