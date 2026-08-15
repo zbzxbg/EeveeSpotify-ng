@@ -143,4 +143,11 @@
 
 </details>
 
+<details>
+<summary><b>v1.0.0-beta.4</b></summary>
+
+- 优化 EeveeSpotify菜单内的中文翻译
+
+</details>
+
 </details>
