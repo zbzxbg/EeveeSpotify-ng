@@ -16,6 +16,32 @@ class MusixmatchLyricsRepository: LyricsRepository {
         return ""
     }
 
+    private func isNgzhwmRomanizationEnabled(for romanizationLanguage: String) -> Bool {
+        guard UserDefaults.lyricsOptions.romanization else {
+            return false
+        }
+
+        switch romanizationLanguage.lowercased() {
+        case "rc", "rz":
+            return UserDefaults.standard.bool(forKey: "ngzhwm_chineseRomanization")
+        case "rj":
+            return UserDefaults.standard.bool(forKey: "ngzhwm_japaneseRomanization")
+        case "rk":
+            return UserDefaults.standard.bool(forKey: "ngzhwm_koreanRomanization")
+        default:
+            return false
+        }
+    }
+
+    private var selectedLanguageForRequest: String {
+        let normalizedLanguage = selectedLanguage.lowercased()
+        guard normalizedLanguage.hasPrefix("r") else {
+            return selectedLanguage
+        }
+
+        return isNgzhwmRomanizationEnabled(for: selectedLanguage) ? selectedLanguage : ""
+    }
+
     var selectedLanguage: String
 
     static let shared = MusixmatchLyricsRepository(
@@ -39,7 +65,16 @@ class MusixmatchLyricsRepository: LyricsRepository {
     private let lyricsCache = NSCache<NSString, CachedLyrics>()
 
     private func getCacheKey(for query: LyricsSearchQuery) -> String {
-        return "\(query.hashValue)_\(selectedLanguage)"
+        let options = UserDefaults.lyricsOptions
+        let romanizationSettings = [
+            options.romanization,
+            UserDefaults.standard.bool(forKey: "ngzhwm_chineseRomanization"),
+            UserDefaults.standard.bool(forKey: "ngzhwm_japaneseRomanization"),
+            UserDefaults.standard.bool(forKey: "ngzhwm_koreanRomanization"),
+            shouldRemoveMxmInterludeSymbol,
+        ].map { $0 ? "1" : "0" }.joined()
+
+        return "\(query.hashValue)_\(selectedLanguage)_\(romanizationSettings)"
     }
 
     //
@@ -165,8 +200,10 @@ class MusixmatchLyricsRepository: LyricsRepository {
             "q_artist": query.primaryArtist,
         ]
 
-        if !selectedLanguage.isEmpty {
-            musixmatchQuery["selected_language"] = selectedLanguage
+        let requestedLanguage = selectedLanguageForRequest
+
+        if !requestedLanguage.isEmpty {
+            musixmatchQuery["selected_language"] = requestedLanguage
             musixmatchQuery["part"] = "subtitle_translated"
         }
 
@@ -210,7 +247,7 @@ class MusixmatchLyricsRepository: LyricsRepository {
             var didReplaceAnyLine = false
 
             // 优先处理：用户直接选择了罗马音语言
-            if selectedLanguage == romanizationLanguage,
+            if requestedLanguage == romanizationLanguage,
                 let subtitleTranslated = subtitle["subtitle_translated"] as? [String: Any],
                 let subtitleTranslatedBody = subtitleTranslated["subtitle_body"] as? String,
                 let subtitlesTranslated = try? JSONDecoder().decode(
@@ -225,7 +262,8 @@ class MusixmatchLyricsRepository: LyricsRepository {
                 }
             }
             // 次优先：全局罗马化开关开启，且未直接选择罗马音语言，尝试通过翻译接口获取
-            else if options.romanization && selectedLanguage != romanizationLanguage {
+            else if isNgzhwmRomanizationEnabled(for: romanizationLanguage),
+                requestedLanguage != romanizationLanguage {
                 if let translations = try? getTranslations(
                     query.spotifyTrackId,
                     selectedLanguage: romanizationLanguage
