@@ -92,9 +92,9 @@ struct EeveeSettingsView: View {
             // MARK: - 新增
             Button {
                pushSettingsController(
-                   with: NgzhwmLyricsSettingsView(),
-                   title: "ngzhwm的专属功能"  // 导航栏标题，可以改为“歌词多级回退”
-                )
+                with: NgzhwmContainerSettingsView(),   // 改这里
+                title: "ngzhwm的专属功能"
+            )
            } label: {
                 NgzhwmSectionView()
             }
