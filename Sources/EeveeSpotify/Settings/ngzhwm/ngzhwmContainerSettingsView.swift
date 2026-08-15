@@ -14,7 +14,7 @@ struct NgzhwmContainerSettingsView: View {
     
     @ViewBuilder private func lyricsFallbackSection() -> some View {
         Section(
-            footer: Text("当此选项开启时，歌词将按照Mxm-PL-LRC-Gen的方式多级回退查询展示（每个歌词源最长尝试两秒，若两秒还未返回有效歌词则查询下一个歌词源）。当此选项关闭时，歌词会按照whoeevee菜单内用户的设置进行查询展示。")
+            footer: Text("当此选项开启时，歌词将按照Mxm-PL-LRC-Gen的方式多级回退查询（每个歌词源最长尝试两秒，若两秒还未返回有效歌词则查询下一个歌词源）。当此选项关闭时，歌词会按照whoeevee菜单内用户的设置进行查询。")
         ) {
             Toggle(
                 "歌词多级回退",
