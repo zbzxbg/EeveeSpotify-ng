@@ -133,6 +133,8 @@
 - 优化 EeveeSpotify菜单内的中文翻译
 - 修复 Mxm可能有无法把日语翻译成罗马字的问题
 
+</details>
+
 <details>
 <summary><b>v1.0.0-beta.3</b></summary>
 
