@@ -1,7 +1,7 @@
 # Changelog
 
 <details open>
-<summary><b>2026</b> (20 versions)</summary>
+<summary><b>2026</b> (21 versions)</summary>
 
 ### 08.12
 
@@ -190,6 +190,13 @@ Additional notes:
 <summary><b>v2.0.0-beta.3</b></summary>
 
 - Feature: Added the "Disable Lyrics Function" option.
+
+</details>
+
+<details>
+<summary><b>v2.0.0-beta.4</b></summary>
+
+- Improved the English translations in the EeveeSpotify menu
 
 </details>
 
