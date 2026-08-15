@@ -1,15 +1,15 @@
-# 更新日志
+# Changelog
 
 <details open>
-<summary><b>2026年</b>（共20个版本）</summary>
+<summary><b>2026</b> (20 versions)</summary>
 
 ### 08.12
 
 <details>
 <summary><b>v0.1.0-alpha.1</b></summary>
 
-- 新功能 歌词多级回退实现
-- 优化 EeveeSpotify菜单内的中文翻译
+- Feature: Implemented multi-level lyrics fallback.
+- Improved the Chinese translations in the EeveeSpotify menu.
 
 </details>
 
@@ -18,35 +18,35 @@
 <details>
 <summary><b>v0.1.0-beta.1</b></summary>
 
-- 优化 日语罗马字的展示问题
-- 优化 歌词回退逻辑
-- 修复 Genius歌词删除标识术语不全的问题
-- 修复 打开Spotify侧边栏可能会崩溃的问题
-- 删除 歌词框架的"罗马化"显示和"回退/回退原因"显示
+- Improved the display of Japanese romanized lyrics.
+- Improved the lyrics fallback logic.
+- Fixed incomplete terminology when removing lyric annotations from Genius lyrics.
+- Fixed a possible crash when opening Spotify's sidebar.
+- Removed the "Romanized" and "Fallback/Fallback Reason" labels from the lyrics frame.
 
 </details>
 
 <details>
 <summary><b>v0.1.0-beta.2</b></summary>
 
-- 优化 日语罗马字歌词每行首字母大写
-- 优化 歌词回退逻辑
+- Improved capitalization of the first letter of each line in Japanese romanized lyrics.
+- Improved the lyrics fallback logic.
 
 </details>
 
 <details>
 <summary><b>v0.1.0-beta.3</b></summary>
 
-- 更改 GitHub链接指向本仓库(常见问题除外)
-- 优化 EeveeSpotify菜单内的中文翻译
+- Changed the GitHub link to point to this repository, except for the Common Issues link.
+- Improved the Chinese translations in the EeveeSpotify menu.
 
 </details>
 
 <details>
 <summary><b>v0.1.0-beta.4</b></summary>
 
-- 优化 "检查更新"方式
-- 优化 Genius歌词删除标识术语不全的问题
+- Improved the update-checking method.
+- Fixed incomplete terminology when removing lyric annotations from Genius lyrics.
 
 </details>
 
@@ -55,142 +55,141 @@
 <details>
 <summary><b>v0.1.0-beta.5</b></summary>
 
-- 优化 Genius歌词删除标识术语不全的问题
-- 修复 检查更新的时候可能会一直卡在“正在检查更新”的问题
+- Fixed incomplete terminology when removing lyric annotations from Genius lyrics.
+- Fixed an issue where checking for updates could remain stuck on "Checking for Update".
 
 </details>
 
 <details>
 <summary><b>v0.1.0-beta.6</b></summary>
 
-- 修复 罗马字转换后,行首为「时无法大写后续第一个字母的问题❌
+- Fixed an issue where the first letter after `「` could not be capitalized when a romanized line started with it. ❌
 
 </details>
 
 <details>
 <summary><b>v0.1.0-beta.7</b></summary>
 
-- 修复 罗马字转换后,行首为「时无法大写后续第一个字母的问题❌
-- 666修不好不修了😡
+- Fixed an issue where the first letter after `「` could not be capitalized when a romanized line started with it. ❌
+- Tried everything and still could not fix it, so it was left as-is. 😡
 
 </details>
 
 <details>
 <summary><b>v0.1.0</b></summary>
 
-- 新功能 歌词多级回退实现
-- 优化 日语罗马字的展示问题
-- 优化 日语罗马字歌词每行的首字母会大写
-- 优化 歌词回退逻辑
-- 优化 EeveeSpotify菜单内的中文翻译
-- 优化 “检查更新”方式
-- 优化 Genius歌词删除标识术语不全的问题
-- 更改 EveeSpotify菜单内的GitHub链接指向本仓库(常见问题除外)
-- 修复 打开Spotify侧边栏可能会崩溃的问题
-- 修复 检查更新时可能卡在“正在检查更新”的问题
-- 删除 歌词框架的“罗马化”显示和“回退/回退原因”显示
+- Feature: Implemented multi-level lyrics fallback.
+- Improved the display of Japanese romanized lyrics.
+- Improved capitalization of the first letter of each line in Japanese romanized lyrics.
+- Improved the lyrics fallback logic.
+- Improved the Chinese translations in the EeveeSpotify menu.
+- Improved the update-checking method.
+- Fixed incomplete terminology when removing lyric annotations from Genius lyrics.
+- Changed the GitHub link in the EeveeSpotify menu to point to this repository, except for the Common Issues link.
+- Fixed a possible crash when opening Spotify's sidebar.
+- Fixed an issue where checking for updates could remain stuck on "Checking for Update".
+- Removed the "Romanized" and "Fallback/Fallback Reason" labels from the lyrics frame.
 
-- 1.目前中文/韩文的罗马字内容会原样返回
-- 2.歌词回退为强制性多级回退
+Additional notes:
+
+1. Chinese and Korean romanized content was returned as-is.
+2. Lyrics fallback used a mandatory multi-level fallback process.
 
 </details>
 
 <details>
 <summary><b>v1.0.0-alpha.1</b></summary>
 
-- 设置入口 给本仓库的功能单独添加可点击的UI
+- Added a clickable settings entry dedicated to this repository's features.
 
 </details>
 
 <details>
 <summary><b>v1.0.0-alpha.2</b></summary>
 
-- UI 给本仓库的功能单独添加可点击的UI(歌词/语言罗马化)
+- Added dedicated clickable UI for this repository's features, including lyrics and language romanization.
 
 </details>
 
 ### 08.15
 
 <details>
-    
 <summary><b>v1.0.0-alpha.3</b></summary>
 
-- UI 给本仓库的功能单独添加可点击的UI(歌词/语言罗马化)
+- Added dedicated clickable UI for this repository's features, including lyrics and language romanization.
 
 </details>
 
 <details>
 <summary><b>v1.0.0-beta.1</b></summary>
 
-- 新功能测试 可选择歌词回退方式
+- Experimental feature: Added selectable lyrics fallback modes.
 
 </details>
 
 <details>
 <summary><b>v1.0.0-beta.2</b></summary>
 
-- 新功能测试 菜单可单独选择日语/中文/韩文歌词是否罗马化
-- 优化 EeveeSpotify菜单内的中文翻译
-- 修复 Mxm可能有无法把日语翻译成罗马字的问题
+- Experimental feature: Added independent romanization switches for Japanese, Chinese, and Korean lyrics.
+- Improved the Chinese translations in the EeveeSpotify menu.
+- Fixed an issue where Mxm could fail to translate Japanese lyrics into romanized lyrics.
 
 </details>
 
 <details>
 <summary><b>v1.0.0-beta.3</b></summary>
 
-- 修复 插件会把原本Mxm有的日语罗马化歌词无视，把日语原文交给本地处理的问题
-- 优化 EeveeSpotify菜单内的中文翻译
+- Fixed an issue where the tweak ignored Japanese romanized lyrics already provided by Mxm and passed the original Japanese lyrics to local processing instead.
+- Improved the Chinese translations in the EeveeSpotify menu.
 
 </details>
 
 <details>
 <summary><b>v1.0.0-beta.4</b></summary>
 
-- 优化 EeveeSpotify菜单内的中文翻译
+- Improved the Chinese translations in the EeveeSpotify menu.
 
 </details>
 
 <details>
 <summary><b>v1.0.0</b></summary>
 
-- 新功能 插件独立设置入口，可管理歌词/语言罗马化开关
-- 新功能 歌词回退方式选择(可手动切换)
-- 新功能 日语/中文/韩文歌词独立罗马化开关(实验性)
-- 修复 Mxm可能无法将日语翻译成罗马字的问题
-- 修复 插件会无视Mxm已有的日语罗马化歌词，强制将日语原文交由本地处理的问题
-- 优化 EeveeSpotify菜单内的中文翻译
+- Feature: Added an independent settings entry for managing lyrics and language romanization switches.
+- Feature: Added selectable lyrics fallback modes with manual switching.
+- Feature: Added independent experimental romanization switches for Japanese, Chinese, and Korean lyrics.
+- Fixed an issue where Mxm could fail to translate Japanese lyrics into romanized lyrics.
+- Fixed an issue where the tweak ignored Japanese romanized lyrics already provided by Mxm and forcibly passed the original Japanese lyrics to local processing instead.
+- Improved the Chinese translations in the EeveeSpotify menu.
 
 </details>
 
 <details>
 <summary><b>v2.0.0-beta.1</b></summary>
 
-- 新功能 Mxm的间奏符号可选择是否清除
-- 修复 自定义歌词加载失败时可能重新显示Spotify官方歌词的问题
-- 修复 日语歌词在本地罗马化时被误判为中文的问题
-- 修复 检查更新时当前版本与GitHub最新版本相同仍提示可更新的问题
-- 优化 EeveeSpotify菜单内的中文翻译
-- 优化 歌词多级回退逻辑
-- 优化 减少歌词请求过早失败的问题
-- 优化 ngzhwm设置界面的英文和简体中文本地化说明
-- 删除 EeveeSpotify菜单内的“展示回退原因”UI和功能
-- 回退 在歌词加载失败时不再伪造空歌词
-
-
+- Feature: Added an option to remove Mxm's interlude symbol.
+- Fixed an issue where Spotify's official lyrics could reappear when custom lyrics failed to load.
+- Fixed an issue where Japanese lyrics were incorrectly identified as Chinese during local romanization.
+- Fixed a false update notification when the current version matched the latest GitHub version.
+- Improved the Chinese and English translations in the EeveeSpotify menu.
+- Improved the multi-level lyrics fallback logic.
+- Improved lyrics request handling to reduce premature failures.
+- Improved the English and Simplified Chinese descriptions in the ngzhwm settings screen.
+- Removed the "Show Fallback Reasons" UI and functionality from the EeveeSpotify menu.
+- Reverted the behavior of fabricating empty lyrics when lyrics loading fails.
 
 </details>
 
 <details>
 <summary><b>v2.0.0-beta.2</b></summary>
 
-- 修复 在菜单未开启“日语歌词罗马化”选项的情况下，仍会返回罗马化歌词的问题
+- Fixed an issue where romanized lyrics could still be returned even when "Romanize Japanese Lyrics" was disabled in the menu.
 
 </details>
 
 <details>
 <summary><b>v2.0.0-beta.3</b></summary>
 
-- 新功能 “禁用歌词功能”
+- Feature: Added the "Disable Lyrics Function" option.
 
 </details>
 

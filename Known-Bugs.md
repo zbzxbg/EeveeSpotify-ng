@@ -1,9 +1,8 @@
-- 首次启动Spotify的一段时间内,部分歌曲的官方歌词框架可能会提前展示✅
-- 首次启动Spotify时一段时间内,切换歌曲过后,歌词框架可能会消失
-- 首次启动Spotify时一段时间内,可能有无法打开艺人主页的问题
-- Mxm可能有无法把日语翻译成罗马字的问题✅
-- 在检查更新的时候,可能会一直处于“正在检查更新”的状态✅
-- Mxm和PL的歌词可能会被跳过✅
-- 歌词框架有可能返回Spotify官方的✅
-- 用本地翻译日语罗马歌词时可能会出现翻译成中文的问题✅
-
+- Shortly after Spotify is launched for the first time, the official lyrics frame may appear prematurely for some songs. ✅
+- Shortly after Spotify is launched for the first time, the lyrics frame may disappear after switching tracks.
+- Shortly after Spotify is launched for the first time, artist pages may occasionally fail to open.
+- Mxm may fail to translate Japanese lyrics into romanized lyrics. ✅
+- The update check may remain stuck on "Checking for Update". ✅
+- Mxm and PetitLyrics requests may be skipped. ✅
+- The lyrics frame may return Spotify's official lyrics. ✅
+- Japanese lyrics may be incorrectly translated as Chinese when romanized locally. ✅
