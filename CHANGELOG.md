@@ -200,7 +200,7 @@ Additional notes:
 
 </details>
 
-### 08.15
+### 08.16
 
 <details>
 <summary><b>v2.0.0</b></summary>
