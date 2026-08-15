@@ -1,4 +1,5 @@
 import Foundation
+import NaturalLanguage
 
 struct LyricsDto {
     var lines: [LyricsLineDto]
@@ -14,6 +15,7 @@ struct LyricsDto {
         }
         
         let shouldRomanize = UserDefaults.lyricsOptions.romanization
+        let canRomanize = shouldRomanize && romanization == .canBeRomanized
         
         if lines.isEmpty {
             lyricsData.lines = [
@@ -34,8 +36,8 @@ struct LyricsDto {
             }
             lyricsData.lines = sortedLines.map { line in
                 LyricsLine.with {
-                    $0.content = (shouldRomanize && romanization == .canBeRomanized)
-                        ? line.content.toJapaneseRomaji().capitalizingFirstLetterIfAlphabetic()
+                    $0.content = canRomanize
+                        ? line.content.romanizedIfEnabled()
                         : line.content
                     $0.offsetMs = Int32(line.offsetMs ?? 0)
                 }
@@ -53,11 +55,44 @@ struct LyricsDto {
     }
 }
 
+// MARK: - Per-line Language Routing
+
+extension String {
+    /// 全局开关（shouldRomanize && canBeRomanized）已在调用方检查过。
+    /// 这里只负责：识别这一行具体是什么语言 -> 查对应语言开关 -> 用对应转换器。
+    /// 逐行识别，避免像 applyingTransform(.toLatin) 那样把整段文本按单一语言处理，
+    /// 导致日语汉字被当成中文拼音、中日混排歌词转写错乱的问题。
+    func romanizedIfEnabled() -> String {
+        guard let language = NLLanguageRecognizer.dominantLanguage(for: self) else {
+            return self
+        }
+        
+        switch language {
+        case .japanese:
+            guard UserDefaults.standard.bool(forKey: "ngzhwm_japaneseRomanization") else { return self }
+            return self.toJapaneseRomaji().capitalizingFirstLetterIfAlphabetic()
+            
+        case .simplifiedChinese, .traditionalChinese:
+            guard UserDefaults.standard.bool(forKey: "ngzhwm_chineseRomanization") else { return self }
+            return self.toChinesePinyin().capitalizingFirstLetterIfAlphabetic()
+            
+        case .korean:
+            guard UserDefaults.standard.bool(forKey: "ngzhwm_koreanRomanization") else { return self }
+            return self.toKoreanRomaja().capitalizingFirstLetterIfAlphabetic()
+            
+        default:
+            return self
+        }
+    }
+}
+
 // MARK: - Japanese Romanization
 
 extension String {
     /// 使用 CFStringTokenizer 的日语形态分析引擎将假名/汉字转为平文式罗马音。
     /// 相比 .toLatin(会把汉字当中文拼音处理),这里汉字会按日语读音转换。
+    /// 日语汉字存在"多音字"问题（同一个字在不同词里读音不同），
+    /// 必须先分词再查词典才能读对，所以不能直接用系统的 .toLatin。
     func toJapaneseRomaji() -> String {
         guard !isEmpty else { return self }
 
@@ -122,5 +157,25 @@ extension String {
     func capitalizingFirstLetterIfAlphabetic() -> String {
         guard let first = self.first, first.isLetter else { return self }
         return first.uppercased() + self.dropFirst()
+    }
+}
+
+// MARK: - Chinese & Korean Romanization
+
+extension String {
+    /// 使用系统 ICU 转写引擎（Han-Latin）把中文（简/繁）转为带声调拼音。
+    /// 中文不存在日语汉字那种多音字歧义问题（每行已经过 NLLanguageRecognizer
+    /// 确认是中文），所以可以直接用系统的 .toLatin，不需要像日语那样自己分词。
+    func toChinesePinyin() -> String {
+        guard !isEmpty else { return self }
+        return self.applyingTransform(.toLatin, reverse: false) ?? self
+    }
+
+    /// 使用系统 ICU 转写引擎把韩文谚文转为罗马字（Revised Romanization）。
+    /// 谚文是表音文字，一个字符对应固定读音，没有多音字问题，
+    /// 同样可以直接用系统的 .toLatin。
+    func toKoreanRomaja() -> String {
+        guard !isEmpty else { return self }
+        return self.applyingTransform(.toLatin, reverse: false) ?? self
     }
 }
