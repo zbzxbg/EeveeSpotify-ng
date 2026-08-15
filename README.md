@@ -3,7 +3,7 @@
 
 ## 📌 说明
 
-本项目是[EeveeSpotify](https://github.com/whoeevee/EeveeSpotifyReborn)的个人自用修改分支，仅用于学习和日常使用
+本项目是[EeveeSpotify](https://github.com/whoeevee/EeveeSpotifyReborn)的个人自用修改分支
 
 原仓库因 [DMCA](https://github.com/github/dmca/blob/master/2025/08/2025-08-14-spotify.md) 下架，本分支仅为个人维护，与原作者whoeevee无任何关联
 
@@ -18,7 +18,6 @@
 
 - 适配且仅适配 Spotify 9.1.0 版本
 - 不提供 IPA 包，请自行构建
-- 可能不提供技术支持
 - 本插件含多个实验性功能
 
 
