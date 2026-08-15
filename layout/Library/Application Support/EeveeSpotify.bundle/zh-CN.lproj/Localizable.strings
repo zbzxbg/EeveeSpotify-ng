@@ -94,7 +94,7 @@ fallback_attribute = "回退";
 romanized_attribute = "罗马化";
 
 musixmatch_unauthorized_popup = "由于未授权错误，该插件无法从 Musixmatch 加载歌词。请检查或更新 Musixmatch 令牌。如果使用 iPad，则应从 iPad 版 Musixmatch 应用中获取令牌。";
-musixmatch_restricted_popup = "由于受到限制，该插件无法加载 Musixmatch 的歌词。这可能是由于美国 IP 地址导致的版权问题，因此如果在美国，则应更改它或使用 VPN。";
+musixmatch_restricted_popup = "由于受到限制，该插件无法加载 Musixmatch 的歌词。这可能是由于美国 IP 地址导致的版权问题，因此如果在美国，则应更改地址（例如使用 VPN）。";
 
 // Errors Titles
 
