@@ -92,34 +92,46 @@
 
 - 1.目前中文/韩文的罗马字内容会原样返回
 - 2.歌词回退为强制性多级回退
+
 </details>
 
 <details>
 <summary><b>v1.0.0-alpha.1</b></summary>
+
 - 设置入口 给本仓库的功能单独添加可点击的UI
+
 </details>
 
 <details>
 <summary><b>v1.0.0-alpha.2</b></summary>
+
 - UI 给本仓库的功能单独添加可点击的UI(歌词/语言罗马化)
+
 </details>
 
 ### 08.15
 
 <details>
+    
 <summary><b>v1.0.0-alpha.3</b></summary>
+
 - UI 给本仓库的功能单独添加可点击的UI(歌词/语言罗马化)
+
 </details>
 
 <details>
 <summary><b>v1.0.0-beta.1</b></summary>
+
 - 新功能测试 可选择歌词回退方式
+
 </details>
 
 <details>
 <summary><b>v1.0.0-beta.2</b></summary>
+
 - 新功能测试 菜单可单独选择日语/中文/韩文歌词是否罗马化
- - 优化 EeveeSpotify菜单内的中文翻译
+- 优化 EeveeSpotify菜单内的中文翻译
+
 </details>
 
 </details>
