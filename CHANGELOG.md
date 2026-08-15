@@ -1,7 +1,7 @@
 # 更新日志
 
 <details open>
-<summary><b>2026年</b>（共13个版本）</summary>
+<summary><b>2026年</b>（共14个版本）</summary>
 
 ### 08.12
 
@@ -113,5 +113,11 @@
 
 <details>
 <summary><b>v1.0.0-beta.1</b></summary>
-- 新功能 可选择歌词回退方式测试
+- 新功能测试 可选择歌词回退方式
+</details>
+
+<details>
+<summary><b>v1.0.0-beta.2</b></summary>
+- 新功能测试 菜单可单独选择日语/中文/韩文歌词是否罗马化
+- 优化 EeveeSpotify菜单内的中文翻译
 </details>
