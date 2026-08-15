@@ -1,7 +1,7 @@
 # 更新日志
 
 <details open>
-<summary><b>2026年</b>（共15个版本）</summary>
+<summary><b>2026年</b>（共17个版本）</summary>
 
 ### 08.12
 
@@ -146,6 +146,18 @@
 <details>
 <summary><b>v1.0.0-beta.4</b></summary>
 
+- 优化 EeveeSpotify菜单内的中文翻译
+
+</details>
+
+<details>
+<summary><b>v1.0.0</b></summary>
+
+- 新功能 插件独立设置入口，可管理歌词/语言罗马化开关
+- 新功能 歌词回退方式选择(可手动切换)
+- 新功能 日语/中文/韩文歌词独立罗马化开关(实验性)
+- 修复 Mxm可能无法将日语翻译成罗马字的问题
+- 修复 插件会无视Mxm已有的日语罗马化歌词，强制将日语原文交由本地处理的问题
 - 优化 EeveeSpotify菜单内的中文翻译
 
 </details>
