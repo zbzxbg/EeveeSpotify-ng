@@ -1,7 +1,7 @@
 # 更新日志
 
 <details open>
-<summary><b>2026年</b>（共19个版本）</summary>
+<summary><b>2026年</b>（共20个版本）</summary>
 
 ### 08.12
 
@@ -185,6 +185,13 @@
 <summary><b>v2.0.0-beta.2</b></summary>
 
 - 修复 在菜单未开启“日语歌词罗马化”选项的情况下，仍会返回罗马化歌词的问题
+
+</details>
+
+<details>
+<summary><b>v2.0.0-beta.3</b></summary>
+
+- 新功能 “禁用歌词功能”
 
 </details>
 
