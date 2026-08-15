@@ -5,6 +5,7 @@ struct NgzhwmContainerSettingsView: View {
     
     var body: some View {
         List {
+            disableLyricsSection()
             lyricsFallbackSection()
             romanizationSection()
         }
@@ -12,6 +13,17 @@ struct NgzhwmContainerSettingsView: View {
         .animation(.default, value: viewModel.multiLevelFallback)
     }
     
+    @ViewBuilder private func disableLyricsSection() -> some View {
+        Section(
+            footer: Text("ngzhwm_disable_lyrics_feature_description".localized)
+        ) {
+            Toggle(
+                "ngzhwm_disable_lyrics_feature".localized,
+                isOn: $viewModel.disableLyricsFeature
+            )
+        }
+    }
+
     @ViewBuilder private func lyricsFallbackSection() -> some View {
         Section(
             footer: Text("ngzhwm_multi_level_fallback_description".localized)

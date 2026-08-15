@@ -158,6 +158,10 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
 }
 
 func getLyricsDataForCurrentTrack(_ originalPath: String, originalLyrics: Lyrics? = nil) throws -> Data {
+    guard !NgzhwmSettingsViewModel.isLyricsFeatureDisabled else {
+        throw LyricsError.invalidSource
+    }
+
     // 非阻塞状态同步机制（来自版本1，两种回退模式下均保留生效）
     // 解决启动/切歌时 track 状态尚未更新导致的 noCurrentTrack 与 trackMismatch 问题。
     var track = statefulPlayer?.currentTrack() ?? nowPlayingScrollViewController?.loadedTrack

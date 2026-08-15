@@ -103,6 +103,11 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
             return
         }
 
+        if url.isLyrics && NgzhwmSettingsViewModel.isLyricsFeatureDisabled {
+            handler(.cancel)
+            return
+        }
+
         guard shouldModify(url) else {
             orig.URLSession(session, dataTask: task, didReceiveResponse: response, completionHandler: handler)
             return

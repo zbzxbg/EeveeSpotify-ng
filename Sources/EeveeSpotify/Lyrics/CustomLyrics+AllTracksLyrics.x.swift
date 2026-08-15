@@ -11,7 +11,7 @@ class SPTPlayerTrackHook: ClassHook<NSObject> {
 
     func metadata() -> [String: String] {
         var meta = orig.metadata()
-        meta["has_lyrics"] = "true"
+        meta["has_lyrics"] = NgzhwmSettingsViewModel.isLyricsFeatureDisabled ? "false" : "true"
         return meta
     }
     
@@ -33,7 +33,7 @@ class LyricsScrollProviderHook: ClassHook<NSObject> {
     static var targetName = HookTargetNameHelper.lyricsScrollProvider
     
     func isEnabledForTrack(_ track: SPTPlayerTrack) -> Bool {
-        return true
+        return !NgzhwmSettingsViewModel.isLyricsFeatureDisabled
     }
 }
 
