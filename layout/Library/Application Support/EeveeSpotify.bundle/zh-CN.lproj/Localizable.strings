@@ -48,7 +48,7 @@ show_fallback_reasons = "显示回退原因";
 hide_lyrics_on_error = "错误时隐藏";
 hide_lyrics_on_error_description = "如果歌词加载失败，则删除歌词组件。";
 
-romanized_lyrics = "歌词罗马化";
+romanized_lyrics = "歌词可罗马化";
 romanized_lyrics_description = "开启中文、韩语和日语的歌词可罗马化，具体调整需前往ngzhwm菜单。";
 
 musixmatch_language = "Musixmatch 歌词语言";
