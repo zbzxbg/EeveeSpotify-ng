@@ -31,5 +31,14 @@ struct NgzhwmContainerSettingsView: View {
             Toggle("ngzhwm_japanese_romanization".localized, isOn: $viewModel.japaneseRomanization)
             Toggle("ngzhwm_korean_romanization".localized, isOn: $viewModel.koreanRomanization)
         }
+
+        Section(
+            footer: Text("ngzhwm_remove_mxm_interlude_symbol_description".localized)
+        ) {
+            Toggle(
+                "ngzhwm_remove_mxm_interlude_symbol".localized,
+                isOn: $viewModel.removeMxmInterludeSymbol
+            )
+        }
     }
 }

@@ -147,3 +147,5 @@ ngzhwm_romanization_description = "Configure romanization separately for each la
 ngzhwm_chinese_romanization = "Romanize Chinese Lyrics";
 ngzhwm_japanese_romanization = "Romanize Japanese Lyrics";
 ngzhwm_korean_romanization = "Romanize Korean Lyrics";
+ngzhwm_remove_mxm_interlude_symbol = "Delete Mxm Interlude Symbol \"♪\"";
+ngzhwm_remove_mxm_interlude_symbol_description = "When enabled, lines containing \"♪\" in Mxm lyrics will be displayed as blank.";

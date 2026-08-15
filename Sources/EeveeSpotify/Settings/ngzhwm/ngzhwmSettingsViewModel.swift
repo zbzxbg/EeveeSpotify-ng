@@ -2,6 +2,8 @@ import Foundation
 import Combine
 
 class NgzhwmSettingsViewModel: ObservableObject {
+    static let removeMxmInterludeSymbolKey = "ngzhwm_removeMxmInterludeSymbol"
+
     
     @Published var multiLevelFallback: Bool {
         didSet {
@@ -27,10 +29,17 @@ class NgzhwmSettingsViewModel: ObservableObject {
         }
     }
     
+    @Published var removeMxmInterludeSymbol: Bool {
+        didSet {
+            UserDefaults.standard.set(removeMxmInterludeSymbol, forKey: Self.removeMxmInterludeSymbolKey)
+        }
+    }
+
     init() {
         self.multiLevelFallback = UserDefaults.standard.bool(forKey: "ngzhwm_multiLevelLyricsFallback")
         self.chineseRomanization = UserDefaults.standard.bool(forKey: "ngzhwm_chineseRomanization")
         self.japaneseRomanization = UserDefaults.standard.bool(forKey: "ngzhwm_japaneseRomanization")
         self.koreanRomanization = UserDefaults.standard.bool(forKey: "ngzhwm_koreanRomanization")
+        self.removeMxmInterludeSymbol = UserDefaults.standard.bool(forKey: Self.removeMxmInterludeSymbolKey)
     }
 }

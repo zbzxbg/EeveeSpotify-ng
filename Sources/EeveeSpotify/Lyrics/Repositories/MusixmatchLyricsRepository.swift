@@ -4,6 +4,18 @@ import UIKit
 class MusixmatchLyricsRepository: LyricsRepository {
     private let apiUrl = "https://apic.musixmatch.com"
 
+    private var shouldRemoveMxmInterludeSymbol: Bool {
+        UserDefaults.standard.bool(forKey: NgzhwmSettingsViewModel.removeMxmInterludeSymbolKey)
+    }
+
+    private func cleanedMxmLyricsText(_ text: String) -> String {
+        guard shouldRemoveMxmInterludeSymbol, text.contains("♪") else {
+            return text
+        }
+
+        return ""
+    }
+
     var selectedLanguage: String
 
     static let shared = MusixmatchLyricsRepository(
@@ -229,6 +241,12 @@ class MusixmatchLyricsRepository: LyricsRepository {
                 }
             }
 
+            if shouldRemoveMxmInterludeSymbol {
+                for index in lyricsLines.indices {
+                    lyricsLines[index].content = cleanedMxmLyricsText(lyricsLines[index].content)
+                }
+            }
+
             if didReplaceAnyLine {
                 romanized = true
             }
@@ -278,7 +296,7 @@ class MusixmatchLyricsRepository: LyricsRepository {
                         plainLyrics
                         .components(separatedBy: "\n")
                         .dropLast()
-                        .map { LyricsLineDto(content: $0.lyricsNoteIfEmpty) },
+                        .map { LyricsLineDto(content: cleanedMxmLyricsText($0.lyricsNoteIfEmpty)) },
                     timeSynced: false,
                     romanization: lyricsLanguage.isCanBeRomanizedLanguage
                         ? .canBeRomanized : .original,

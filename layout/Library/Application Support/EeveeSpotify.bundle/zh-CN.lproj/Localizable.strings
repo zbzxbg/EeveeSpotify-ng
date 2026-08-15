@@ -137,3 +137,5 @@ ngzhwm_romanization_description = "单独设置每种语言的歌词是否罗马
 ngzhwm_chinese_romanization = "中文歌词罗马化";
 ngzhwm_japanese_romanization = "日语歌词罗马化";
 ngzhwm_korean_romanization = "韩语歌词罗马化";
+ngzhwm_remove_mxm_interlude_symbol = "删除 Mxm 的间奏符号「♪」";
+ngzhwm_remove_mxm_interlude_symbol_description = "开启后，会删除 Mxm 歌词内的间奏符号「♪」，含有「♪」的歌词行会显示为空白。";
