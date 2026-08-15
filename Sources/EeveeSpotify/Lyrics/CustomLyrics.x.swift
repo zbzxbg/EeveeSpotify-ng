@@ -66,7 +66,7 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
 
     // ngzhwm_multiLevelLyricsFallback 开启 -> 固定顺序多级回退（并发 + 超时）
     // ngzhwm_multiLevelLyricsFallback 关闭（默认）-> 用户选择的单一源 + 可选 Genius 回退
-    if UserDefaults.ngzhwm_multiLevelLyricsFallback {
+    if UserDefaults.standard.bool(forKey: "ngzhwm_multiLevelLyricsFallback") {
 
         let attempts: [LyricsSource] = [.musixmatch, .petit, .lrclib, .genius]
         let requestTimeout: TimeInterval = 2.0 // 每个源最多等2秒
