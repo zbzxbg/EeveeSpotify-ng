@@ -30,7 +30,7 @@ overwrite_configuration_description = "用转存的 Premium 配置替换远程�
 
 do_not_replace_lyrics = "禁用歌词替换";
 lyrics_source = "歌词来源";
-lyrics_source_description = "可以自由选择自己喜欢的歌词来源(目前不可用)。\n\nGenius：提供最多的歌曲和拥有最优质的歌词，歌词更新速度最快。但歌词不会有时间轴。\nLRCLIB：最开放的服务，提供带时间轴的歌词。但它缺少很多歌曲的歌词。\nMusixmatch：Spotify 本身所使用的服务，为很多歌曲提供带时间轴的歌词，但需要用户令牌才能使用。";
+lyrics_source_description = "可以自由选择自己喜欢的歌词来源。\n\nGenius：提供最多的歌曲和拥有最优质的歌词，歌词更新速度最快。但歌词不会有时间轴。\nLRCLIB：最开放的服务，提供带时间轴的歌词。但它缺少很多歌曲的歌词。\nMusixmatch：Spotify 本身所使用的服务，为很多歌曲提供带时间轴的歌词，但需要用户令牌才能使用。";
 lyrics_additional_info = "如果插件无法找到歌曲或处理歌词，将看到 “无法加载这首歌的歌词” 的提示。使用 Genius 时，由于插件搜索歌曲的方式，某些歌词可能会有展示错误的情况。但在大多数情况下它都正常工作。";
 petitlyrics_description = "PetitLyrics：提供大量日语歌词和一些非日语歌词。";
 
@@ -41,7 +41,7 @@ enter_user_token = "输入用户令牌";
 enter_user_token_message = "为了使用 Musixmatch，需要从官方应用程序中检索你的用户令牌。从 AppStore 下载 Musixmatch，注册后转到 “设置” > “获取帮助” > “复制调试信息”，并粘贴在此处。用 MitM 来获取令牌也可以。";
 
 genius_fallback = "回退到 Genius";
-genius_fallback_description = "如果 %@ 有问题，将使用 Genius 加载歌词(目前不可用)。";
+genius_fallback_description = "如果 %@ 有问题，将使用 Genius 加载歌词。";
 
 show_fallback_reasons = "显示回退原因";
 
@@ -49,7 +49,7 @@ hide_lyrics_on_error = "错误时隐藏";
 hide_lyrics_on_error_description = "如果歌词加载失败，则删除歌词组件。";
 
 romanized_lyrics = "罗马化歌词";
-romanized_lyrics_description = "显示中文、韩语和日语的罗马化歌词(目前仅显示日语的罗马化歌词，中文和韩语的歌词不会罗马化，会直接显示)。";
+romanized_lyrics_description = "显示中文、韩语和日语的罗马化歌词。";
 
 musixmatch_language = "Musixmatch 歌词语言";
 musixmatch_language_description = "可以输入两个字母的 Musixmatch 语言代码，并在 Musixmatch 上查看翻译的歌词（如果有）。";
