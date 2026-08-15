@@ -137,20 +137,6 @@ class MusixmatchLyricsRepository: LyricsRepository {
         }
     }
 
-    // 根据歌词语言判断对应的罗马化开关是否打开
-    private func isLanguageRomanizationEnabled(_ language: String) -> Bool {
-        switch language {
-        case let lang where lang.hasPrefix("ja"):
-            return UserDefaults.standard.bool(forKey: "ngzhwm_japaneseRomanization")
-        case let lang where lang.hasPrefix("zh"):
-            return UserDefaults.standard.bool(forKey: "ngzhwm_chineseRomanization")
-        case let lang where lang.hasPrefix("ko"):
-            return UserDefaults.standard.bool(forKey: "ngzhwm_koreanRomanization")
-        default:
-            return false
-        }
-    }
-
     //
 
     func getLyrics(_ query: LyricsSearchQuery, options: LyricsOptions) throws -> LyricsDto {
@@ -208,59 +194,43 @@ class MusixmatchLyricsRepository: LyricsRepository {
                 )
             )
 
+            // 用于验证是否实际发生了替换
             var didReplaceAnyLine = false
 
-            // 情况 1：用户直接选择了罗马音语言（例如 rj）
-            // 此时不检查任何开关，直接使用返回的罗马音字幕（若能成功解码并替换）
-            if selectedLanguage != subtitleLanguage,
+            // 优先处理：用户直接选择了罗马音语言
+            if selectedLanguage == romanizationLanguage,
                 let subtitleTranslated = subtitle["subtitle_translated"] as? [String: Any],
                 let subtitleTranslatedBody = subtitleTranslated["subtitle_body"] as? String,
                 let subtitlesTranslated = try? JSONDecoder().decode(
                     [MusixmatchSubtitle].self, from: subtitleTranslatedBody.data(using: .utf8)!
                 )
             {
-                if selectedLanguage == romanizationLanguage {
-                    for (index, subtitleTranslated) in subtitlesTranslated.enumerated() {
-                        if !subtitleTranslated.text.isEmpty {
-                            lyricsLines[index].content = subtitleTranslated.text
-                            didReplaceAnyLine = true
-                        }
+                for (index, subtitleTranslated) in subtitlesTranslated.enumerated() {
+                    if !subtitleTranslated.text.isEmpty {
+                        lyricsLines[index].content = subtitleTranslated.text
+                        didReplaceAnyLine = true
                     }
-                    if didReplaceAnyLine {
-                        romanized = true
-                    }
-                } else {
-                    // 用户选择了其他翻译语言，作为翻译显示
-                    translation = LyricsTranslationDto(
-                        languageCode: selectedLanguage,
-                        lines: subtitlesTranslated.map { $0.text }
-                    )
                 }
             }
-
-            // 情况 2：用户未选择罗马音语言，但开启了全局罗马化选项
-            // 需要两层开关：全局 + 对应语言开关
-            if !romanized, // 避免重复处理
-                options.romanization,
-                selectedLanguage != romanizationLanguage,
-                isLanguageRomanizationEnabled(subtitleLanguage)
-            {
+            // 次优先：全局罗马化开关开启，且未直接选择罗马音语言，尝试通过翻译接口获取
+            else if options.romanization && selectedLanguage != romanizationLanguage {
                 if let translations = try? getTranslations(
                     query.spotifyTrackId,
                     selectedLanguage: romanizationLanguage
                 ) {
-                    for (original, translation) in translations {
+                    for (original, translationText) in translations {
                         for i in 0..<lyricsLines.count {
                             if lyricsLines[i].content == original {
-                                lyricsLines[i].content = translation
+                                lyricsLines[i].content = translationText
                                 didReplaceAnyLine = true
                             }
                         }
                     }
-                    if didReplaceAnyLine {
-                        romanized = true
-                    }
                 }
+            }
+
+            if didReplaceAnyLine {
+                romanized = true
             }
 
             var romanization = LyricsRomanizationStatus.original
