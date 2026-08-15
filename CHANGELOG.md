@@ -1,7 +1,7 @@
 # Changelog
 
 <details open>
-<summary><b>2026</b> (21 versions)</summary>
+<summary><b>2026</b> (22 versions)</summary>
 
 ### 08.12
 
@@ -197,6 +197,25 @@ Additional notes:
 <summary><b>v2.0.0-beta.4</b></summary>
 
 - Improved the English translations in the EeveeSpotify menu
+
+</details>
+
+<details>
+<summary><b>v2.0.0</b></summary>
+
+- Added an option to remove Mxm's interlude symbol.
+- Added the "Disable Lyrics Function" option.
+
+- Fixed an issue where Spotify's official lyrics could reappear when custom lyrics failed to load.
+- Fixed an issue where Japanese lyrics were incorrectly identified as Chinese during local romanization.
+- Fixed a false update notification when the current version matched the latest GitHub version.
+
+- Improved the Chinese and English translations in the EeveeSpotify menu.
+- Improved the multi-level lyrics fallback logic.
+- Improved lyrics request handling to reduce premature failures.
+- Improved the English and Simplified Chinese descriptions in the ngzhwm settings screen.
+
+- Removed the "Show Fallback Reasons" UI and functionality from the EeveeSpotify menu.
 
 </details>
 
