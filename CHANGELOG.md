@@ -1,7 +1,7 @@
 # 更新日志
 
 <details open>
-<summary><b>2026年</b>（共12个版本）</summary>
+<summary><b>2026年</b>（共13个版本）</summary>
 
 ### 08.12
 
@@ -103,7 +103,13 @@
 <summary><b>v1.0.0-alpha.2</b></summary>
 - UI 给本仓库的功能单独添加可点击的UI(歌词/语言罗马化)
 </details>
+
 <details>
 <summary><b>v1.0.0-alpha.3</b></summary>
 - UI 给本仓库的功能单独添加可点击的UI(歌词/语言罗马化)
+</details>
+
+<details>
+<summary><b>v1.0.0-beta.1</b></summary>
+- 新功能 可选择歌词回退方式测试
 </details>
