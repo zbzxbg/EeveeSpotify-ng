@@ -1,3 +1,6 @@
+import Foundation
+import SwiftUI
+
 private enum VersionCheckError: Error {
     case timedOut
     case invalidVersion
@@ -12,7 +15,7 @@ private struct SemanticVersion: Comparable {
     let major: Int
     let minor: Int
     let patch: Int
-    let prerelease: [Identifier]
+    private let prerelease: [Identifier]
 
     init?(_ rawValue: String) {
         let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
