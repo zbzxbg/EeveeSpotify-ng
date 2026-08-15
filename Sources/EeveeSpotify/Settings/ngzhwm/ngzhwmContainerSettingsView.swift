@@ -25,7 +25,7 @@ struct NgzhwmContainerSettingsView: View {
     
     @ViewBuilder private func romanizationSection() -> some View {
         Section(
-            footer: Text("单独设置每种语言的歌词是否罗马化，选项生效需要开启whoeevee菜单内的“歌词罗马化”。若有未开启的选项，歌词会直接返回而不经过罗马化。")
+            footer: Text("单独设置每种语言的歌词是否罗马化，选项生效需要开启whoeevee菜单内的“歌词可罗马化”。若有某种语言的歌词未开启罗马化选项，该语言的歌词会直接展示而不经过罗马化（注：中文和韩文的可罗马化选项未测试可用性）。")
         ) {
             Toggle("中文歌词罗马化", isOn: $viewModel.chineseRomanization)
             Toggle("日语歌词罗马化", isOn: $viewModel.japaneseRomanization)
