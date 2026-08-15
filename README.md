@@ -12,7 +12,7 @@
 ## 🔧 自用修改内容
 
 - 歌词多级回退
-- 其他个人偏好调整
+- 可罗马化的三类歌词可单独调整
 
 ## ⚠️ 声明
 
@@ -45,6 +45,5 @@
 本项目为独立修改插件，与Spotify官方无任何关联
 仅供个人学习研究，使用风险自负
 ---
-- 目前测试本仓库内的功能与原版的可联动性
 - [更新日志](https://github.com/zbzxbg/EeveeSpotifyReborn-ng/blob/swift/CHANGELOG.md)
 - [已知Bug](https://github.com/zbzxbg/EeveeSpotifyReborn-ng/blob/swift/Known-Bugs.md)
