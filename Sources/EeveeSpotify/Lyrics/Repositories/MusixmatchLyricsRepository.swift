@@ -137,6 +137,20 @@ class MusixmatchLyricsRepository: LyricsRepository {
         }
     }
 
+    // 新增：根据歌词语言判断对应的罗马化开关是否打开
+    private func isLanguageRomanizationEnabled(_ language: String) -> Bool {
+        switch language {
+        case let lang where lang.hasPrefix("ja"):
+            return UserDefaults.standard.bool(forKey: "ngzhwm_japaneseRomanization")
+        case let lang where lang.hasPrefix("zh"):
+            return UserDefaults.standard.bool(forKey: "ngzhwm_chineseRomanization")
+        case let lang where lang.hasPrefix("ko"):
+            return UserDefaults.standard.bool(forKey: "ngzhwm_koreanRomanization")
+        default:
+            return false
+        }
+    }
+
     //
 
     func getLyrics(_ query: LyricsSearchQuery, options: LyricsOptions) throws -> LyricsDto {
@@ -162,8 +176,6 @@ class MusixmatchLyricsRepository: LyricsRepository {
             "/ws/1.1/macro.subtitles.get",
             query: musixmatchQuery
         )
-
-        // 😭😭😭
 
         var romanized = false
         var translation: LyricsTranslationDto? = nil
@@ -196,44 +208,55 @@ class MusixmatchLyricsRepository: LyricsRepository {
                 )
             )
 
-            if selectedLanguage != subtitleLanguage,
-                let subtitleTranslated = subtitle["subtitle_translated"] as? [String: Any],
-                let subtitleTranslatedBody = subtitleTranslated["subtitle_body"] as? String,
-                let subtitlesTranslated = try? JSONDecoder().decode(
-                    [MusixmatchSubtitle].self, from: subtitleTranslatedBody.data(using: .utf8)!
-                )
-            {
-                if selectedLanguage == romanizationLanguage {
-                    romanized = true
+            // 用于验证是否实际发生了替换
+            var didReplaceAnyLine = false
 
-                    for (index, subtitleTranslated) in subtitlesTranslated.enumerated() {
-                        if !subtitleTranslated.text.isEmpty {
-                            lyricsLines[index].content = subtitleTranslated.text
-                        }
-                    }
-                } else {
-                    translation = LyricsTranslationDto(
-                        languageCode: selectedLanguage,
-                        lines: subtitlesTranslated.map { $0.text }
+            // 第一层：全局开关
+            let globalRomanizationEnabled = options.romanization
+
+            // 第二层：语言开关（根据原始歌词语言）
+            let languageRomanizationEnabled = isLanguageRomanizationEnabled(subtitleLanguage)
+
+            // 只有两层同时满足才尝试获取罗马音
+            if globalRomanizationEnabled && languageRomanizationEnabled {
+
+                if selectedLanguage != subtitleLanguage,
+                    let subtitleTranslated = subtitle["subtitle_translated"] as? [String: Any],
+                    let subtitleTranslatedBody = subtitleTranslated["subtitle_body"] as? String,
+                    let subtitlesTranslated = try? JSONDecoder().decode(
+                        [MusixmatchSubtitle].self, from: subtitleTranslatedBody.data(using: .utf8)!
                     )
-                }
-            }
-
-            if options.romanization && selectedLanguage != romanizationLanguage {
-                if let translations = try? getTranslations(
-                    query.spotifyTrackId,
-                    selectedLanguage: romanizationLanguage
-                ) {
-                    romanized = true
-
-                    for (original, translation) in translations {
-                        for i in 0..<lyricsLines.count {
-                            if lyricsLines[i].content == original {
-                                lyricsLines[i].content = translation
+                {
+                    if selectedLanguage == romanizationLanguage {
+                        // 用户直接选择了罗马音语言
+                        for (index, subtitleTranslated) in subtitlesTranslated.enumerated() {
+                            if !subtitleTranslated.text.isEmpty {
+                                lyricsLines[index].content = subtitleTranslated.text
+                                didReplaceAnyLine = true
+                            }
+                        }
+                    } else {
+                        // 用户选择了其他翻译语言，罗马音通过翻译接口获取
+                        if let translations = try? getTranslations(
+                            query.spotifyTrackId,
+                            selectedLanguage: romanizationLanguage
+                        ) {
+                            for (original, translation) in translations {
+                                for i in 0..<lyricsLines.count {
+                                    if lyricsLines[i].content == original {
+                                        lyricsLines[i].content = translation
+                                        didReplaceAnyLine = true
+                                    }
+                                }
                             }
                         }
                     }
                 }
+            }
+
+            // 只有确实替换了至少一行才标记为已罗马化
+            if didReplaceAnyLine {
+                romanized = true
             }
 
             var romanization = LyricsRomanizationStatus.original
