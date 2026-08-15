@@ -139,3 +139,14 @@ play_songs_in_any_order = "Play songs in any order";
 organize_listening_queue = "Organize listening queue";
 
 payment_notice = "EeveeSpotify applies patches to unlock certain Premium features. It's free.";
+
+
+// ngzhwm
+
+ngzhwm_title = "ngzhwm Features";
+ngzhwm_multi_level_fallback = "Multi-level Lyrics Fallback";
+ngzhwm_multi_level_fallback_description = "When enabled, lyrics are queried using Mxm-PL-LRC-Gen's multi-level fallback method. Each lyrics source is given up to two seconds; if it does not return valid lyrics within that time, the next source is queried. When disabled, lyrics are queried according to the user's settings in the whoeevee menu.";
+ngzhwm_romanization_description = "Configure romanization separately for each language. These options take effect only when \"Romanized Lyrics\" is enabled in the whoeevee menu. If romanization is disabled for a language, its lyrics are displayed as-is. Note: Chinese and Korean romanization have not been tested.";
+ngzhwm_chinese_romanization = "Romanize Chinese Lyrics";
+ngzhwm_japanese_romanization = "Romanize Japanese Lyrics";
+ngzhwm_korean_romanization = "Romanize Korean Lyrics";

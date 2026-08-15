@@ -2,7 +2,7 @@ import SwiftUI
 
 struct NgzhwmSectionView: View {
     var color: Color = .pink
-    var title: String = "ngzhwm的专属功能"
+    var title: String = "ngzhwm_title".localized
     var imageSystemName: String = "heart.circle.fill"
     
     var body: some View {

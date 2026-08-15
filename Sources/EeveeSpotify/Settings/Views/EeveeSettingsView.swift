@@ -93,7 +93,7 @@ struct EeveeSettingsView: View {
             Button {
                pushSettingsController(
                 with: NgzhwmContainerSettingsView(),   // 改这里
-                title: "ngzhwm的专属功能"
+                title: "ngzhwm_title".localized
             )
            } label: {
                 NgzhwmSectionView()
