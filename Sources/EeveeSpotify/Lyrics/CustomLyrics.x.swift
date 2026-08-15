@@ -69,10 +69,11 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
     if UserDefaults.standard.bool(forKey: "ngzhwm_multiLevelLyricsFallback") {
 
         let attempts: [LyricsSource] = [.musixmatch, .petit, .lrclib, .genius]
-        let requestTimeout: TimeInterval = 2.0 // 每个源最多等2秒
-
         for (index, source) in attempts.enumerated() {
             let isLastAttempt = index == attempts.count - 1
+            let requestTimeout: TimeInterval =
+                source == .musixmatch || source == .petit ? 5.0 : 3.0
+
             let semaphore = DispatchSemaphore(value: 0)
             var resultDto: LyricsDto?
             var requestError: Error?
@@ -158,24 +159,22 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
 
 func getLyricsDataForCurrentTrack(_ originalPath: String, originalLyrics: Lyrics? = nil) throws -> Data {
     // 非阻塞状态同步机制（来自版本1，两种回退模式下均保留生效）
-    // 解决切歌时 track 状态尚未更新导致的 trackMismatch 问题
+    // 解决启动/切歌时 track 状态尚未更新导致的 noCurrentTrack 与 trackMismatch 问题。
     var track = statefulPlayer?.currentTrack() ?? nowPlayingScrollViewController?.loadedTrack
     var trackIdentifier = track?.trackIdentifier ?? ""
+    let maxWaitTime: TimeInterval = 1.0
+    let startTime = Date()
 
-    if !trackIdentifier.isEmpty && !originalPath.contains(trackIdentifier) {
-        let maxWaitTime: TimeInterval = 0.3 // 设定最大等待时间 300ms
-        let startTime = Date()
-
-        while Date().timeIntervalSince(startTime) < maxWaitTime {
-            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.05))
-
-            track = statefulPlayer?.currentTrack() ?? nowPlayingScrollViewController?.loadedTrack
-            trackIdentifier = track?.trackIdentifier ?? ""
-
-            if trackIdentifier.isEmpty || originalPath.contains(trackIdentifier) {
-                break
-            }
+    while Date().timeIntervalSince(startTime) < maxWaitTime {
+        let isReady = track != nil &&
+            (trackIdentifier.isEmpty || originalPath.contains(trackIdentifier))
+        if isReady {
+            break
         }
+
+        RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.05))
+        track = statefulPlayer?.currentTrack() ?? nowPlayingScrollViewController?.loadedTrack
+        trackIdentifier = track?.trackIdentifier ?? ""
     }
 
     guard let track = track else {

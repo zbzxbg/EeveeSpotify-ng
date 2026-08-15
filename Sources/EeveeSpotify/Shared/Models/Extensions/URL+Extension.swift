@@ -2,7 +2,8 @@ import Foundation
 
 extension URL {
     var isLyrics: Bool {
-        self.path.contains("color-lyrics/v2")
+        let path = self.path.lowercased()
+        return path.contains("color-lyrics/")
     }
     
     var isPlanOverview: Bool {

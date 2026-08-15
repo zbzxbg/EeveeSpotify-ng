@@ -135,7 +135,7 @@ payment_notice = "EeveeSpotify 已应用补丁来解锁部分高级功能，免�
 
 ngzhwm_title = "ngzhwm 的专属功能";
 ngzhwm_multi_level_fallback = "歌词多级回退";
-ngzhwm_multi_level_fallback_description = "当此选项开启时，歌词将按照 Mxm-PL-LRC-Gen 的方式多级回退查询（每个歌词源最长尝试两秒，若两秒后仍未返回有效歌词，则查询下一个歌词源）。当此选项关闭时，歌词会按照 whoeevee 菜单内用户的设置进行查询。";
+ngzhwm_multi_level_fallback_description = "当此选项开启时，歌词将按照 Mxm-PL-LRC-Gen 的方式多级回退查询（Mxm 和 PL 每个最长等待五秒，LRCLIB 和 Genius 每个最长等待三秒；如果某个来源在对应时间内仍未返回有效歌词，则查询下一个来源）。当此选项关闭时，歌词会按照 whoeevee 菜单内用户的设置进行查询。";
 ngzhwm_romanization_description = "单独设置每种语言的歌词是否罗马化。选项生效需要开启 whoeevee 菜单内的“歌词可罗马化”。如果某种语言的歌词未开启罗马化选项，该语言的歌词会直接显示，不进行罗马化（注：中文和韩文的罗马化功能尚未测试）。";
 ngzhwm_chinese_romanization = "中文歌词罗马化";
 ngzhwm_japanese_romanization = "日语歌词罗马化";

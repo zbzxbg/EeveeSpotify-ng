@@ -6,6 +6,7 @@ struct LyricsDto {
     var timeSynced: Bool
     var romanization: LyricsRomanizationStatus
     var translation: LyricsTranslationDto?
+    var languageCode: String? = nil
     
     func toSpotifyLyricsData(source: String) -> LyricsData {
         var lyricsData = LyricsData.with {
@@ -37,7 +38,7 @@ struct LyricsDto {
             lyricsData.lines = sortedLines.map { line in
                 LyricsLine.with {
                     $0.content = canRomanize
-                        ? line.content.romanizedIfEnabled()
+                        ? line.content.romanizedIfEnabled(languageHint: languageCode)
                         : line.content
                     $0.offsetMs = Int32(line.offsetMs ?? 0)
                 }
@@ -62,8 +63,30 @@ extension String {
     /// 这里只负责：识别这一行具体是什么语言 -> 查对应语言开关 -> 用对应转换器。
     /// 逐行识别，避免像 applyingTransform(.toLatin) 那样把整段文本按单一语言处理，
     /// 导致日语汉字被当成中文拼音、中日混排歌词转写错乱的问题。
-    func romanizedIfEnabled() -> String {
-        guard let language = NLLanguageRecognizer.dominantLanguage(for: self) else {
+    func romanizedIfEnabled(languageHint: String? = nil) -> String {
+        let normalizedHint = languageHint?.lowercased()
+        let language: NLLanguage?
+
+        if normalizedHint?.hasPrefix("ja") == true {
+            language = .japanese
+        } else if normalizedHint?.hasPrefix("ko") == true {
+            language = .korean
+        } else if normalizedHint?.hasPrefix("zh") == true {
+            language = .simplifiedChinese
+        } else if unicodeScalars.contains(where: { scalar in
+            switch scalar.value {
+            case 0x3040...0x30FF, 0x31F0...0x31FF, 0xFF66...0xFF9D:
+                return true
+            default:
+                return false
+            }
+        }) {
+            language = .japanese
+        } else {
+            language = NLLanguageRecognizer.dominantLanguage(for: self)
+        }
+
+        guard let language else {
             return self
         }
         

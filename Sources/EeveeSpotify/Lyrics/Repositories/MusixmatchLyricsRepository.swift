@@ -245,7 +245,8 @@ class MusixmatchLyricsRepository: LyricsRepository {
                 lines: lyricsLines,
                 timeSynced: true,
                 romanization: romanization,
-                translation: translation
+                translation: translation,
+                languageCode: subtitleLanguage
             )
 
             lyricsCache.setObject(CachedLyrics(dto: lyricsDto), forKey: cacheKey as NSString)
@@ -280,7 +281,8 @@ class MusixmatchLyricsRepository: LyricsRepository {
                         .map { LyricsLineDto(content: $0.lyricsNoteIfEmpty) },
                     timeSynced: false,
                     romanization: lyricsLanguage.isCanBeRomanizedLanguage
-                        ? .canBeRomanized : .original
+                        ? .canBeRomanized : .original,
+                    languageCode: lyricsLanguage
                 )
 
                 lyricsCache.setObject(CachedLyrics(dto: lyricsDto), forKey: cacheKey as NSString)
