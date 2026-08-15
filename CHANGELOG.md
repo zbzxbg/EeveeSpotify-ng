@@ -1,7 +1,7 @@
 # 更新日志
 
 <details open>
-<summary><b>2026年</b>（共14个版本）</summary>
+<summary><b>2026年</b>（共15个版本）</summary>
 
 ### 08.12
 
@@ -132,6 +132,12 @@
 - 新功能测试 菜单可单独选择日语/中文/韩文歌词是否罗马化
 - 优化 EeveeSpotify菜单内的中文翻译
 - 修复 Mxm可能有无法把日语翻译成罗马字的问题
+
+<details>
+<summary><b>v1.0.0-beta.3</b></summary>
+
+- 修复 插件会把原本Mxm有的日语罗马化歌词无视，把日语原文交给本地处理的问题
+- 优化 EeveeSpotify菜单内的中文翻译
 
 </details>
 
