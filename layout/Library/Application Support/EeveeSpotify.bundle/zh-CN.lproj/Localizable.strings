@@ -43,7 +43,8 @@ enter_user_token_message = "为了使用 Musixmatch，需要从官方应用程�
 genius_fallback = "回退到 Genius";
 genius_fallback_description = "如果 %@ 有问题，将使用 Genius 加载歌词。";
 
-
+hide_lyrics_on_error = "错误时隐藏";
+hide_lyrics_on_error_description = "如果歌词加载失败，则删除歌词组件。";
 
 romanized_lyrics = "歌词可罗马化";
 romanized_lyrics_description = "开启中文、韩语和日语的歌词可罗马化，具体调整需前往ngzhwm菜单。";

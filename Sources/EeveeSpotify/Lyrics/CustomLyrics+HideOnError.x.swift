@@ -14,6 +14,10 @@ class ErrorViewControllerHook: ClassHook<UIViewController> {
     func loadView() {
         orig.loadView()
         
+        guard UserDefaults.lyricsOptions.hideOnError else {
+            return
+        }
+
         if let controller = nowPlayingScrollViewController {
             controller.dataSource.activeProviders.removeAll {
                 NSStringFromClass(type(of: $0)) == HookTargetNameHelper.lyricsScrollProvider

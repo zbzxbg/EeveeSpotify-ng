@@ -12,6 +12,7 @@ struct EeveeLyricsSettingsView: View {
                     geniusFallbackSection()
                 }
                 
+                hideOnErrorSection()
                 romanizedLyricsSection()
                 
                 if viewModel.lyricsSource == .musixmatch {
@@ -52,8 +53,18 @@ struct EeveeLyricsSettingsView: View {
             Text("romanized_lyrics_description".localized)
         }
     }
-    
-    
+
+    @ViewBuilder private func hideOnErrorSection() -> some View {
+        Section {
+            Toggle(
+                "hide_lyrics_on_error".localized,
+                isOn: $viewModel.lyricsOptions.hideOnError
+            )
+        } footer: {
+            Text("hide_lyrics_on_error_description".localized)
+        }
+    }
+
     @ViewBuilder private func musixmatchLanguageSection() -> some View {
         Section {
             HStack {

@@ -7,7 +7,8 @@ extension UserDefaults {
             romanization: false,
             musixmatchLanguage: Locale.current.languageCode ?? "",
             lrclibUrl: LrclibLyricsRepository.originalApiUrl,
-            geniusFallback: true
+            geniusFallback: true,
+            hideOnError: false
         )
     )
     static var lyricsOptions
