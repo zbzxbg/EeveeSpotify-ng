@@ -20,6 +20,12 @@ private func emptyLyricsDto() -> LyricsDto {
     )
 }
 
+private func isNoSuchSongError(_ error: Error) -> Bool {
+    guard let lyricsError = error as? LyricsError else { return false }
+    if case .noSuchSong = lyricsError { return true }
+    return false
+}
+
 private func lyricsRepository(for source: LyricsSource) -> LyricsRepository {
     switch source {
     case .genius: return geniusLyricsRepository
@@ -135,6 +141,10 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
 
                 if isLastAttempt {
                     if source == .genius {
+                        if isNoSuchSongError(error) {
+                            throw error
+                        }
+
                         lyricsState.fallbackError = nil
                         lyricsState.isEmpty = true
                         lyricsState.loadedSuccessfully = true
@@ -186,8 +196,13 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
             lyricsDto = try repository.getLyrics(searchQuery, options: options)
         } catch let error {
             if source == .genius {
-                // Genius is the final fallback. Any failure is represented as
-                // an empty result instead of an error or an instrumental placeholder.
+                // Match whoeevee's behavior when Genius finds no matching song.
+                if isNoSuchSongError(error) {
+                    throw error
+                }
+
+                // Other Genius failures remain a silent empty result because
+                // Genius is the final fallback source.
                 lyricsState.fallbackError = nil
                 lyricsDto = emptyLyricsDto()
             } else {
@@ -207,6 +222,9 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
                 do {
                     lyricsDto = try repository.getLyrics(searchQuery, options: options)
                 } catch {
+                    if isNoSuchSongError(error) {
+                        throw error
+                    }
                     lyricsDto = emptyLyricsDto()
                 }
             }

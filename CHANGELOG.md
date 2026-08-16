@@ -1,7 +1,7 @@
 # Changelog
 
 <details open>
-<summary><b>2026</b> (23 versions)</summary>
+<summary><b>2026</b> (24 versions)</summary>
 
 ### 08.12
 
@@ -229,6 +229,13 @@ Additional notes:
 - Improved Genius lyrics parsing
 - Fixed an issue where Genius could return an empty lyrics result, causing the "instrumental" placeholder to appear incorrectly
 - Fixed an issue where Genius Romanizations did not respect the per-language romanization switches in ngzhwm settings
+
+</details>
+
+<details>
+<summary><b>v2.0.1-beta.2</b></summary>
+
+- Reverted Genius behavior to throw `LyricsError.noSuchSong` when no song is found.
 
 </details>
 
