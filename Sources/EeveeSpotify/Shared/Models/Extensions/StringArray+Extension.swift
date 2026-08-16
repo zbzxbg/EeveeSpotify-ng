@@ -11,10 +11,8 @@ extension Array where Element == String {
             }
         }
         
-        let canBeRomanizedLanguageCount = languageList.filter {
+        return languageList.contains {
             [.japanese, .korean, .simplifiedChinese, .traditionalChinese].contains($0)
-        }.count
-
-        return Double(canBeRomanizedLanguageCount) / Double(languageList.count) > 0.15
+        }
     }
 }

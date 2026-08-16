@@ -293,7 +293,9 @@ class MusixmatchLyricsRepository: LyricsRepository {
 
             if romanized {
                 romanization = .romanized
-            } else if subtitleLanguage.isCanBeRomanizedLanguage {
+            } else if lyricsLines.map({ $0.content }).canBeRomanized
+                || subtitleLanguage.isCanBeRomanizedLanguage
+            {
                 romanization = .canBeRomanized
             }
 
@@ -329,14 +331,16 @@ class MusixmatchLyricsRepository: LyricsRepository {
                     throw LyricsError.musixmatchRestricted
                 }
 
+                let plainLines = plainLyrics
+                    .components(separatedBy: "\n")
+                    .dropLast()
+                    .map { cleanedMxmLyricsText($0.lyricsNoteIfEmpty) }
+
                 let lyricsDto = LyricsDto(
-                    lines:
-                        plainLyrics
-                        .components(separatedBy: "\n")
-                        .dropLast()
-                        .map { LyricsLineDto(content: cleanedMxmLyricsText($0.lyricsNoteIfEmpty)) },
+                    lines: plainLines.map { LyricsLineDto(content: $0) },
                     timeSynced: false,
-                    romanization: lyricsLanguage.isCanBeRomanizedLanguage
+                    romanization: plainLines.canBeRomanized
+                        || lyricsLanguage.isCanBeRomanizedLanguage
                         ? .canBeRomanized : .original,
                     languageCode: lyricsLanguage
                 )
