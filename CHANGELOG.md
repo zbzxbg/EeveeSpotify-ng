@@ -1,7 +1,17 @@
 # Changelog
 
 <details open>
-<summary><b>2026</b> (25 versions)</summary>
+<summary><b>2026</b> (26 versions)</summary>
+
+### 08.16
+
+<details>
+<summary><b>v2.1.0-beta.3</b></summary>
+
+- Improved terminology handling when removing annotations from Genius lyrics.
+- Updated Mxm romanization detection to allow fallback handling when any line matches romanizable languages.
+
+</details>
 
 ### 08.12
 
@@ -20,7 +30,7 @@
 
 - Improved the display of Japanese romanized lyrics.
 - Improved the lyrics fallback logic.
-- Fixed incomplete terminology when removing lyric annotations from Genius lyrics.
+- Improved terminology handling when removing annotations from Genius lyrics.
 - Fixed a possible crash when opening Spotify's sidebar.
 - Removed the "Romanized" and "Fallback/Fallback Reason" labels from the lyrics frame.
 
@@ -46,7 +56,7 @@
 <summary><b>v0.1.0-beta.4</b></summary>
 
 - Improved the update-checking method.
-- Fixed incomplete terminology when removing lyric annotations from Genius lyrics.
+- Improved terminology handling when removing annotations from Genius lyrics.
 
 </details>
 
@@ -55,7 +65,7 @@
 <details>
 <summary><b>v0.1.0-beta.5</b></summary>
 
-- Fixed incomplete terminology when removing lyric annotations from Genius lyrics.
+- Improved terminology handling when removing annotations from Genius lyrics.
 - Fixed an issue where checking for updates could remain stuck on "Checking for Update".
 
 </details>
@@ -84,7 +94,7 @@
 - Improved the lyrics fallback logic.
 - Improved the Chinese translations in the EeveeSpotify menu.
 - Improved the update-checking method.
-- Fixed incomplete terminology when removing lyric annotations from Genius lyrics.
+- Improved terminology handling when removing annotations from Genius lyrics.
 - Changed the GitHub link in the EeveeSpotify menu to point to this repository, except for the Common Issues link.
 - Fixed a possible crash when opening Spotify's sidebar.
 - Fixed an issue where checking for updates could remain stuck on "Checking for Update".

@@ -244,31 +244,26 @@ class GeniusLyricsRepository: LyricsRepository {
 
     // MARK: - Non-lyric line filtering
 
-    /// Section-marker keywords (English + Portuguese). Matched AFTER diacritic
-    /// folding + uppercasing, so REFRÃO / REFRAO / refrão / Pré-Refrão all
-    /// normalize to the same token.
+    private static let markerConfiguration = GeniusLyricsMarkerConfiguration.shared
+
+    /// Marker patterns are matched AFTER diacritic folding + uppercasing,
+    /// so REFRÃO / REFRAO / refrão / Pré-Refrão normalize to the same token.
     private static let sectionMarkerPattern: String = {
-        let markers = [
-            "INTRO(DUCAO)?",
-            "VERSE", "VERSO",
-            "CHORUS", "REFRAO",
-            "PRE[- ]?CHORUS", "PRE[- ]?REFRAO",
-            "POST?[- ]?CHORUS", "POS[- ]?REFRAO",
-            "BRIDGE", "PONTE",
-            "HOOK", "GANCHO",
-            "INTERLUDE", "INTERLUDIO",
-            "SOLO", "INSTRUMENTAL",
-            "OUTRO", "ENCERRAMENTO",
-            "DROP",
-            "BREAK(DOWN)?",
-            "FADE[ ]?OUT",
-            "LOOP",
-            "PRE[- ]?OUTRO",
-            "PRE[- ]?SAIDA",
-            "SAIDA"
-        ]
+        "(?:\(markerConfiguration.sectionMarkers.joined(separator: "|")))"
+    }()
+
+    private static let metadataMarkerPattern: String = {
+        let markers = markerConfiguration.metadataPrefixes.map {
+            NSRegularExpression.escapedPattern(for: $0)
+        }
         return "(?:\(markers.joined(separator: "|")))"
     }()
+
+    private static let titlePrefixPattern: String = {
+        "(?:\(markerConfiguration.titlePrefixPatterns.joined(separator: "|")))"
+    }()
+
+    private static let markerNumberSuffix = "(?:\\s+(?:N[. ]?)?\\d+(?:[.]\\d+)?)?"
 
     /// Trims, strips diacritics, uppercases — for case/accent-insensitive matching.
     private func normalizedForMarkerMatch(_ line: String) -> String {
@@ -287,28 +282,33 @@ class GeniusLyricsRepository: LyricsRepository {
 
         // Only remove bracketed section markers, not every bracketed lyric line.
         // This preserves real lyrics such as `[I love you]`.
-        if normalized ~= "^\\[\\s*\(GeniusLyricsRepository.sectionMarkerPattern)(?:\\s+\\d+)?(?:\\s*[:|\\-].*)?\\s*\\]$" {
+        if normalized ~= "^\\[\\s*\(GeniusLyricsRepository.sectionMarkerPattern)\(GeniusLyricsRepository.markerNumberSuffix)(?:\\s*[:|\\-].*)?\\s*\\]$" {
             return true
         }
 
         // Common Genius metadata headers.
-        if normalized ~= "^\\[\\s*(PRODUCED BY|WRITTEN BY|COMPOSED BY|TRANSLATED BY|注释)\\b.*\\]$" {
+        if normalized ~= "^\\[\\s*\(GeniusLyricsRepository.metadataMarkerPattern)(?:\\s+.*)?\\s*\\]$" {
+            return true
+        }
+
+        // Dynamic Genius title headers, e.g. [Letra de “Song Title”].
+        if normalized ~= "^\\[\\s*\(GeniusLyricsRepository.titlePrefixPattern)\\s*[\"'“‘].*[\"'”’]\\s*\\]$" {
             return true
         }
 
         // (Structural marker) only — NOT arbitrary parenthesized ad-libs,
         // e.g. (INTRO), (LOOP), (PRE-OUTRO), (OUTRO), (PRE-SAIDA), (SAIDA)
-        if normalized ~= "^\\(\\s*\(GeniusLyricsRepository.sectionMarkerPattern)\\s*\\d*\\s*\\)$" {
+        if normalized ~= "^\\(\\s*\(GeniusLyricsRepository.sectionMarkerPattern)\(GeniusLyricsRepository.markerNumberSuffix)\\s*\\)$" {
             return true
         }
 
         // Bare marker with no brackets at all, e.g. a standalone "VERSO" line
-        if normalized ~= "^\(GeniusLyricsRepository.sectionMarkerPattern)\\s*\\d*\\s*:?\\s*$" {
+        if normalized ~= "^\(GeniusLyricsRepository.sectionMarkerPattern)\(GeniusLyricsRepository.markerNumberSuffix)\\s*:?\\s*$" {
             return true
         }
 
         // Header lines: LETRA DE "..." / TEKISUTO O LETRA DE "..." / TEXT OF "..."
-        if normalized ~= "^(TEKISUTO\\s+O\\s+LETRA DE|LETRA DE|TEXT OF)\\s*[\"'\u{201C}\u{2018}]" {
+        if normalized ~= "^\(GeniusLyricsRepository.titlePrefixPattern)\\s*[\"'“‘]" {
             return true
         }
 
