@@ -3,13 +3,6 @@
 <details open>
 <summary><b>2026</b> (26 versions)</summary>
 
-### 08.16
-
-<details>
-<summary><b>v2.1.0-beta.3</b></summary>
-
-- Improved terminology handling when removing annotations from Genius lyrics.
-- Updated Mxm romanization detection to allow fallback handling when any line matches romanizable languages.
 
 </details>
 
@@ -254,6 +247,7 @@ Additional notes:
 <summary><b>v2.1.0-beta.3</b></summary>
 
 - Improved Mxm romanization detection logic
+- Improved terminology handling when removing annotations from Genius lyrics
 
 </details>
 
