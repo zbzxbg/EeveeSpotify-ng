@@ -1,251 +1,330 @@
+import Foundation
 import Orion
-import SwiftUI
 
-struct BaseLyricsGroup: HookGroup { }
-struct LegacyLyricsGroup: HookGroup { }
-struct ModernLyricsGroup: HookGroup { }
+// MARK: - 线程安全的拦截上下文（按 taskIdentifier 隔离）
+final class InterceptionContext {
+    static let shared = InterceptionContext()
 
-var lyricsState = LyricsLoadingState()
-var hasShownRestrictedPopUp = false
-var hasShownUnauthorizedPopUp = false
+    private let lock = NSLock()
+    private var stateByTaskID: [Int: State] = [:]
+    private var dataByTaskID: [Int: Data] = [:]
+    private var customDataByTaskID: [Int: Data] = [:]
+    private var pendingResponseByTaskID: [Int: HTTPURLResponse] = [:]
 
-private let geniusLyricsRepository = GeniusLyricsRepository()
-private let petitLyricsRepository = PetitLyricsRepository()
+    enum State {
+        case buffering              // 普通修改：缓冲真实数据，完成时替换
+        case replacingResponse      // 歌词非200：伪造200响应，忽略真实数据/错误
+    }
 
-private func lyricsRepository(for source: LyricsSource) -> LyricsRepository {
-    switch source {
-    case .genius: return geniusLyricsRepository
-    case .lrclib: return LrclibLyricsRepository.shared
-    case .musixmatch: return MusixmatchLyricsRepository.shared
-    case .petit: return petitLyricsRepository
-    case .notReplaced:
-        // Never actually reached — callers filter this out beforehand.
-        return geniusLyricsRepository
+    func setState(_ state: State, for task: URLSessionDataTask) {
+        lock.lock()
+        defer { lock.unlock() }
+        stateByTaskID[task.taskIdentifier] = state
+    }
+
+    func getState(for task: URLSessionDataTask) -> State? {
+        lock.lock()
+        defer { lock.unlock() }
+        return stateByTaskID[task.taskIdentifier]
+    }
+
+    func appendData(_ data: Data, for task: URLSessionDataTask) {
+        lock.lock()
+        defer { lock.unlock() }
+        let id = task.taskIdentifier
+        if var existing = dataByTaskID[id] {
+            existing.append(data)
+            dataByTaskID[id] = existing
+        } else {
+            dataByTaskID[id] = data
+        }
+    }
+
+    func getData(for task: URLSessionDataTask) -> Data? {
+        lock.lock()
+        defer { lock.unlock() }
+        return dataByTaskID[task.taskIdentifier]
+    }
+
+    func setCustomData(_ data: Data, for task: URLSessionDataTask) {
+        lock.lock()
+        defer { lock.unlock() }
+        customDataByTaskID[task.taskIdentifier] = data
+    }
+
+    func getCustomData(for task: URLSessionDataTask) -> Data? {
+        lock.lock()
+        defer { lock.unlock() }
+        return customDataByTaskID[task.taskIdentifier]
+    }
+
+    func setPendingResponse(_ response: HTTPURLResponse, for task: URLSessionDataTask) {
+        lock.lock()
+        defer { lock.unlock() }
+        pendingResponseByTaskID[task.taskIdentifier] = response
+    }
+
+    func getPendingResponse(for task: URLSessionDataTask) -> HTTPURLResponse? {
+        lock.lock()
+        defer { lock.unlock() }
+        return pendingResponseByTaskID[task.taskIdentifier]
+    }
+
+    func removeAll(for task: URLSessionDataTask) {
+        lock.lock()
+        defer { lock.unlock() }
+        let id = task.taskIdentifier
+        stateByTaskID.removeValue(forKey: id)
+        dataByTaskID.removeValue(forKey: id)
+        customDataByTaskID.removeValue(forKey: id)
+        pendingResponseByTaskID.removeValue(forKey: id)
     }
 }
 
-// 两种回退模式共用：处理 Musixmatch 相关错误弹窗
-private func handleLyricsErrorPopUp(_ error: LyricsError?) {
-    switch error {
-    case .invalidMusixmatchToken:
-        if !hasShownUnauthorizedPopUp {
-            PopUpHelper.showPopUp(
-                delayed: false,
-                message: "musixmatch_unauthorized_popup".localized,
-                buttonText: "OK".uiKitLocalized
-            )
-            hasShownUnauthorizedPopUp = true
-        }
-    case .musixmatchRestricted:
-        if !hasShownRestrictedPopUp {
-            PopUpHelper.showPopUp(
-                delayed: false,
-                message: "musixmatch_restricted_popup".localized,
-                buttonText: "OK".uiKitLocalized
-            )
-            hasShownRestrictedPopUp = true
-        }
-    default:
-        break
-    }
-}
+class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
+    static let targetName = "SPTDataLoaderService"
 
-private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
-    guard let track = statefulPlayer?.currentTrack() ?? nowPlayingScrollViewController?.loadedTrack else {
-        throw LyricsError.noCurrentTrack
+    // orion:new
+    func shouldModify(_ url: URL) -> Bool {
+        let shouldPatchPremium = BasePremiumPatchingGroup.isActive
+        let shouldReplaceLyrics = BaseLyricsGroup.isActive
+
+        return (shouldReplaceLyrics && url.isLyrics)
+            || (shouldPatchPremium && (url.isCustomize || url.isPremiumPlanRow || url.isPremiumBadge || url.isPlanOverview))
     }
 
-    let searchQuery = LyricsSearchQuery(
-        title: track.trackTitle(),
-        primaryArtist: EeveeSpotify.hookTarget == .lastAvailableiOS14 ? track.artistTitle() : track.artistName(),
-        spotifyTrackId: track.trackIdentifier
-    )
+    // MARK: - 辅助方法：发送数据 + 完成
+    private func sendDataAndComplete(
+        _ data: Data,
+        task: URLSessionDataTask,
+        session: URLSession,
+        error: Error? = nil
+    ) {
+        orig.URLSession(session, dataTask: task, didReceiveData: data)
+        orig.URLSession(session, task: task, didCompleteWithError: error)
+    }
 
-    let options = UserDefaults.lyricsOptions
-    lyricsState = LyricsLoadingState()
+    // MARK: - URLSessionDataDelegate
 
-    // ngzhwm_multiLevelLyricsFallback 开启 -> 固定顺序多级回退（并发 + 超时）
-    // ngzhwm_multiLevelLyricsFallback 关闭（默认）-> 用户选择的单一源 + 可选 Genius 回退
-    if UserDefaults.standard.bool(forKey: "ngzhwm_multiLevelLyricsFallback") {
+    func URLSession(
+        _ session: URLSession,
+        dataTask task: URLSessionDataTask,
+        didReceiveResponse response: HTTPURLResponse,
+        completionHandler handler: @escaping (URLSession.ResponseDisposition) -> Void
+    ) {
+        guard let url = task.currentRequest?.url else {
+            orig.URLSession(session, dataTask: task, didReceiveResponse: response, completionHandler: handler)
+            return
+        }
 
-        let attempts: [LyricsSource] = [.musixmatch, .petit, .lrclib, .genius]
-        for (index, source) in attempts.enumerated() {
-            let isLastAttempt = index == attempts.count - 1
-            let requestTimeout: TimeInterval =
-                source == .musixmatch || source == .petit ? 5.0 : 3.0
+        if url.isLyrics && NgzhwmSettingsViewModel.isLyricsFeatureDisabled {
+            handler(.cancel)
+            return
+        }
 
-            let semaphore = DispatchSemaphore(value: 0)
-            var resultDto: LyricsDto?
-            var requestError: Error?
+        guard shouldModify(url) else {
+            orig.URLSession(session, dataTask: task, didReceiveResponse: response, completionHandler: handler)
+            return
+        }
 
-            DispatchQueue.global(qos: .userInitiated).async {
-                do {
-                    resultDto = try lyricsRepository(for: source).getLyrics(searchQuery, options: options)
-                } catch {
-                    requestError = error
-                }
-                semaphore.signal()
-            }
+        // 1. 歌词请求且状态码非200：伪造200响应
+        if url.isLyrics && response.statusCode != 200 {
+            do {
+                let customData = try getLyricsDataForCurrentTrack(url.path)
 
-            let waitResult = semaphore.wait(timeout: .now() + requestTimeout)
+                // 构造200响应，尽量保留原有header和httpVersion
+                let headerFields = response.allHeaderFields as? [String: String] ?? [:]
+                let okResponse = HTTPURLResponse(
+                    url: url,
+                    statusCode: 200,
+                    httpVersion: "HTTP/1.1",
+                    headerFields: headerFields
+                ) ?? HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil)!
 
-            if waitResult == .timedOut {
-                // Genius 失败（含超时）不再兜底为空歌词，统一走下面的抛错逻辑
-                if index == 0 { lyricsState.fallbackError = .unknownError }
-                if isLastAttempt { throw LyricsError.unknownError } else { continue }
-            }
+                // 标记任务为“替换响应”，并缓存自定义数据
+                InterceptionContext.shared.setState(.replacingResponse, for: task)
+                InterceptionContext.shared.setCustomData(customData, for: task)
 
-            if let dto = resultDto {
-                lyricsState.isEmpty = dto.lines.isEmpty
-                lyricsState.wasRomanized = dto.romanization == .romanized
-                    || (dto.romanization == .canBeRomanized && options.romanization)
-                lyricsState.loadedSuccessfully = true
-
-                return Lyrics.with {
-                    $0.data = dto.toSpotifyLyricsData(
-                        source: source.description,
-                        useInstrumentalPlaceholder: source != .genius
-                    )
-                }
-            } else if let error = requestError {
-                let lyricsError = error as? LyricsError
-                if source != .genius {
-                    if index == 0 { lyricsState.fallbackError = lyricsError ?? .unknownError }
-                    handleLyricsErrorPopUp(lyricsError)
-                }
-
-                // Genius 失败（含查无此曲）直接抛出，不再兜底为空歌词
-                if isLastAttempt {
-                    throw error
-                } else {
-                    continue
-                }
-            } else {
-                if isLastAttempt {
-                    throw LyricsError.unknownError
-                } else {
-                    continue
-                }
+                // 允许系统继续接收数据（真实错误数据会被我们在 didReceiveData 中忽略）
+                orig.URLSession(session, dataTask: task, didReceiveResponse: okResponse, completionHandler: handler)
+                return
+            } catch {
+                // 自定义歌词失败时透传原始响应，让官方错误流程处理，不再伪造空歌词。
+                orig.URLSession(session, dataTask: task, didReceiveResponse: response, completionHandler: handler)
+                return
             }
         }
 
-        throw LyricsError.unknownError
-
-    } else {
-
-        var source = UserDefaults.lyricsSource
-
-        if source == .notReplaced {
-            throw LyricsError.invalidSource
+        // 2. 其他需要修改的请求：仅当原始响应成功（2xx）时才拦截
+        guard (200..<300).contains(response.statusCode) else {
+            orig.URLSession(session, dataTask: task, didReceiveResponse: response, completionHandler: handler)
+            return
         }
 
-        var repository = lyricsRepository(for: source)
-        let lyricsDto: LyricsDto
-
-        do {
-            lyricsDto = try repository.getLyrics(searchQuery, options: options)
-        } catch let error {
-            if source == .genius {
-                // Genius 失败（含查无此曲）直接抛出，不再兜底为空歌词
-                throw error
-            } else {
-                if let error = error as? LyricsError {
-                    lyricsState.fallbackError = error
-                    handleLyricsErrorPopUp(error)
-                } else {
-                    lyricsState.fallbackError = .unknownError
-                }
-
-                if !options.geniusFallback {
-                    throw error
-                }
-
-                source = .genius
-                repository = geniusLyricsRepository
-                // Genius 兜底源同样直接抛错，不再兜底为空歌词
-                lyricsDto = try repository.getLyrics(searchQuery, options: options)
-            }
-        }
-
-        lyricsState.isEmpty = lyricsDto.lines.isEmpty
-        lyricsState.wasRomanized = lyricsDto.romanization == .romanized
-            || (lyricsDto.romanization == .canBeRomanized && options.romanization)
-        lyricsState.loadedSuccessfully = true
-
-        return Lyrics.with {
-            $0.data = lyricsDto.toSpotifyLyricsData(
-                source: source.description,
-                useInstrumentalPlaceholder: source != .genius
-            )
+        // 标记为缓冲模式，后续数据将被缓冲，完成时替换。
+        // 歌词响应暂不立即交给 Spotify；否则后续 Genius noSuchSong
+        // 即使抛错，Spotify 已经收到 2xx 响应，也只会显示空歌词。
+        InterceptionContext.shared.setState(.buffering, for: task)
+        if url.isLyrics {
+            InterceptionContext.shared.setPendingResponse(response, for: task)
+            // 允许网络继续传输；响应本身会在 didCompleteWithError 中
+            // 根据自定义歌词结果再交给 Spotify 的原始处理器。
+            handler(.allow)
+        } else {
+            orig.URLSession(session, dataTask: task, didReceiveResponse: response, completionHandler: handler)
         }
     }
-}
 
-func getLyricsDataForCurrentTrack(_ originalPath: String, originalLyrics: Lyrics? = nil) throws -> Data {
-    guard !NgzhwmSettingsViewModel.isLyricsFeatureDisabled else {
-        throw LyricsError.invalidSource
-    }
+    func URLSession(
+        _ session: URLSession,
+        dataTask task: URLSessionDataTask,
+        didReceiveData data: Data
+    ) {
+        guard let url = task.currentRequest?.url else {
+            orig.URLSession(session, dataTask: task, didReceiveData: data)
+            return
+        }
 
-    // 非阻塞状态同步机制（来自版本1，两种回退模式下均保留生效）
-    // 解决启动/切歌时 track 状态尚未更新导致的 noCurrentTrack 与 trackMismatch 问题。
-    var track = statefulPlayer?.currentTrack() ?? nowPlayingScrollViewController?.loadedTrack
-    var trackIdentifier = track?.trackIdentifier ?? ""
-    let maxWaitTime: TimeInterval = 1.0
-    let startTime = Date()
+        guard let state = InterceptionContext.shared.getState(for: task) else {
+            orig.URLSession(session, dataTask: task, didReceiveData: data)
+            return
+        }
 
-    while Date().timeIntervalSince(startTime) < maxWaitTime {
-        let isReady = track != nil &&
-            (trackIdentifier.isEmpty || originalPath.contains(trackIdentifier))
-        if isReady {
+        switch state {
+        case .replacingResponse:
+            // 忽略伪造响应后的真实错误数据
+            break
+
+        case .buffering:
+            // 缓冲数据，暂不转发给上层
+            InterceptionContext.shared.appendData(data, for: task)
             break
         }
-
-        RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.05))
-        track = statefulPlayer?.currentTrack() ?? nowPlayingScrollViewController?.loadedTrack
-        trackIdentifier = track?.trackIdentifier ?? ""
     }
 
-    guard let track = track else {
-        throw LyricsError.noCurrentTrack
-    }
-
-    if !trackIdentifier.isEmpty && !originalPath.contains(trackIdentifier) {
-        throw LyricsError.trackMismatch
-    }
-
-    var lyrics = try loadCustomLyricsForCurrentTrack()
-
-    let lyricsColorsSettings = UserDefaults.lyricsColors
-
-    if lyricsColorsSettings.displayOriginalColors, let originalLyrics = originalLyrics {
-        lyrics.colors = originalLyrics.colors
-    } else {
-        let extractedColor = switch EeveeSpotify.hookTarget {
-        case .lastAvailableiOS14:
-            track.extractedColorHex()
-        default:
-            track.metadata()["extracted_color"]
+    func URLSession(
+        _ session: URLSession,
+        task: URLSessionDataTask,
+        didCompleteWithError error: Error?
+    ) {
+        guard let url = task.currentRequest?.url else {
+            orig.URLSession(session, task: task, didCompleteWithError: error)
+            return
         }
 
-        var color: Color
-        if lyricsColorsSettings.useStaticColor {
-            color = Color(hex: lyricsColorsSettings.staticColor)
-        } else if let extractedColor = extractedColor {
-            color = Color(hex: extractedColor)
-                .normalized(lyricsColorsSettings.normalizationFactor)
-        } else if let uiColor = backgroundViewModel?.color() {
-            color = Color(uiColor)
-                .normalized(lyricsColorsSettings.normalizationFactor)
-        } else {
-            color = Color.gray
+        guard let state = InterceptionContext.shared.getState(for: task) else {
+            orig.URLSession(session, task: task, didCompleteWithError: error)
+            return
         }
 
-        lyrics.colors = LyricsColors.with {
-            $0.backgroundColor = color.uInt32
-            $0.lineColor = Color.black.uInt32
-            $0.activeLineColor = Color.white.uInt32
+        // 确保无论如何都清理任务状态与数据
+        defer {
+            InterceptionContext.shared.removeAll(for: task)
+        }
+
+        switch state {
+        case .replacingResponse:
+            // 使用缓存的自定义歌词数据；缓存丢失时将错误交给官方流程。
+            if let cached = InterceptionContext.shared.getCustomData(for: task) {
+                sendDataAndComplete(cached, task: task, session: session, error: nil)
+            } else {
+                do {
+                    let data = try getLyricsDataForCurrentTrack(url.path)
+                    sendDataAndComplete(data, task: task, session: session, error: nil)
+                } catch {
+                    orig.URLSession(session, task: task, didCompleteWithError: error)
+                }
+            }
+
+        case .buffering:
+            let pendingResponse = InterceptionContext.shared.getPendingResponse(for: task)
+
+            guard error == nil else {
+                // 原始请求失败时，先恢复被暂存的响应，再透传网络错误。
+                if let pendingResponse {
+                    orig.URLSession(
+                        session,
+                        dataTask: task,
+                        didReceiveResponse: pendingResponse,
+                        completionHandler: { _ in }
+                    )
+                }
+                orig.URLSession(session, task: task, didCompleteWithError: error)
+                return
+            }
+
+            guard let buffer = InterceptionContext.shared.getData(for: task) else {
+                // 没有缓冲到数据（极端情况），恢复原始响应并完成请求。
+                if let pendingResponse {
+                    orig.URLSession(
+                        session,
+                        dataTask: task,
+                        didReceiveResponse: pendingResponse,
+                        completionHandler: { _ in }
+                    )
+                }
+                orig.URLSession(session, task: task, didCompleteWithError: nil)
+                return
+            }
+
+            do {
+                if url.isLyrics {
+                    let customData = try getLyricsDataForCurrentTrack(
+                        url.path,
+                        originalLyrics: try? Lyrics(serializedBytes: buffer)
+                    )
+                    if let pendingResponse {
+                        orig.URLSession(
+                            session,
+                            dataTask: task,
+                            didReceiveResponse: pendingResponse,
+                            completionHandler: { _ in }
+                        )
+                    }
+                    sendDataAndComplete(customData, task: task, session: session, error: nil)
+                } else if url.isPremiumPlanRow {
+                    let customData = try getPremiumPlanRowData(
+                        originalPremiumPlanRow: try PremiumPlanRow(serializedBytes: buffer)
+                    )
+                    sendDataAndComplete(customData, task: task, session: session, error: nil)
+                } else if url.isPremiumBadge {
+                    let customData = try getPremiumPlanBadge()
+                    sendDataAndComplete(customData, task: task, session: session, error: nil)
+                } else if url.isCustomize {
+                    var customizeMessage = try CustomizeMessage(serializedBytes: buffer)
+                    modifyRemoteConfiguration(&customizeMessage.response)
+                    let customData = try customizeMessage.serializedData()
+                    sendDataAndComplete(customData, task: task, session: session, error: nil)
+                } else if url.isPlanOverview {
+                    let customData = try getPlanOverviewData()
+                    sendDataAndComplete(customData, task: task, session: session, error: nil)
+                } else {
+                    // 理论上不会发生，回退原始数据
+                    sendDataAndComplete(buffer, task: task, session: session, error: nil)
+                }
+            } catch {
+                if url.isLyrics, let pendingResponse {
+                    // 自定义歌词失败时返回 HTTP 错误响应。此时 Spotify 尚未收到
+                    // 原始 2xx 响应，才能进入原有的黑色“无歌词”错误界面。
+                    let errorResponse = HTTPURLResponse(
+                        url: pendingResponse.url ?? url,
+                        statusCode: 500,
+                        httpVersion: "HTTP/1.1",
+                        headerFields: pendingResponse.allHeaderFields as? [String: String]
+                    ) ?? pendingResponse
+                    orig.URLSession(
+                        session,
+                        dataTask: task,
+                        didReceiveResponse: errorResponse,
+                        completionHandler: { _ in }
+                    )
+                    orig.URLSession(session, task: task, didCompleteWithError: nil)
+                } else if url.isLyrics {
+                    orig.URLSession(session, task: task, didCompleteWithError: error)
+                } else {
+                    sendDataAndComplete(buffer, task: task, session: session, error: nil)
+                }
+            }
         }
     }
-
-    return try lyrics.serializedBytes()
 }
