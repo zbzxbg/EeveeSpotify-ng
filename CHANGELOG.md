@@ -236,15 +236,14 @@ Additional notes:
 <summary><b>v2.1.0-beta.2</b></summary>
 
 - Improved translations in the EeveeSpotify menu
-- Reverted Genius behavior to throw `LyricsError.noSuchSong` when no song is found.
+- Reverted Genius behavior to throw `LyricsError.noSuchSong` when no song is found
 
 </details>
 
 <details>
 <summary><b>v2.1.0-beta.3</b></summary>
 
-- Fixed an issue where Mxm mixed-language lyrics containing only a small amount of Japanese, Chinese, or Korean content were not passed to local romanization when Mxm did not provide romanized lyrics.
-- Improved Mxm romanization detection to trigger local processing when `NLLanguageRecognizer` identifies any lyric line as Japanese, Chinese, or Korean.
+- Improved Mxm romanization detection logic
 
 </details>
 
