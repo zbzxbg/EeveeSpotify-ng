@@ -12,20 +12,6 @@ var hasShownUnauthorizedPopUp = false
 private let geniusLyricsRepository = GeniusLyricsRepository()
 private let petitLyricsRepository = PetitLyricsRepository()
 
-private func emptyLyricsDto() -> LyricsDto {
-    LyricsDto(
-        lines: [],
-        timeSynced: false,
-        romanization: .original
-    )
-}
-
-private func isNoSuchSongError(_ error: Error) -> Bool {
-    guard let lyricsError = error as? LyricsError else { return false }
-    if case .noSuchSong = lyricsError { return true }
-    return false
-}
-
 private func lyricsRepository(for source: LyricsSource) -> LyricsRepository {
     switch source {
     case .genius: return geniusLyricsRepository
@@ -104,18 +90,7 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
             let waitResult = semaphore.wait(timeout: .now() + requestTimeout)
 
             if waitResult == .timedOut {
-                if source == .genius && isLastAttempt {
-                    lyricsState.fallbackError = nil
-                    lyricsState.isEmpty = true
-                    lyricsState.loadedSuccessfully = true
-                    return Lyrics.with {
-                        $0.data = emptyLyricsDto().toSpotifyLyricsData(
-                            source: source.description,
-                            useInstrumentalPlaceholder: false
-                        )
-                    }
-                }
-
+                // Genius 失败（含超时）不再兜底为空歌词，统一走下面的抛错逻辑
                 if index == 0 { lyricsState.fallbackError = .unknownError }
                 if isLastAttempt { throw LyricsError.unknownError } else { continue }
             }
@@ -139,39 +114,14 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
                     handleLyricsErrorPopUp(lyricsError)
                 }
 
+                // Genius 失败（含查无此曲）直接抛出，不再兜底为空歌词
                 if isLastAttempt {
-                    if source == .genius {
-                        if isNoSuchSongError(error) {
-                            throw error
-                        }
-
-                        lyricsState.fallbackError = nil
-                        lyricsState.isEmpty = true
-                        lyricsState.loadedSuccessfully = true
-                        return Lyrics.with {
-                            $0.data = emptyLyricsDto().toSpotifyLyricsData(
-                                source: source.description,
-                                useInstrumentalPlaceholder: false
-                            )
-                        }
-                    }
                     throw error
                 } else {
                     continue
                 }
             } else {
                 if isLastAttempt {
-                    if source == .genius {
-                        lyricsState.fallbackError = nil
-                        lyricsState.isEmpty = true
-                        lyricsState.loadedSuccessfully = true
-                        return Lyrics.with {
-                            $0.data = emptyLyricsDto().toSpotifyLyricsData(
-                                source: source.description,
-                                useInstrumentalPlaceholder: false
-                            )
-                        }
-                    }
                     throw LyricsError.unknownError
                 } else {
                     continue
@@ -196,15 +146,8 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
             lyricsDto = try repository.getLyrics(searchQuery, options: options)
         } catch let error {
             if source == .genius {
-                // Match whoeevee's behavior when Genius finds no matching song.
-                if isNoSuchSongError(error) {
-                    throw error
-                }
-
-                // Other Genius failures remain a silent empty result because
-                // Genius is the final fallback source.
-                lyricsState.fallbackError = nil
-                lyricsDto = emptyLyricsDto()
+                // Genius 失败（含查无此曲）直接抛出，不再兜底为空歌词
+                throw error
             } else {
                 if let error = error as? LyricsError {
                     lyricsState.fallbackError = error
@@ -219,14 +162,8 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
 
                 source = .genius
                 repository = geniusLyricsRepository
-                do {
-                    lyricsDto = try repository.getLyrics(searchQuery, options: options)
-                } catch {
-                    if isNoSuchSongError(error) {
-                        throw error
-                    }
-                    lyricsDto = emptyLyricsDto()
-                }
+                // Genius 兜底源同样直接抛错，不再兜底为空歌词
+                lyricsDto = try repository.getLyrics(searchQuery, options: options)
             }
         }
 

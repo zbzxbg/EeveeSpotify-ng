@@ -364,16 +364,11 @@ class GeniusLyricsRepository: LyricsRepository {
         let plainLines = songInfo.lyrics.plain.components(separatedBy: .newlines)
         let mappedLines = mapLyricsLines(plainLines)
 
-        // Genius is the final fallback source. If the page contains no valid
-        // lyric lines, return a real empty result instead of creating a
-        // placeholder or treating the response as a hard loading error.
+        // Treat a song page without valid lyric lines as unavailable lyrics.
+        // This keeps Genius errors consistent whether the song is not found
+        // in search or its page contains no usable lyric content.
         guard !mappedLines.isEmpty else {
-            return LyricsDto(
-                lines: [],
-                timeSynced: false,
-                romanization: .original,
-                languageCode: songInfo.language
-            )
+            throw LyricsError.noSuchSong
         }
 
         var romanization = LyricsRomanizationStatus.original
