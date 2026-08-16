@@ -235,6 +235,7 @@ Additional notes:
 <details>
 <summary><b>v2.0.1-beta.2</b></summary>
 
+- Improved translations in the EeveeSpotify menu
 - Reverted Genius behavior to throw `LyricsError.noSuchSong` when no song is found.
 
 </details>
