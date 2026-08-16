@@ -5,10 +5,13 @@ struct LyricsDto {
     var lines: [LyricsLineDto]
     var timeSynced: Bool
     var romanization: LyricsRomanizationStatus
-    var translation: LyricsTranslationDto?
+    var translation: LyricsTranslationDto? = nil
     var languageCode: String? = nil
     
-    func toSpotifyLyricsData(source: String) -> LyricsData {
+    func toSpotifyLyricsData(
+        source: String,
+        useInstrumentalPlaceholder: Bool = true
+    ) -> LyricsData {
         var lyricsData = LyricsData.with {
             $0.timeSynchronized = timeSynced
             $0.restriction = .unrestricted
@@ -19,17 +22,19 @@ struct LyricsDto {
         let canRomanize = shouldRomanize && romanization == .canBeRomanized
         
         if lines.isEmpty {
-            lyricsData.lines = [
-                LyricsLine.with {
-                    $0.content = "song_is_instrumental".localized
-                },
-                LyricsLine.with {
-                    $0.content = "let_the_music_play".localized
-                },
-                LyricsLine.with {
-                    $0.content = ""
-                }
-            ]
+            if useInstrumentalPlaceholder {
+                lyricsData.lines = [
+                    LyricsLine.with {
+                        $0.content = "song_is_instrumental".localized
+                    },
+                    LyricsLine.with {
+                        $0.content = "let_the_music_play".localized
+                    },
+                    LyricsLine.with {
+                        $0.content = ""
+                    }
+                ]
+            }
         }
         else {
             let sortedLines = lines.sorted { 

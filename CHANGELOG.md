@@ -1,7 +1,7 @@
 # Changelog
 
 <details open>
-<summary><b>2026</b> (22 versions)</summary>
+<summary><b>2026</b> (23 versions)</summary>
 
 ### 08.12
 
@@ -218,6 +218,18 @@ Additional notes:
 - Improved the English and Simplified Chinese descriptions in the ngzhwm settings screen.
 
 - Removed the "Show Fallback Reasons" UI and functionality from the EeveeSpotify menu.
+
+</details>
+
+<details>
+<summary><b>v2.0.1-beta.1</b></summary>
+
+- Improved Genius lyrics search accuracy by combining full-title and stripped-title candidates, deduplicating by song ID, and scoring results by both title and primary artist match.
+- Improved Genius lyrics parsing to filter only structural headers and metadata lines, reducing false removal of actual lyric content.
+- Fixed an issue where Genius could return a successful but empty lyrics result, which caused the instrumental placeholder to appear incorrectly.
+- Fixed an issue where Genius lyrics errors were not silenced when Genius is used as the final fallback source.
+- Fixed an issue where Genius Romanizations results did not respect the per-language romanization switches in the ngzhwm settings.
+- Changed Genius fallback behavior: when no valid lyrics are found, Genius now returns an empty lyrics result instead of an error or placeholder.
 
 </details>
 

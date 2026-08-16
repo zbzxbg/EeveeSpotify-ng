@@ -12,6 +12,14 @@ var hasShownUnauthorizedPopUp = false
 private let geniusLyricsRepository = GeniusLyricsRepository()
 private let petitLyricsRepository = PetitLyricsRepository()
 
+private func emptyLyricsDto() -> LyricsDto {
+    LyricsDto(
+        lines: [],
+        timeSynced: false,
+        romanization: .original
+    )
+}
+
 private func lyricsRepository(for source: LyricsSource) -> LyricsRepository {
     switch source {
     case .genius: return geniusLyricsRepository
@@ -90,6 +98,18 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
             let waitResult = semaphore.wait(timeout: .now() + requestTimeout)
 
             if waitResult == .timedOut {
+                if source == .genius && isLastAttempt {
+                    lyricsState.fallbackError = nil
+                    lyricsState.isEmpty = true
+                    lyricsState.loadedSuccessfully = true
+                    return Lyrics.with {
+                        $0.data = emptyLyricsDto().toSpotifyLyricsData(
+                            source: source.description,
+                            useInstrumentalPlaceholder: false
+                        )
+                    }
+                }
+
                 if index == 0 { lyricsState.fallbackError = .unknownError }
                 if isLastAttempt { throw LyricsError.unknownError } else { continue }
             }
@@ -101,16 +121,51 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
                 lyricsState.loadedSuccessfully = true
 
                 return Lyrics.with {
-                    $0.data = dto.toSpotifyLyricsData(source: source.description)
+                    $0.data = dto.toSpotifyLyricsData(
+                        source: source.description,
+                        useInstrumentalPlaceholder: source != .genius
+                    )
                 }
             } else if let error = requestError {
                 let lyricsError = error as? LyricsError
-                if index == 0 { lyricsState.fallbackError = lyricsError ?? .unknownError }
-                handleLyricsErrorPopUp(lyricsError)
+                if source != .genius {
+                    if index == 0 { lyricsState.fallbackError = lyricsError ?? .unknownError }
+                    handleLyricsErrorPopUp(lyricsError)
+                }
 
-                if isLastAttempt { throw error } else { continue }
+                if isLastAttempt {
+                    if source == .genius {
+                        lyricsState.fallbackError = nil
+                        lyricsState.isEmpty = true
+                        lyricsState.loadedSuccessfully = true
+                        return Lyrics.with {
+                            $0.data = emptyLyricsDto().toSpotifyLyricsData(
+                                source: source.description,
+                                useInstrumentalPlaceholder: false
+                            )
+                        }
+                    }
+                    throw error
+                } else {
+                    continue
+                }
             } else {
-                if isLastAttempt { throw LyricsError.unknownError } else { continue }
+                if isLastAttempt {
+                    if source == .genius {
+                        lyricsState.fallbackError = nil
+                        lyricsState.isEmpty = true
+                        lyricsState.loadedSuccessfully = true
+                        return Lyrics.with {
+                            $0.data = emptyLyricsDto().toSpotifyLyricsData(
+                                source: source.description,
+                                useInstrumentalPlaceholder: false
+                            )
+                        }
+                    }
+                    throw LyricsError.unknownError
+                } else {
+                    continue
+                }
             }
         }
 
@@ -130,20 +185,31 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
         do {
             lyricsDto = try repository.getLyrics(searchQuery, options: options)
         } catch let error {
-            if let error = error as? LyricsError {
-                lyricsState.fallbackError = error
-                handleLyricsErrorPopUp(error)
+            if source == .genius {
+                // Genius is the final fallback. Any failure is represented as
+                // an empty result instead of an error or an instrumental placeholder.
+                lyricsState.fallbackError = nil
+                lyricsDto = emptyLyricsDto()
             } else {
-                lyricsState.fallbackError = .unknownError
-            }
+                if let error = error as? LyricsError {
+                    lyricsState.fallbackError = error
+                    handleLyricsErrorPopUp(error)
+                } else {
+                    lyricsState.fallbackError = .unknownError
+                }
 
-            if source == .genius || !options.geniusFallback {
-                throw error
-            }
+                if !options.geniusFallback {
+                    throw error
+                }
 
-            source = .genius
-            repository = geniusLyricsRepository
-            lyricsDto = try repository.getLyrics(searchQuery, options: options)
+                source = .genius
+                repository = geniusLyricsRepository
+                do {
+                    lyricsDto = try repository.getLyrics(searchQuery, options: options)
+                } catch {
+                    lyricsDto = emptyLyricsDto()
+                }
+            }
         }
 
         lyricsState.isEmpty = lyricsDto.lines.isEmpty
@@ -152,7 +218,10 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
         lyricsState.loadedSuccessfully = true
 
         return Lyrics.with {
-            $0.data = lyricsDto.toSpotifyLyricsData(source: source.description)
+            $0.data = lyricsDto.toSpotifyLyricsData(
+                source: source.description,
+                useInstrumentalPlaceholder: source != .genius
+            )
         }
     }
 }

@@ -12,15 +12,15 @@ class GeniusLyricsRepository: LyricsRepository {
             "X-Genius-Logged-Out": "true",
             "User-Agent": "Genius/1109 \(URLSessionHelper.CFNetworkVersion) \(URLSessionHelper.DarwinVersion)"
         ]
-        
+
         session = URLSession(configuration: configuration)
-        
+
         jsonDecoder = JSONDecoder()
         jsonDecoder.keyDecodingStrategy = .convertFromSnakeCase
     }
-    
+
     private func perform(
-        _ path: String, 
+        _ path: String,
         query: [String:Any] = [:]
     ) throws -> GeniusDataResponse? {
         var stringUrl = "\(apiUrl)\(path)"
@@ -29,7 +29,7 @@ class GeniusLyricsRepository: LyricsRepository {
             let queryString = query.queryString
             stringUrl += "?\(queryString)"
         }
-        
+
         let request = URLRequest(url: URL(string: stringUrl)!)
 
         let semaphore = DispatchSemaphore(value: 0)
@@ -54,62 +54,195 @@ class GeniusLyricsRepository: LyricsRepository {
         }
         return rootResponse.response
     }
-    
+
     //
-    
+
     private func searchSong(_ query: String) throws -> [GeniusHit] {
         let data = try perform("/search/song", query: ["q": query])
-        
-        guard
-            case .sections(let sectionsResponse) = data,
-            let section = sectionsResponse.sections.first
-        else {
+
+        guard case .sections(let sectionsResponse) = data else {
             throw LyricsError.decodingError
         }
-        
-        return section.hits
+
+        // Genius may return more than one section. Do not discard hits from later sections.
+        return sectionsResponse.sections.flatMap(\.hits)
+    }
+
+    private func searchSongs(for query: LyricsSearchQuery, strippedTitle: String) throws -> [GeniusHit] {
+        let queries = [
+            "\(query.title) \(query.primaryArtist)",
+            "\(strippedTitle) \(query.primaryArtist)"
+        ]
+
+        var searchedQueries = Set<String>()
+        var hitsByID = [Int:GeniusHit]()
+        var lastError: Error?
+
+        for rawSearchQuery in queries {
+            let searchQuery = rawSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !searchQuery.isEmpty, searchedQueries.insert(searchQuery).inserted else {
+                continue
+            }
+
+            do {
+                let hits = try searchSong(searchQuery)
+                for hit in hits {
+                    hitsByID[hit.result.id] = hit
+                }
+            } catch {
+                lastError = error
+            }
+        }
+
+        if !hitsByID.isEmpty {
+            return Array(hitsByID.values)
+        }
+        if let lastError {
+            throw lastError
+        }
+        throw LyricsError.noSuchSong
     }
 
     private func getSongInfo(_ songId: Int) throws -> GeniusSong {
         let data = try perform("/songs/\(songId)", query: ["text_format": "plain"])
-        
+
         guard case .song(let songResponse) = data else {
             throw LyricsError.decodingError
         }
-        
+
         return songResponse.song
     }
-    
+
     //
-    
+
+    private func normalizedSearchText(_ text: String) -> String {
+        text
+            .folding(options: .diacriticInsensitive, locale: nil)
+            .lowercased()
+            .replacingOccurrences(
+                of: "[^\\p{L}\\p{N}]+",
+                with: " ",
+                options: .regularExpression
+            )
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func isGeniusRomanization(_ result: GeniusHitResult) -> Bool {
+        result.artistNames.caseInsensitiveCompare("Genius Romanizations") == .orderedSame
+    }
+
+    private func titleMatchScore(
+        for result: GeniusHitResult,
+        title: String,
+        strippedTitle: String,
+        primaryArtist: String,
+        preferRomanized: Bool
+    ) -> Int {
+        let resultTitle = normalizedSearchText(result.title)
+        let fullTitle = normalizedSearchText(title)
+        let cleanTitle = normalizedSearchText(strippedTitle)
+        let resultArtist = normalizedSearchText(result.artistNames)
+        let queryArtist = normalizedSearchText(primaryArtist)
+
+        var score = 0
+        if !fullTitle.isEmpty, resultTitle == fullTitle {
+            score += 100
+        } else if !cleanTitle.isEmpty, resultTitle == cleanTitle {
+            score += 90
+        } else if !fullTitle.isEmpty && (resultTitle.contains(fullTitle) || fullTitle.contains(resultTitle)) {
+            score += 70
+        } else if !cleanTitle.isEmpty && (resultTitle.contains(cleanTitle) || cleanTitle.contains(resultTitle)) {
+            score += 55
+        }
+
+        if !queryArtist.isEmpty && !isGeniusRomanization(result) {
+            if resultArtist == queryArtist {
+                score += 60
+            } else if resultArtist.contains(queryArtist) || queryArtist.contains(resultArtist) {
+                score += 40
+            } else {
+                let artistTokens = queryArtist.split(separator: " ")
+                if artistTokens.contains(where: { resultArtist.contains(String($0)) }) {
+                    score += 15
+                } else {
+                    score -= 80
+                }
+            }
+        }
+
+        if isGeniusRomanization(result) {
+            score += preferRomanized ? 100 : -1000
+        }
+
+        return score
+    }
+
     private func mostRelevantHitResult(
         hits: [GeniusHit],
+        title: String,
         strippedTitle: String,
-        romanized: Bool,
-        hasFoundRomanizedLyrics: inout Bool
-    ) -> GeniusHitResult {
+        primaryArtist: String,
+        preferRomanized: Bool
+    ) throws -> GeniusHitResult {
         let results = hits.map { $0.result }
-        
-        let matchingByTitle = results.filter(
-            { $0.title.containsInsensitive(strippedTitle) }
+        let eligibleResults = preferRomanized
+            ? results
+            : results.filter { !isGeniusRomanization($0) }
+
+        guard !eligibleResults.isEmpty else {
+            throw LyricsError.noSuchSong
+        }
+
+        guard let bestResult = eligibleResults.max(by: { lhs, rhs in
+            titleMatchScore(
+                for: lhs,
+                title: title,
+                strippedTitle: strippedTitle,
+                primaryArtist: primaryArtist,
+                preferRomanized: preferRomanized
+            ) < titleMatchScore(
+                for: rhs,
+                title: title,
+                strippedTitle: strippedTitle,
+                primaryArtist: primaryArtist,
+                preferRomanized: preferRomanized
+            )
+        }) else {
+            throw LyricsError.noSuchSong
+        }
+
+        let bestScore = titleMatchScore(
+            for: bestResult,
+            title: title,
+            strippedTitle: strippedTitle,
+            primaryArtist: primaryArtist,
+            preferRomanized: preferRomanized
         )
-        
-        if matchingByTitle.isEmpty {
-            return results.first!
+        guard bestScore >= 40 else {
+            throw LyricsError.noSuchSong
         }
-        
-        if romanized, let romanizedSong = matchingByTitle.first(
-            where: { $0.artistNames == "Genius Romanizations" }
-        ) {
-            hasFoundRomanizedLyrics = true
-            return romanizedSong
-        }
-        
-        return matchingByTitle.first!
+
+        return bestResult
     }
-    
+
+    private func isGeniusRomanizationEnabled(for languageCode: String) -> Bool {
+        guard UserDefaults.lyricsOptions.romanization else { return false }
+
+        let normalizedCode = languageCode.lowercased()
+        if normalizedCode.hasPrefix("ja") {
+            return UserDefaults.standard.bool(forKey: "ngzhwm_japaneseRomanization")
+        }
+        if normalizedCode.hasPrefix("ko") {
+            return UserDefaults.standard.bool(forKey: "ngzhwm_koreanRomanization")
+        }
+        if normalizedCode.hasPrefix("zh") || normalizedCode == "z1" {
+            return UserDefaults.standard.bool(forKey: "ngzhwm_chineseRomanization")
+        }
+        return false
+    }
+
     // MARK: - Non-lyric line filtering
-    
+
     /// Section-marker keywords (English + Portuguese). Matched AFTER diacritic
     /// folding + uppercasing, so REFRÃO / REFRAO / refrão / Pré-Refrão all
     /// normalize to the same token.
@@ -135,92 +268,124 @@ class GeniusLyricsRepository: LyricsRepository {
         ]
         return "(?:\(markers.joined(separator: "|")))"
     }()
-    
+
     /// Trims, strips diacritics, uppercases — for case/accent-insensitive matching.
     private func normalizedForMarkerMatch(_ line: String) -> String {
         return line
-            .trimmingCharacters(in: .whitespaces)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
             .folding(options: .diacriticInsensitive, locale: nil)
             .uppercased()
     }
-    
+
     /// True if the line is structural metadata rather than actual lyric content:
-    /// bracketed tags, parenthesized section markers, bare section-marker lines,
-    /// or `Letra de "..."` / `Text of "..."` style headers.
+    /// recognized bracketed tags, parenthesized section markers, bare section-marker
+    /// lines, or `Letra de "..."` / `Text of "..."` style headers.
     private func isNonLyricLine(_ line: String) -> Bool {
         let normalized = normalizedForMarkerMatch(line)
         guard !normalized.isEmpty else { return false }
-        
-        // [Any bracketed tag], e.g. [Chorus], [Verse 1: Artist]
-        if normalized ~= "^\\[.*\\]$" {
+
+        // Only remove bracketed section markers, not every bracketed lyric line.
+        // This preserves real lyrics such as `[I love you]`.
+        if normalized ~= "^\\[\\s*\(GeniusLyricsRepository.sectionMarkerPattern)(?:\\s+\\d+)?(?:\\s*[:|\\-].*)?\\s*\\]$" {
             return true
         }
-        
+
+        // Common Genius metadata headers.
+        if normalized ~= "^\\[\\s*(PRODUCED BY|WRITTEN BY|COMPOSED BY|TRANSLATED BY|注释)\\b.*\\]$" {
+            return true
+        }
+
         // (Structural marker) only — NOT arbitrary parenthesized ad-libs,
         // e.g. (INTRO), (LOOP), (PRE-OUTRO), (OUTRO), (PRE-SAIDA), (SAIDA)
         if normalized ~= "^\\(\\s*\(GeniusLyricsRepository.sectionMarkerPattern)\\s*\\d*\\s*\\)$" {
             return true
         }
-        
+
         // Bare marker with no brackets at all, e.g. a standalone "VERSO" line
         if normalized ~= "^\(GeniusLyricsRepository.sectionMarkerPattern)\\s*\\d*\\s*:?\\s*$" {
             return true
         }
-        
+
         // Header lines: LETRA DE "..." / TEKISUTO O LETRA DE "..." / TEXT OF "..."
         if normalized ~= "^(TEKISUTO\\s+O\\s+LETRA DE|LETRA DE|TEXT OF)\\s*[\"'\u{201C}\u{2018}]" {
             return true
         }
-        
+
         return false
     }
-    
+
     private func mapLyricsLines(_ rawLines: [String]) -> [String] {
         var lines = rawLines
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-        
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+
         lines.removeAll { isNonLyricLine($0) }
 
-        lines = Array(
-            lines
-                .drop(while: { $0.isEmpty })
-                .dropLast(while: { $0.isEmpty })
-        )
-        
+        lines = Array(lines.drop(while: { $0.isEmpty }))
+        while lines.last?.isEmpty == true {
+            lines.removeLast()
+        }
+
         return lines
     }
-    
+
     func getLyrics(_ query: LyricsSearchQuery, options: LyricsOptions) throws -> LyricsDto {
         let strippedTitle = query.title.strippedTrackTitle
-        let hits = try searchSong("\(strippedTitle) \(query.primaryArtist)")
-    
-        guard !hits.isEmpty else {
-            throw LyricsError.noSuchSong
-        }
-        
-        var hasFoundRomanizedLyrics = false
-        
-        let song = mostRelevantHitResult(
+        let hits = try searchSongs(for: query, strippedTitle: strippedTitle)
+
+        var song = try mostRelevantHitResult(
             hits: hits,
+            title: query.title,
             strippedTitle: strippedTitle,
-            romanized: options.romanization,
-            hasFoundRomanizedLyrics: &hasFoundRomanizedLyrics
+            primaryArtist: query.primaryArtist,
+            preferRomanized: options.romanization
         )
-        
-        let songInfo = try getSongInfo(song.id)
-        let plainLines = songInfo.lyrics.plain.components(separatedBy: "\n")
-        
+        var songInfo = try getSongInfo(song.id)
+
+        // A Genius Romanizations result is only valid when the global switch and
+        // the corresponding ngzhwm language switch are both enabled. If not,
+        // select the best non-romanized result instead.
+        if isGeniusRomanization(song), !isGeniusRomanizationEnabled(for: songInfo.language) {
+            let originalHits = hits.filter { !isGeniusRomanization($0.result) }
+            guard !originalHits.isEmpty else {
+                throw LyricsError.noSuchSong
+            }
+
+            song = try mostRelevantHitResult(
+                hits: originalHits,
+                title: query.title,
+                strippedTitle: strippedTitle,
+                primaryArtist: query.primaryArtist,
+                preferRomanized: false
+            )
+            songInfo = try getSongInfo(song.id)
+        }
+
+        let plainLines = songInfo.lyrics.plain.components(separatedBy: .newlines)
+        let mappedLines = mapLyricsLines(plainLines)
+
+        // Genius is the final fallback source. If the page contains no valid
+        // lyric lines, return a real empty result instead of creating a
+        // placeholder or treating the response as a hard loading error.
+        guard !mappedLines.isEmpty else {
+            return LyricsDto(
+                lines: [],
+                timeSynced: false,
+                romanization: .original,
+                languageCode: songInfo.language
+            )
+        }
+
         var romanization = LyricsRomanizationStatus.original
-        
-        if hasFoundRomanizedLyrics {
+
+        if isGeniusRomanization(song) {
             romanization = .romanized
         }
         else if songInfo.language.isCanBeRomanizedLanguage {
             romanization = .canBeRomanized
         }
-    
+
         return LyricsDto(
-            lines: mapLyricsLines(plainLines).map { line in LyricsLineDto(content: line) },
+            lines: mappedLines.map { LyricsLineDto(content: $0) },
             timeSynced: false,
             romanization: romanization,
             languageCode: songInfo.language
