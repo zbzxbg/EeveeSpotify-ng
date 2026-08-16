@@ -9,6 +9,7 @@ final class InterceptionContext {
     private var stateByTaskID: [Int: State] = [:]
     private var dataByTaskID: [Int: Data] = [:]
     private var customDataByTaskID: [Int: Data] = [:]
+    private var pendingResponseByTaskID: [Int: HTTPURLResponse] = [:]
 
     enum State {
         case buffering              // 普通修改：缓冲真实数据，完成时替换
@@ -57,6 +58,18 @@ final class InterceptionContext {
         return customDataByTaskID[task.taskIdentifier]
     }
 
+    func setPendingResponse(_ response: HTTPURLResponse, for task: URLSessionDataTask) {
+        lock.lock()
+        defer { lock.unlock() }
+        pendingResponseByTaskID[task.taskIdentifier] = response
+    }
+
+    func getPendingResponse(for task: URLSessionDataTask) -> HTTPURLResponse? {
+        lock.lock()
+        defer { lock.unlock() }
+        return pendingResponseByTaskID[task.taskIdentifier]
+    }
+
     func removeAll(for task: URLSessionDataTask) {
         lock.lock()
         defer { lock.unlock() }
@@ -64,6 +77,7 @@ final class InterceptionContext {
         stateByTaskID.removeValue(forKey: id)
         dataByTaskID.removeValue(forKey: id)
         customDataByTaskID.removeValue(forKey: id)
+        pendingResponseByTaskID.removeValue(forKey: id)
     }
 }
 
@@ -147,9 +161,18 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
             return
         }
 
-        // 标记为缓冲模式，后续数据将被缓冲，完成时替换
+        // 标记为缓冲模式，后续数据将被缓冲，完成时替换。
+        // 歌词响应暂不立即交给 Spotify；否则后续 Genius noSuchSong
+        // 即使抛错，Spotify 已经收到 2xx 响应，也只会显示空歌词。
         InterceptionContext.shared.setState(.buffering, for: task)
-        orig.URLSession(session, dataTask: task, didReceiveResponse: response, completionHandler: handler)
+        if url.isLyrics {
+            InterceptionContext.shared.setPendingResponse(response, for: task)
+            // 允许网络继续传输；响应本身会在 didCompleteWithError 中
+            // 根据自定义歌词结果再交给 Spotify 的原始处理器。
+            handler(.allow)
+        } else {
+            orig.URLSession(session, dataTask: task, didReceiveResponse: response, completionHandler: handler)
+        }
     }
 
     func URLSession(
@@ -214,14 +237,32 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
             }
 
         case .buffering:
+            let pendingResponse = InterceptionContext.shared.getPendingResponse(for: task)
+
             guard error == nil else {
-                // 原始请求失败（理论上不会发生，因为只有2xx才进入此状态），直接透传错误
+                // 原始请求失败时，先恢复被暂存的响应，再透传网络错误。
+                if let pendingResponse {
+                    orig.URLSession(
+                        session,
+                        dataTask: task,
+                        didReceiveResponse: pendingResponse,
+                        completionHandler: { _ in }
+                    )
+                }
                 orig.URLSession(session, task: task, didCompleteWithError: error)
                 return
             }
 
             guard let buffer = InterceptionContext.shared.getData(for: task) else {
-                // 没有缓冲到数据（极端情况），透传成功完成
+                // 没有缓冲到数据（极端情况），恢复原始响应并完成请求。
+                if let pendingResponse {
+                    orig.URLSession(
+                        session,
+                        dataTask: task,
+                        didReceiveResponse: pendingResponse,
+                        completionHandler: { _ in }
+                    )
+                }
                 orig.URLSession(session, task: task, didCompleteWithError: nil)
                 return
             }
@@ -232,6 +273,14 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
                         url.path,
                         originalLyrics: try? Lyrics(serializedBytes: buffer)
                     )
+                    if let pendingResponse {
+                        orig.URLSession(
+                            session,
+                            dataTask: task,
+                            didReceiveResponse: pendingResponse,
+                            completionHandler: { _ in }
+                        )
+                    }
                     sendDataAndComplete(customData, task: task, session: session, error: nil)
                 } else if url.isPremiumPlanRow {
                     let customData = try getPremiumPlanRowData(
@@ -254,8 +303,23 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
                     sendDataAndComplete(buffer, task: task, session: session, error: nil)
                 }
             } catch {
-                // 歌词解析/生成失败时透传错误，让歌词组件按官方错误流程处理。
-                if url.isLyrics {
+                if url.isLyrics, let pendingResponse {
+                    // 自定义歌词失败时返回 HTTP 错误响应。此时 Spotify 尚未收到
+                    // 原始 2xx 响应，才能进入原有的黑色“无歌词”错误界面。
+                    let errorResponse = HTTPURLResponse(
+                        url: pendingResponse.url ?? url,
+                        statusCode: 500,
+                        httpVersion: "HTTP/1.1",
+                        headerFields: pendingResponse.allHeaderFields as? [String: String]
+                    ) ?? pendingResponse
+                    orig.URLSession(
+                        session,
+                        dataTask: task,
+                        didReceiveResponse: errorResponse,
+                        completionHandler: { _ in }
+                    )
+                    orig.URLSession(session, task: task, didCompleteWithError: nil)
+                } else if url.isLyrics {
                     orig.URLSession(session, task: task, didCompleteWithError: error)
                 } else {
                     sendDataAndComplete(buffer, task: task, session: session, error: nil)

@@ -76,7 +76,6 @@ class GeniusLyricsRepository: LyricsRepository {
 
         var searchedQueries = Set<String>()
         var hitsByID = [Int:GeniusHit]()
-        var lastError: Error?
 
         for rawSearchQuery in queries {
             let searchQuery = rawSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -90,16 +89,18 @@ class GeniusLyricsRepository: LyricsRepository {
                     hitsByID[hit.result.id] = hit
                 }
             } catch {
-                lastError = error
+                continue
             }
         }
 
         if !hitsByID.isEmpty {
             return Array(hitsByID.values)
         }
-        if let lastError {
-            throw lastError
-        }
+
+        // If neither query produced a song, preserve whoeevee's no-song
+        // behavior even when one of the alternate searches also failed.
+        // Otherwise the final fallback path may treat a search miss as a
+        // generic Genius failure and silently return empty lyrics.
         throw LyricsError.noSuchSong
     }
 
