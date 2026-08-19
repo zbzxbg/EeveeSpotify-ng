@@ -172,6 +172,21 @@ class GeniusLyricsRepository: LyricsRepository {
             || containsWholeArtistPhrase(queryArtist, in: resultArtist)
     }
 
+    private func titleMatches(
+        resultTitle: String,
+        title: String,
+        strippedTitle: String
+    ) -> Bool {
+        let normalizedResultTitle = normalizedSearchText(resultTitle)
+        let fullTitle = normalizedSearchText(title)
+        let cleanTitle = normalizedSearchText(strippedTitle)
+
+        guard !normalizedResultTitle.isEmpty else { return false }
+
+        return (!fullTitle.isEmpty && normalizedResultTitle == fullTitle)
+            || (!cleanTitle.isEmpty && normalizedResultTitle == cleanTitle)
+    }
+
     private func titleMatchScore(
         for result: GeniusHitResult,
         title: String,
@@ -190,10 +205,6 @@ class GeniusLyricsRepository: LyricsRepository {
             score += 100
         } else if !cleanTitle.isEmpty, resultTitle == cleanTitle {
             score += 90
-        } else if !fullTitle.isEmpty && (resultTitle.contains(fullTitle) || fullTitle.contains(resultTitle)) {
-            score += 70
-        } else if !cleanTitle.isEmpty && (resultTitle.contains(cleanTitle) || cleanTitle.contains(resultTitle)) {
-            score += 55
         }
 
         if !queryArtist.isEmpty && !isGeniusRomanization(result) {
@@ -231,7 +242,15 @@ class GeniusLyricsRepository: LyricsRepository {
                 return false
             }
 
-            return artistMatches(result: result, primaryArtist: primaryArtist)
+            let titleIsCompatible = isGeniusRomanization(result)
+                || titleMatches(
+                    resultTitle: result.title,
+                    title: title,
+                    strippedTitle: strippedTitle
+                )
+
+            return titleIsCompatible
+                && artistMatches(result: result, primaryArtist: primaryArtist)
         }
 
         guard !eligibleResults.isEmpty else {

@@ -10,7 +10,7 @@ struct GeniusLyricsMarkerConfiguration {
         sectionMarkers: [
             "INTRO(DUCAO)?",
             "VERSE", "VERSO",
-            "CHORUS", "REFRAO",
+            "CHORUS", "REFRAO", "ПРИПЕВ",
             "PRE[- ]?CHORUS", "PRE[- ]?REFRAO",
             "POST?[- ]?CHORUS", "POS[- ]?REFRAO",
             "BRIDGE", "PONTE",
