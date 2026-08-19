@@ -251,4 +251,12 @@ Additional notes:
 
 </details>
 
+### 08.19
+
+<details>
+<summary><b>v2.1.0-beta.4</b></summary>
+
+- Improved terminology handling when removing annotations from Genius lyrics
+- Improved Genius lyrics search accuracy
+
 </details>
