@@ -71,7 +71,9 @@ class GeniusLyricsRepository: LyricsRepository {
     private func searchSongs(for query: LyricsSearchQuery, strippedTitle: String) throws -> [GeniusHit] {
         let queries = [
             "\(query.title) \(query.primaryArtist)",
-            "\(strippedTitle) \(query.primaryArtist)"
+            "\(strippedTitle) \(query.primaryArtist)",
+            query.title,
+            strippedTitle
         ]
 
         var searchedQueries = Set<String>()
@@ -132,6 +134,44 @@ class GeniusLyricsRepository: LyricsRepository {
         result.artistNames.caseInsensitiveCompare("Genius Romanizations") == .orderedSame
     }
 
+    /// Returns true when the requested artist appears as a complete token sequence
+    /// in the Genius result artist name. This allows collaboration results such as
+    /// "Artist & Another Artist" without treating a short name like "m" as a match
+    /// for an unrelated artist such as "Maroon 5".
+    private func containsWholeArtistPhrase(_ phrase: String, in text: String) -> Bool {
+        let phraseTokens = phrase.split(separator: " ")
+        let textTokens = text.split(separator: " ")
+
+        guard !phraseTokens.isEmpty, phraseTokens.count <= textTokens.count else {
+            return false
+        }
+
+        for startIndex in 0...(textTokens.count - phraseTokens.count) {
+            let endIndex = startIndex + phraseTokens.count
+            if Array(textTokens[startIndex..<endIndex]) == phraseTokens {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    private func artistMatches(
+        result: GeniusHitResult,
+        primaryArtist: String
+    ) -> Bool {
+        guard !isGeniusRomanization(result) else { return true }
+
+        let queryArtist = normalizedSearchText(primaryArtist)
+        guard !queryArtist.isEmpty else { return true }
+
+        let resultArtist = normalizedSearchText(result.artistNames)
+        guard !resultArtist.isEmpty else { return false }
+
+        return resultArtist == queryArtist
+            || containsWholeArtistPhrase(queryArtist, in: resultArtist)
+    }
+
     private func titleMatchScore(
         for result: GeniusHitResult,
         title: String,
@@ -186,9 +226,13 @@ class GeniusLyricsRepository: LyricsRepository {
         preferRomanized: Bool
     ) throws -> GeniusHitResult {
         let results = hits.map { $0.result }
-        let eligibleResults = preferRomanized
-            ? results
-            : results.filter { !isGeniusRomanization($0) }
+        let eligibleResults = results.filter { result in
+            guard preferRomanized || !isGeniusRomanization(result) else {
+                return false
+            }
+
+            return artistMatches(result: result, primaryArtist: primaryArtist)
+        }
 
         guard !eligibleResults.isEmpty else {
             throw LyricsError.noSuchSong
