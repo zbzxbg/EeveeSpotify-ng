@@ -263,7 +263,12 @@ class GeniusLyricsRepository: LyricsRepository {
         "(?:\(markerConfiguration.titlePrefixPatterns.joined(separator: "|")))"
     }()
 
+    private static let titleHeaderPattern: String = {
+        "(?:\(markerConfiguration.titleHeaderPatterns.joined(separator: "|")))"
+    }()
+
     private static let markerNumberSuffix = "(?:\\s+(?:N[. ]?)?\\d+(?:[.]\\d+)?)?"
+    private static let repeatCountSuffix = "(?:\\s+X\\d+)?"
 
     /// Trims, strips diacritics, uppercases — for case/accent-insensitive matching.
     private func normalizedForMarkerMatch(_ line: String) -> String {
@@ -282,7 +287,7 @@ class GeniusLyricsRepository: LyricsRepository {
 
         // Only remove bracketed section markers, not every bracketed lyric line.
         // This preserves real lyrics such as `[I love you]`.
-        if normalized ~= "^\\[\\s*\(GeniusLyricsRepository.sectionMarkerPattern)\(GeniusLyricsRepository.markerNumberSuffix)(?:\\s*[:|\\-].*)?\\s*\\]$" {
+        if normalized ~= "^\\[\\s*\(GeniusLyricsRepository.sectionMarkerPattern)\(GeniusLyricsRepository.markerNumberSuffix)(?:\\s*[:|\\-].*)?\\s*\\]\(GeniusLyricsRepository.repeatCountSuffix)$" {
             return true
         }
 
@@ -293,6 +298,11 @@ class GeniusLyricsRepository: LyricsRepository {
 
         // Dynamic Genius title headers, e.g. [Letra de “Song Title”].
         if normalized ~= "^\\[\\s*\(GeniusLyricsRepository.titlePrefixPattern)\\s*[\"'“‘].*[\"'”’]\\s*\\]$" {
+            return true
+        }
+
+        // Japanese or romanized title headers, e.g. [Hanabasami Kyou「Under」kashi].
+        if normalized ~= "^\\[\\s*\(GeniusLyricsRepository.titleHeaderPattern)\\s*\\]$" {
             return true
         }
 

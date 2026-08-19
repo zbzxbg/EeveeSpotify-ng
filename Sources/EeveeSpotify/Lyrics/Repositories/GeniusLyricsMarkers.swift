@@ -4,6 +4,7 @@ struct GeniusLyricsMarkerConfiguration {
     let sectionMarkers: [String]
     let metadataPrefixes: [String]
     let titlePrefixPatterns: [String]
+    let titleHeaderPatterns: [String]
 
     static let shared = GeniusLyricsMarkerConfiguration(
         sectionMarkers: [
@@ -15,7 +16,7 @@ struct GeniusLyricsMarkerConfiguration {
             "BRIDGE", "PONTE",
             "HOOK", "GANCHO",
             "INTERLUDE", "INTERLUDIO",
-            "SOLO", "INSTRUMENTAL",
+            "SOLO", "INSTRUMENTAL", "INSTRUMENTAL\\?", "\\?INSTRUMENTAL\\?",
             "OUTRO", "ENCERRAMENTO",
             "DROP",
             "BREAK(DOWN)?",
@@ -38,6 +39,9 @@ struct GeniusLyricsMarkerConfiguration {
             "TEKISUTO\\s+O\\s+LETRA DE",
             "LETRA DE",
             "TEXT OF"
+        ],
+        titleHeaderPatterns: [
+            ".+[「『].+[」』]\\s*(?:KASHI|歌詞)"
         ]
     )
 }
