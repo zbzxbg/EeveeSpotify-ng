@@ -33,7 +33,7 @@ It is intended for personal learning and research only. Use it at your own risk.
 
 This project follows the GNU General Public License v3.0 of the original project.
 
-Current version: `v2.1.0-beta.4`
+Current version: `v2.1.0`
 
 Last modified: 2026-08-19.
 
