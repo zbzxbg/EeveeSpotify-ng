@@ -1,7 +1,7 @@
 # Changelog
 
 <details open>
-<summary><b>2026</b> (26 versions)</summary>
+<summary><b>2026</b> (27 versions)</summary>
 
 
 </details>
