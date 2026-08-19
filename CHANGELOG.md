@@ -1,7 +1,7 @@
 # Changelog
 
 <details open>
-<summary><b>2026</b> (27 versions)</summary>
+<summary><b>2026</b> (28 versions)</summary>
 
 
 </details>
@@ -258,5 +258,21 @@ Additional notes:
 
 - Improved terminology handling when removing annotations from Genius lyrics
 - Improved Genius lyrics search accuracy
+
+</details>
+
+<details>
+<summary><b>v2.1.0</b></summary>
+
+- Improved Genius lyrics search accuracy
+- Improved Genius fallback logic
+- Improved Genius lyrics parsing
+- Improved Mxm romanization detection logic
+- Improved terminology handling when removing annotations from Genius lyrics
+- Improved translations in the EeveeSpotify menu
+- Fixed an issue where Genius could return an empty lyrics result, causing the "instrumental" placeholder to appear incorrectly
+- Fixed an issue where Genius Romanizations did not respect the per-language romanization switches in ngzhwm settings
+
+</details>
 
 </details>
