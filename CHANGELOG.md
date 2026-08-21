@@ -275,8 +275,10 @@ Additional notes:
 
 </details>
 
+### 08.22
+
 <details>
-<summary><b>v3.0.0</b></summary>
+<summary><b>v3.0.0-beta.1</b></summary>
 
 - Feature: Added enhanced Genius lyrics matching logic.
 
