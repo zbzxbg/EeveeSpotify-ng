@@ -1,6 +1,11 @@
 import Foundation
 
 class GeniusLyricsRepository: LyricsRepository {
+    /// Upper bound on how many candidate song pages we fetch before giving up.
+    /// Generous enough to find the right page even when heuristics fail
+    /// (e.g. different scripts), while avoiding unbounded requests.
+    private let maxCandidateFetches = 20
+
     private let jsonDecoder: JSONDecoder
     private let apiUrl = "https://api.genius.com"
     private let session: URLSession
@@ -43,13 +48,20 @@ class GeniusLyricsRepository: LyricsRepository {
         }
 
         task.resume()
-        semaphore.wait()
+
+        // Bound every request so a hung Genius connection cannot stall lyrics
+        // loading forever (and, with candidate fallback, never yields lyrics).
+        if semaphore.wait(timeout: .now() + 10) == .timedOut {
+            task.cancel()
+            throw LyricsError.unknownError
+        }
 
         if let error = error {
             throw error
         }
 
-        guard let rootResponse = try? jsonDecoder.decode(GeniusRootResponse.self, from: data!) else {
+        guard let data = data,
+              let rootResponse = try? jsonDecoder.decode(GeniusRootResponse.self, from: data) else {
             throw LyricsError.decodingError
         }
         return rootResponse.response
@@ -77,7 +89,9 @@ class GeniusLyricsRepository: LyricsRepository {
         ]
 
         var searchedQueries = Set<String>()
-        var hitsByID = [Int:GeniusHit]()
+        var hits: [GeniusHit] = []
+        var seenIDs = Set<Int>()
+        var lastSearchError: Error?
 
         for rawSearchQuery in queries {
             let searchQuery = rawSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -86,23 +100,30 @@ class GeniusLyricsRepository: LyricsRepository {
             }
 
             do {
-                let hits = try searchSong(searchQuery)
-                for hit in hits {
-                    hitsByID[hit.result.id] = hit
+                let newHits = try searchSong(searchQuery)
+                for hit in newHits {
+                    // Keep first-seen (most relevant) order and dedupe by song id.
+                    if seenIDs.insert(hit.result.id).inserted {
+                        hits.append(hit)
+                    }
                 }
             } catch {
+                lastSearchError = error
                 continue
             }
         }
 
-        if !hitsByID.isEmpty {
-            return Array(hitsByID.values)
+        if !hits.isEmpty {
+            return hits
         }
 
-        // If neither query produced a song, preserve whoeevee's no-song
-        // behavior even when one of the alternate searches also failed.
-        // Otherwise the final fallback path may treat a search miss as a
-        // generic Genius failure and silently return empty lyrics.
+        // A transient failure must not masquerade as "no such song": surfacing
+        // the real error avoids showing "no lyrics" when we simply couldn't
+        // reach Genius this time.
+        if let lastSearchError = lastSearchError {
+            throw lastSearchError
+        }
+
         throw LyricsError.noSuchSong
     }
 
@@ -229,64 +250,105 @@ class GeniusLyricsRepository: LyricsRepository {
         return score
     }
 
-    private func mostRelevantHitResult(
+    /// Ranks search hits so the best title/artist match is tried first, while
+    /// still keeping every hit as a fallback candidate. Equal scores keep the
+    /// original search order (most relevant query first), which matters when
+    /// Spotify metadata and Genius titles/artists use different scripts and the
+    /// heuristic score is uninformative.
+    private func rankedHitResults(
         hits: [GeniusHit],
         title: String,
         strippedTitle: String,
         primaryArtist: String,
         preferRomanized: Bool
-    ) throws -> GeniusHitResult {
-        let results = hits.map { $0.result }
-        let eligibleResults = results.filter { result in
-            guard preferRomanized || !isGeniusRomanization(result) else {
-                return false
-            }
-
-            let titleIsCompatible = isGeniusRomanization(result)
-                || titleMatches(
-                    resultTitle: result.title,
+    ) -> [GeniusHitResult] {
+        return hits
+            .enumerated()
+            .map { (index: $0.offset, result: $0.element.result) }
+            .sorted { lhs, rhs in
+                let lhsScore = titleMatchScore(
+                    for: lhs.result,
                     title: title,
-                    strippedTitle: strippedTitle
+                    strippedTitle: strippedTitle,
+                    primaryArtist: primaryArtist,
+                    preferRomanized: preferRomanized
                 )
+                let rhsScore = titleMatchScore(
+                    for: rhs.result,
+                    title: title,
+                    strippedTitle: strippedTitle,
+                    primaryArtist: primaryArtist,
+                    preferRomanized: preferRomanized
+                )
+                if lhsScore != rhsScore {
+                    return lhsScore > rhsScore
+                }
+                return lhs.index < rhs.index
+            }
+            .map { $0.result }
+    }
 
-            return titleIsCompatible
-                && artistMatches(result: result, primaryArtist: primaryArtist)
-        }
+    /// Strict-match candidate selection (ngzhwm_geniusStrictMatch ON): only
+    /// results whose title AND artist match the requested song AND whose match
+    /// score is at least 40 are kept. Preferring to return "no lyrics" over a
+    /// wrong song — a candidate is never accepted on a loose match.
+    private func strictEligibleHitResults(
+        hits: [GeniusHit],
+        title: String,
+        strippedTitle: String,
+        primaryArtist: String,
+        preferRomanized: Bool
+    ) -> [GeniusHitResult] {
+        return hits
+            .enumerated()
+            .map { (index: $0.offset, result: $0.element.result) }
+            .filter { pair in
+                let result = pair.result
 
-        guard !eligibleResults.isEmpty else {
-            throw LyricsError.noSuchSong
-        }
+                guard preferRomanized || !isGeniusRomanization(result) else {
+                    return false
+                }
 
-        guard let bestResult = eligibleResults.max(by: { lhs, rhs in
-            titleMatchScore(
-                for: lhs,
-                title: title,
-                strippedTitle: strippedTitle,
-                primaryArtist: primaryArtist,
-                preferRomanized: preferRomanized
-            ) < titleMatchScore(
-                for: rhs,
-                title: title,
-                strippedTitle: strippedTitle,
-                primaryArtist: primaryArtist,
-                preferRomanized: preferRomanized
-            )
-        }) else {
-            throw LyricsError.noSuchSong
-        }
+                let titleIsCompatible = isGeniusRomanization(result)
+                    || titleMatches(
+                        resultTitle: result.title,
+                        title: title,
+                        strippedTitle: strippedTitle
+                    )
+                guard titleIsCompatible,
+                      artistMatches(result: result, primaryArtist: primaryArtist) else {
+                    return false
+                }
 
-        let bestScore = titleMatchScore(
-            for: bestResult,
-            title: title,
-            strippedTitle: strippedTitle,
-            primaryArtist: primaryArtist,
-            preferRomanized: preferRomanized
-        )
-        guard bestScore >= 40 else {
-            throw LyricsError.noSuchSong
-        }
-
-        return bestResult
+                return titleMatchScore(
+                    for: result,
+                    title: title,
+                    strippedTitle: strippedTitle,
+                    primaryArtist: primaryArtist,
+                    preferRomanized: preferRomanized
+                ) >= 40
+            }
+            .sorted { lhs, rhs in
+                let lhsScore = titleMatchScore(
+                    for: lhs.result,
+                    title: title,
+                    strippedTitle: strippedTitle,
+                    primaryArtist: primaryArtist,
+                    preferRomanized: preferRomanized
+                )
+                let rhsScore = titleMatchScore(
+                    for: rhs.result,
+                    title: title,
+                    strippedTitle: strippedTitle,
+                    primaryArtist: primaryArtist,
+                    preferRomanized: preferRomanized
+                )
+                if lhsScore != rhsScore {
+                    return lhsScore > rhsScore
+                }
+                return lhs.index < rhs.index
+            }
+            .map { $0.result }
     }
 
     private func isGeniusRomanizationEnabled(for languageCode: String) -> Bool {
@@ -406,58 +468,79 @@ class GeniusLyricsRepository: LyricsRepository {
         let strippedTitle = query.title.strippedTrackTitle
         let hits = try searchSongs(for: query, strippedTitle: strippedTitle)
 
-        var song = try mostRelevantHitResult(
-            hits: hits,
-            title: query.title,
-            strippedTitle: strippedTitle,
-            primaryArtist: query.primaryArtist,
-            preferRomanized: options.romanization
-        )
-        var songInfo = try getSongInfo(song.id)
+        let strictMatch = UserDefaults.standard.bool(forKey: NgzhwmSettingsViewModel.geniusStrictMatchKey)
 
-        // A Genius Romanizations result is only valid when the global switch and
-        // the corresponding ngzhwm language switch are both enabled. If not,
-        // select the best non-romanized result instead.
-        if isGeniusRomanization(song), !isGeniusRomanizationEnabled(for: songInfo.language) {
-            let originalHits = hits.filter { !isGeniusRomanization($0.result) }
-            guard !originalHits.isEmpty else {
-                throw LyricsError.noSuchSong
-            }
-
-            song = try mostRelevantHitResult(
-                hits: originalHits,
+        // strictMatch ON  -> precision-first: only a confident (title + artist
+        //   matched, scored >= 40) candidate may be returned. Never show a wrong
+        //   song; reporting "no lyrics" is acceptable.
+        // strictMatch OFF -> recall-first: allow a slightly wrong version rather
+        //   than miss lyrics entirely.
+        let candidates: [GeniusHitResult]
+        if strictMatch {
+            let eligible = strictEligibleHitResults(
+                hits: hits,
                 title: query.title,
                 strippedTitle: strippedTitle,
                 primaryArtist: query.primaryArtist,
-                preferRomanized: false
+                preferRomanized: options.romanization
             )
-            songInfo = try getSongInfo(song.id)
+            guard !eligible.isEmpty else {
+                throw LyricsError.noSuchSong
+            }
+            candidates = eligible
+        } else {
+            candidates = rankedHitResults(
+                hits: hits,
+                title: query.title,
+                strippedTitle: strippedTitle,
+                primaryArtist: query.primaryArtist,
+                preferRomanized: options.romanization
+            )
         }
 
-        let plainLines = songInfo.lyrics.plain.components(separatedBy: .newlines)
-        let mappedLines = mapLyricsLines(plainLines)
+        // Walk candidates from best to worst match and return the first page
+        // that actually contains usable lyric lines. This favors recall over
+        // precision: a slightly wrong version is better than reporting "no
+        // lyrics" while a valid page exists among the search results.
+        for candidate in candidates.prefix(maxCandidateFetches) {
+            let songInfo: GeniusSong
+            do {
+                songInfo = try getSongInfo(candidate.id)
+            } catch {
+                continue
+            }
 
-        // Treat a song page without valid lyric lines as unavailable lyrics.
-        // This keeps Genius errors consistent whether the song is not found
-        // in search or its page contains no usable lyric content.
-        guard !mappedLines.isEmpty else {
-            throw LyricsError.noSuchSong
+            // A Genius Romanizations result is only valid when the global switch
+            // and the corresponding ngzhwm language switch are both enabled.
+            // Otherwise fall through to the next (non-romanized) candidate.
+            if isGeniusRomanization(candidate), !isGeniusRomanizationEnabled(for: songInfo.language) {
+                continue
+            }
+
+            let plainLines = songInfo.lyrics.plain.components(separatedBy: .newlines)
+            let mappedLines = mapLyricsLines(plainLines)
+
+            // Skip pages without usable lyric content (instrumentals, tracklists,
+            // annotation-only pages) and try the next candidate.
+            guard !mappedLines.isEmpty else {
+                continue
+            }
+
+            var romanization = LyricsRomanizationStatus.original
+            if isGeniusRomanization(candidate) {
+                romanization = .romanized
+            } else if songInfo.language.isCanBeRomanizedLanguage {
+                romanization = .canBeRomanized
+            }
+
+            return LyricsDto(
+                lines: mappedLines.map { LyricsLineDto(content: $0) },
+                timeSynced: false,
+                romanization: romanization,
+                languageCode: songInfo.language
+            )
         }
 
-        var romanization = LyricsRomanizationStatus.original
-
-        if isGeniusRomanization(song) {
-            romanization = .romanized
-        }
-        else if songInfo.language.isCanBeRomanizedLanguage {
-            romanization = .canBeRomanized
-        }
-
-        return LyricsDto(
-            lines: mappedLines.map { LyricsLineDto(content: $0) },
-            timeSynced: false,
-            romanization: romanization,
-            languageCode: songInfo.language
-        )
+        throw LyricsError.noSuchSong
     }
 }

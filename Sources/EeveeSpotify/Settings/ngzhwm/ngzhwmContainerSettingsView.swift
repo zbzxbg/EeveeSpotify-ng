@@ -7,6 +7,7 @@ struct NgzhwmContainerSettingsView: View {
         List {
             disableLyricsSection()
             lyricsFallbackSection()
+            geniusStrictMatchSection()
             romanizationSection()
         }
         .listStyle(GroupedListStyle())
@@ -31,6 +32,17 @@ struct NgzhwmContainerSettingsView: View {
             Toggle(
                 "ngzhwm_multi_level_fallback".localized,
                 isOn: $viewModel.multiLevelFallback
+            )
+        }
+    }
+    
+    @ViewBuilder private func geniusStrictMatchSection() -> some View {
+        Section(
+            footer: Text("ngzhwm_genius_strict_match_description".localized)
+        ) {
+            Toggle(
+                "ngzhwm_genius_strict_match".localized,
+                isOn: $viewModel.geniusStrictMatch
             )
         }
     }
