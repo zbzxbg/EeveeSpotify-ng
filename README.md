@@ -19,7 +19,7 @@ Test environment: iPhone 11, iOS 26.6, certificate-signed build, LCSign, rootles
 ## ⚠️ Disclaimer
 
 - Compatible with Spotify 9.1.0 only.
-- No IPA package is provided; build it yourself.
+- No IPA package is provided.
 - This tweak includes multiple experimental features.
 - Localization currently covers English and Simplified Chinese only.
 - For a period of time after Spotify is launched for the first time with this tweak enabled, the lyrics component may disappear and artist profile pages may fail to open.
