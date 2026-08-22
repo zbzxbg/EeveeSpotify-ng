@@ -1,7 +1,7 @@
 # Changelog
 
 <details open>
-<summary><b>2026</b> (28 versions)</summary>
+<summary><b>2026</b> (29 versions)</summary>
 
 
 </details>
@@ -272,6 +272,15 @@ Additional notes:
 - Improved translations in the EeveeSpotify menu
 - Fixed an issue where Genius could return an empty lyrics result, causing the "instrumental" placeholder to appear incorrectly
 - Fixed an issue where Genius Romanizations did not respect the per-language romanization switches in ngzhwm settings
+
+</details>
+
+### 08.22
+
+<details>
+<summary><b>v3.0.0-beta.1</b></summary>
+
+- Feature: Added enhanced Genius lyrics matching logic.
 
 </details>
 
