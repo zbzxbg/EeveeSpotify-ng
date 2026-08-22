@@ -246,24 +246,36 @@ class MusixmatchLyricsRepository: LyricsRepository {
             // 用于验证是否实际发生了替换
             var didReplaceAnyLine = false
 
-            // 优先处理：用户直接选择了罗马音语言
-            if requestedLanguage == romanizationLanguage,
-                let subtitleTranslated = subtitle["subtitle_translated"] as? [String: Any],
+            // subtitle_translated：MxM 返回的目标语言字幕（罗马音或真实翻译）
+            if let subtitleTranslated = subtitle["subtitle_translated"] as? [String: Any],
                 let subtitleTranslatedBody = subtitleTranslated["subtitle_body"] as? String,
                 let subtitlesTranslated = try? JSONDecoder().decode(
                     [MusixmatchSubtitle].self, from: subtitleTranslatedBody.data(using: .utf8)!
                 )
             {
-                for (index, subtitleTranslated) in subtitlesTranslated.enumerated() {
-                    if !subtitleTranslated.text.isEmpty {
-                        lyricsLines[index].content = subtitleTranslated.text
-                        didReplaceAnyLine = true
+                if requestedLanguage == romanizationLanguage {
+                    // 用户直接选择了罗马音语言：用 MxM 罗马音替换歌词行
+                    for (index, subtitleTranslated) in subtitlesTranslated.enumerated() {
+                        if !subtitleTranslated.text.isEmpty {
+                            lyricsLines[index].content = subtitleTranslated.text
+                            didReplaceAnyLine = true
+                        }
                     }
+                } else if !requestedLanguage.isEmpty {
+                    // 用户选择了真实翻译语言：附加为翻译层（显示翻译按钮），
+                    // 行内容保持原文，交给 toSpotifyLyricsData 做本地罗马化，
+                    // 这样主歌词是本地转换的罗马字，翻译层是 MxM 返回的翻译。
+                    translation = LyricsTranslationDto(
+                        languageCode: requestedLanguage,
+                        lines: subtitlesTranslated.map { $0.text }
+                    )
                 }
             }
-            // 次优先：全局罗马化开关开启，且未直接选择罗马音语言，尝试通过翻译接口获取
+            // 次优先：未选择任何目标语言时，全局罗马化开关开启，
+            // 尝试通过翻译接口拿 MxM 罗马音替换歌词行。
+            // 已选择真实翻译语言时不走这里，避免 MxM 罗马音顶掉本地转换。
             else if isNgzhwmRomanizationEnabled(for: romanizationLanguage),
-                requestedLanguage != romanizationLanguage {
+                requestedLanguage.isEmpty {
                 if let translations = try? getTranslations(
                     query.spotifyTrackId,
                     selectedLanguage: romanizationLanguage
