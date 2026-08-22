@@ -28,9 +28,12 @@ extension Array where Element == String {
         let hypotheses = recognizer.languageHypotheses(withMaximum: 5)
 
         let cjk: [NLLanguage] = [.japanese, .korean, .simplifiedChinese, .traditionalChinese]
-        guard let top = hypotheses
+        // 先在 guard 外算出候选：guard/if 条件里不能使用尾随闭包，
+        // 否则 { } 会被解析成新的语句（"consecutive statements..." 语法错）。
+        let topCJK = hypotheses
             .filter { cjk.contains($0.key) }
-            .max(by: { $0.value < $1.value }) else { return nil }
+            .max { $0.value < $1.value }
+        guard let top = topCJK else { return nil }
 
         let threshold = (top.key == .japanese) ? japaneseThreshold : otherThreshold
         guard top.value > threshold else { return nil }
