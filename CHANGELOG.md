@@ -291,4 +291,12 @@ Additional notes:
 
 </details>
 
+<details>
+<summary><b>v3.0.0-beta.3</b></summary>
+
+Fixed an issue where lyrics translations were not returned when Mxm was selected as the lyrics source.
+
 </details>
+
+</details>
+
