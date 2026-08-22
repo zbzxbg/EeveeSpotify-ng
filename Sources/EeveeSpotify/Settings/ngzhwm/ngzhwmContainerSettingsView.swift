@@ -60,6 +60,15 @@ struct NgzhwmContainerSettingsView: View {
         }
 
         Section(
+            footer: Text("ngzhwm_stricter_japanese_romanization_description".localized)
+        ) {
+            Toggle(
+                "ngzhwm_stricter_japanese_romanization".localized,
+                isOn: $viewModel.stricterJapaneseRomanization
+            )
+        }
+
+        Section(
             footer: Text("ngzhwm_remove_mxm_interlude_symbol_description".localized)
         ) {
             Toggle(

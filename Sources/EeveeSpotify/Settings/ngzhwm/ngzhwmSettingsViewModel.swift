@@ -5,6 +5,7 @@ class NgzhwmSettingsViewModel: ObservableObject {
     static let removeMxmInterludeSymbolKey = "ngzhwm_removeMxmInterludeSymbol"
     static let disableLyricsFeatureKey = "ngzhwm_disableLyricsFeature"
     static let geniusStrictMatchKey = "ngzhwm_geniusStrictMatch"
+    static let stricterJapaneseRomanizationKey = "ngzhwm_stricterJapaneseRomanization"
 
     static var isLyricsFeatureDisabled: Bool {
         UserDefaults.standard.bool(forKey: disableLyricsFeatureKey)
@@ -51,6 +52,12 @@ class NgzhwmSettingsViewModel: ObservableObject {
             UserDefaults.standard.set(geniusStrictMatch, forKey: Self.geniusStrictMatchKey)
         }
     }
+    
+    @Published var stricterJapaneseRomanization: Bool {
+        didSet {
+            UserDefaults.standard.set(stricterJapaneseRomanization, forKey: Self.stricterJapaneseRomanizationKey)
+        }
+    }
 
     init() {
         self.disableLyricsFeature = UserDefaults.standard.bool(forKey: Self.disableLyricsFeatureKey)
@@ -60,5 +67,6 @@ class NgzhwmSettingsViewModel: ObservableObject {
         self.koreanRomanization = UserDefaults.standard.bool(forKey: "ngzhwm_koreanRomanization")
         self.removeMxmInterludeSymbol = UserDefaults.standard.bool(forKey: Self.removeMxmInterludeSymbolKey)
         self.geniusStrictMatch = UserDefaults.standard.bool(forKey: Self.geniusStrictMatchKey)
+        self.stricterJapaneseRomanization = UserDefaults.standard.bool(forKey: Self.stricterJapaneseRomanizationKey)
     }
 }
