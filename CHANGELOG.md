@@ -302,7 +302,7 @@ Additional notes:
 <summary><b>v3.0.0-beta.4</b></summary>
 
 - Feature: Added stricter detection for Japanese lyrics romanization.
-- Fixed an issue where the first letter after 「 could not be capitalized when a romanized line started with it
+- Fixed an issue where the first letter after 「 could not be capitalized when a romanized line started with it❌
 
 </details>
 
