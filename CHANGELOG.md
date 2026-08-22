@@ -1,7 +1,7 @@
 # Changelog
 
 <details open>
-<summary><b>2026</b> (30 versions)</summary>
+<summary><b>2026</b> (31 versions)</summary>
 
 
 </details>
@@ -59,7 +59,7 @@
 <summary><b>v0.1.0-beta.5</b></summary>
 
 - Improved terminology handling when removing annotations from Genius lyrics.
-- Fixed an issue where checking for updates could remain stuck on "Checking for Update".
+- Fixed an issue where checking for updates could remain stuck on "Checking for Update".😢
 
 </details>
 
@@ -142,7 +142,7 @@ Additional notes:
 <details>
 <summary><b>v1.0.0-beta.3</b></summary>
 
-- Fixed an issue where the tweak ignored Japanese romanized lyrics already provided by Mxm and passed the original Japanese lyrics to local processing instead.
+- Fixed an issue where the tweak ignored Japanese romanized lyrics already provided by Mxm and passed the original Japanese lyrics to local processing instead.😢
 - Improved the Chinese translations in the EeveeSpotify menu.
 
 </details>
@@ -170,12 +170,12 @@ Additional notes:
 <summary><b>v2.0.0-beta.1</b></summary>
 
 - Feature: Added an option to remove Mxm's interlude symbol.
-- Fixed an issue where Spotify's official lyrics could reappear when custom lyrics failed to load.
-- Fixed an issue where Japanese lyrics were incorrectly identified as Chinese during local romanization.
-- Fixed a false update notification when the current version matched the latest GitHub version.
+- Fixed an issue where Spotify's official lyrics could reappear when custom lyrics failed to load.😢
+- Fixed an issue where Japanese lyrics were incorrectly identified as Chinese during local romanization.😢
+- Fixed a false update notification when the current version matched the latest GitHub version.😢
 - Improved the Chinese and English translations in the EeveeSpotify menu.
 - Improved the multi-level lyrics fallback logic.
-- Improved lyrics request handling to reduce premature failures.
+- Improved lyrics request handling to reduce premature failures.😢
 - Improved the English and Simplified Chinese descriptions in the ngzhwm settings screen.
 - Removed the "Show Fallback Reasons" UI and functionality from the EeveeSpotify menu.
 - Reverted the behavior of fabricating empty lyrics when lyrics loading fails.
@@ -185,7 +185,7 @@ Additional notes:
 <details>
 <summary><b>v2.0.0-beta.2</b></summary>
 
-- Fixed an issue where romanized lyrics could still be returned even when "Romanize Japanese Lyrics" was disabled in the menu.
+- Fixed an issue where romanized lyrics could still be returned even when "Romanize Japanese Lyrics" was disabled in the menu.😢
 
 </details>
 
@@ -294,7 +294,15 @@ Additional notes:
 <details>
 <summary><b>v3.0.0-beta.3</b></summary>
 
-- Fixed an issue where lyrics translations were not returned when Mxm was selected as the lyrics source.
+- Fixed an issue where lyrics translations were not returned when Mxm was selected as the lyrics source.😢
+
+</details>
+
+<details>
+<summary><b>v3.0.0-beta.4</b></summary>
+
+- Feature: Added stricter detection for Japanese lyrics romanization.
+- Fixed an issue where the first letter after 「 could not be capitalized when a romanized line started with it
 
 </details>
 
