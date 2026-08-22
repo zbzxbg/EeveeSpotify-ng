@@ -286,7 +286,8 @@ Additional notes:
 
 <details>
 <summary><b>v3.0.0-beta.2</b></summary>
-Fixed an issue where the ngzhwm settings page did not scroll correctly.
+
+- Fixed an issue where the ngzhwm settings page did not scroll correctly.
 
 </details>
 
