@@ -9,6 +9,9 @@ struct NgzhwmContainerSettingsView: View {
             lyricsFallbackSection()
             geniusStrictMatchSection()
             romanizationSection()
+            // 底部留白：防止最后一项（删除 MxM 间奏符号）的说明 footer 被底部
+            // Home 指示条裁掉，列表没有滚动余量只能橡皮筋弹回。
+            NonIPadSpacerView()
         }
         .listStyle(GroupedListStyle())
         .animation(.default, value: viewModel.multiLevelFallback)
