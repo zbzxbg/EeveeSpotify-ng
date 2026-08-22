@@ -298,5 +298,12 @@ Additional notes:
 
 </details>
 
+<details>
+<summary><b>v3.0.0-beta.4</b></summary>
+
+- Fixed an issue where the first letter after 「 could not be capitalized when a romanized line started with it
+
+</details>
+
 </details>
 
