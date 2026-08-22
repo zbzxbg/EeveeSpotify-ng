@@ -1,7 +1,7 @@
 # Changelog
 
 <details open>
-<summary><b>2026</b> (29 versions)</summary>
+<summary><b>2026</b> (30 versions)</summary>
 
 
 </details>
@@ -281,6 +281,12 @@ Additional notes:
 <summary><b>v3.0.0-beta.1</b></summary>
 
 - Feature: Added enhanced Genius lyrics matching logic.
+
+</details>
+
+<details>
+<summary><b>v3.0.0-beta.2</b></summary>
+Fixed an issue where the ngzhwm settings page did not scroll correctly.
 
 </details>
 
