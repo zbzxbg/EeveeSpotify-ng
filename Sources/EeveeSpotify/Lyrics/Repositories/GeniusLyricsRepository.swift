@@ -226,6 +226,11 @@ class GeniusLyricsRepository: LyricsRepository {
             score += 100
         } else if !cleanTitle.isEmpty, resultTitle == cleanTitle {
             score += 90
+        } else if (!fullTitle.isEmpty && (resultTitle.contains(fullTitle) || fullTitle.contains(resultTitle)))
+            || (!cleanTitle.isEmpty && (resultTitle.contains(cleanTitle) || cleanTitle.contains(resultTitle))) {
+            // 子串匹配（参考上游 containsInsensitive）：覆盖 "Song (Original Mix)"
+            // 这类版本/格式变体，避免直接掉进野生兜底返回错误歌词。
+            score += 70
         }
 
         if !queryArtist.isEmpty && !isGeniusRomanization(result) {
