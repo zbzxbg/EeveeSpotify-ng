@@ -419,12 +419,17 @@ extension String {
         return result
     }
 
-    /// 把行首第一个字母大写；「xxx」这类以开括号/引号开头的行会跳过装饰符号，
-    /// 大写其后的第一个字母，其余字母保持原样。
+    /// 把行首第一个字母大写；「xxx」这类以开括号/引号/空白/零宽字符开头的行会跳过
+    /// 这些装饰/隐形前缀，大写其后的第一个字母，其余字母保持原样。
     /// 其它非字母开头（省略号、数字、♪ 等）整行原样返回，避免误大写续行。
     func capitalizingFirstLetterIfAlphabetic() -> String {
         let leadingDecorations: Set<Character> = [
-            "「", "『", "（", "(", "【", "[", "《", "〈", "｢", "\"", "'", "`", "・", "･"
+            // 开括号 / 引号 / 装饰符号
+            "「", "『", "（", "(", "【", "[", "《", "〈", "〖", "〔", "〘", "«", "‹", "｢",
+            "\"", "'", "`", "・", "･",
+            // 空白与零宽/隐形字符
+            " ", "\u{3000}", "\u{00A0}", "\u{2007}", "\u{202F}",
+            "\u{200B}", "\u{FEFF}", "\u{200C}", "\u{200D}", "\u{2060}"
         ]
         var index = startIndex
         while index < endIndex, leadingDecorations.contains(self[index]) {
