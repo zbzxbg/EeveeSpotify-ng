@@ -33,9 +33,9 @@ It is intended for personal learning and research only. Use it at your own risk.
 
 This project follows the GNU General Public License v3.0 of the original project.
 
-Current version: `v3.0.0-beta.4`
+Current version: `v3.0.0-beta.5`
 
-Last modified: 2026-08-22.
+Last modified: 2026-08-23.
 
 See the complete license in the [LICENSE](LICENSE) file.
 
