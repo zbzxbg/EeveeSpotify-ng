@@ -306,5 +306,13 @@ Additional notes:
 
 </details>
 
+### 08.23
+
+<details>
+<summary><b>v3.0.0-beta.5</b></summary>
+
+- Fixed an issue where the first letter after 「 could not be capitalized when a romanized line started with it
+- Fixed an issue where the first letter of Mxm’s romanized lyrics was not capitalized.😢
+
 </details>
 
