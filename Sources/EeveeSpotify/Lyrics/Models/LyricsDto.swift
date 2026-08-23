@@ -56,9 +56,16 @@ struct LyricsDto {
                 : nil
             lyricsData.lines = sortedLines.map { line in
                 LyricsLine.with {
-                    $0.content = canRomanize
-                        ? line.content.romanizedIfEnabled(languageHint: languageCode, songLanguage: songLanguage)
-                        : line.content
+                    let content: String
+                    if canRomanize {
+                        content = line.content.romanizedIfEnabled(languageHint: languageCode, songLanguage: songLanguage)
+                    } else if romanization == .romanized {
+                        // MxM/Genius 已返回罗马字：统一补首字母大写（含「xxx」装饰符跳过）
+                        content = line.content.capitalizingFirstLetterIfAlphabetic()
+                    } else {
+                        content = line.content
+                    }
+                    $0.content = content
                     $0.offsetMs = Int32(line.offsetMs ?? 0)
                 }
             }
