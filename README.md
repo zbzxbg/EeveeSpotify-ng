@@ -42,4 +42,3 @@ Thanks to [whoeevee](https://github.com/whoeevee) for the excellent work.
 ---
 
 - [Changelog](CHANGELOG.md)
-- [Known Bugs](Known-Bugs.md)
