@@ -1,8 +1,0 @@
-- Shortly after Spotify is launched for the first time, the official lyrics frame may appear prematurely for some songs. ✅
-- Shortly after Spotify is launched for the first time, the lyrics frame may disappear after switching tracks.
-- Shortly after Spotify is launched for the first time, artist pages may occasionally fail to open.
-- Mxm may fail to translate Japanese lyrics into romanized lyrics. ✅
-- The update check may remain stuck on "Checking for Update". ✅
-- Mxm and PetitLyrics requests may be skipped. ✅
-- The lyrics frame may return Spotify's official lyrics. ✅
-- Japanese lyrics may be incorrectly translated as Chinese when romanized locally. ✅
