@@ -22,10 +22,6 @@ Test environment: iPhone 11, iOS 26.6, certificate-signed build, LCSign, rootles
 - No IPA package is provided.
 - This tweak includes multiple experimental features.
 - Localization currently covers English and Simplified Chinese only.
-- For a period of time after Spotify is launched for the first time with this tweak enabled, the lyrics component may disappear and artist profile pages may fail to open.
-
-This is an independently modified tweak and is not affiliated with Spotify or its official products.
-It is intended for personal learning and research only. Use it at your own risk.
 
 ---
 
