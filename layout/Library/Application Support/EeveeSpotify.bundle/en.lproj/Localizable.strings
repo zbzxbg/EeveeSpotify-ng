@@ -153,7 +153,5 @@ ngzhwm_romanization_description = "Configure romanization separately for each la
 ngzhwm_chinese_romanization = "Romanize Chinese Lyrics";
 ngzhwm_japanese_romanization = "Romanize Japanese Lyrics";
 ngzhwm_korean_romanization = "Romanize Korean Lyrics";
-ngzhwm_stricter_japanese_romanization = "Stricter Japanese Lyrics Romanization";
-ngzhwm_stricter_japanese_romanization_description = "When enabled, the Japanese romanization detection logic is tightened to fix issues where certain songs may be mistranslated. (Tightening options for the other two languages are not provided for now.)";
 ngzhwm_remove_mxm_interlude_symbol = "Delete Mxm Interlude Symbol \"♪\"";
 ngzhwm_remove_mxm_interlude_symbol_description = "When enabled, lines containing \"♪\" in Mxm lyrics will be displayed as blank.";

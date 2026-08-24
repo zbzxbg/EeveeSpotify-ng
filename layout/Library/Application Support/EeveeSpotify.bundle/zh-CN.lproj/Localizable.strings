@@ -141,7 +141,5 @@ ngzhwm_romanization_description = "单独设置每种语言的歌词是否罗马
 ngzhwm_chinese_romanization = "中文歌词罗马化";
 ngzhwm_japanese_romanization = "日语歌词罗马化";
 ngzhwm_korean_romanization = "韩语歌词罗马化";
-ngzhwm_stricter_japanese_romanization = "更严格的日语歌词罗马化";
-ngzhwm_stricter_japanese_romanization_description = "此选项开启后，罗马化日文的检测逻辑会收紧，以解决某些歌曲可能会翻译错误的问题（暂不提供其他两种语言的可收紧选项）。";
 ngzhwm_remove_mxm_interlude_symbol = "删除Mxm的间奏符号「♪」";
 ngzhwm_remove_mxm_interlude_symbol_description = "当此选项开启时，会删除Mxm歌词内的间奏符号「♪」，有♪的这一行会显示空白。";

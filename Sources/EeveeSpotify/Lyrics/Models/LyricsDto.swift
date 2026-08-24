@@ -2,8 +2,7 @@ import Foundation
 import NaturalLanguage
 
 /// 整首歌语言占比阈值：CJK 语言占比高于此值才按该语言统一罗马化。
-private let romajiDefaultLanguageThreshold: Double = 0.5
-private let romajiStrictJapaneseThreshold: Double = 0.8
+private let romajiLanguageThreshold: Double = 0.5
 
 struct LyricsDto {
     var lines: [LyricsLineDto]
@@ -46,13 +45,8 @@ struct LyricsDto {
             }
             // 整首歌语言占比检测（所有源统一）：占比最高的 CJK 语言 > 阈值时，
             // 作为整首歌的统一路由语言，避免逐行识别把孤立汉字行误判。
-            // 「更严格的日语罗马化」开启时，日语阈值收紧到 80%，其它语言保持 50%。
-            let stricterJapanese = UserDefaults.standard.bool(forKey: NgzhwmSettingsViewModel.stricterJapaneseRomanizationKey)
             let songLanguage: NLLanguage? = canRomanize
-                ? lines.map(\.content).dominantCJKLanguageAbove(
-                    japaneseThreshold: stricterJapanese ? romajiStrictJapaneseThreshold : romajiDefaultLanguageThreshold,
-                    otherThreshold: romajiDefaultLanguageThreshold
-                )
+                ? lines.map(\.content).dominantCJKLanguageAbove(threshold: romajiLanguageThreshold)
                 : nil
             lyricsData.lines = sortedLines.map { line in
                 LyricsLine.with {
