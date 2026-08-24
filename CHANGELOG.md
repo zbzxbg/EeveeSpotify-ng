@@ -344,4 +344,6 @@ Additional notes:
 
 Experimental: Implemented an experimental UI for the SpicyLyrics lyrics provider.
 
+Experimental: Wired in the SpicyLyrics provider itself (SLObjPack decoder, api.spicylyrics.org repository, Spotify Bearer token capture).
+
 </details>

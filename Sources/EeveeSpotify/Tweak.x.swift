@@ -1,6 +1,18 @@
 import Orion
 import EeveeSpotifyC
 import UIKit
+import os
+
+/// 统一 debug 日志出口（SpicyLyrics 等歌词仓库使用）。
+/// os.Logger 的 .debug 级别在 Console.app 默认不显示，可按需过滤。
+private let eeveeDebugLogger = Logger(
+    subsystem: "com.eeveespotify",
+    category: "debug"
+)
+
+func writeDebugLog(_ message: String) {
+    eeveeDebugLogger.debug("\(message, privacy: .public)")
+}
 
 func exitApplication() {
     UIControl().sendAction(#selector(URLSessionTask.suspend), to: UIApplication.shared, for: nil)

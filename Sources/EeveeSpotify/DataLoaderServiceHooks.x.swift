@@ -1,6 +1,39 @@
 import Foundation
 import Orion
 
+// MARK: - Spotify Bearer token 捕获
+//
+// 从 Spotify 出站请求里捕获 Bearer token，供 SpicyLyrics 等歌词源复用
+// （api.spicylyrics.org 需要 Spotify 自身的 token 才返回歌词）。
+// URLSession 回调和歌词仓库跑在不同队列，token 必须用锁保护的存储，
+// 不能直接读写无保护的 Swift 全局 String。
+private final class SpotifyAccessTokenStore {
+    static let shared = SpotifyAccessTokenStore()
+
+    private let lock = NSLock()
+    private var value: String?
+
+    func set(_ token: String?) {
+        lock.lock()
+        value = token
+        lock.unlock()
+    }
+
+    func snapshot() -> String? {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
+}
+
+func setSpotifyAccessToken(_ token: String?) {
+    SpotifyAccessTokenStore.shared.set(token)
+}
+
+func spotifyAccessTokenSnapshot() -> String? {
+    SpotifyAccessTokenStore.shared.snapshot()
+}
+
 // MARK: - 线程安全的拦截上下文（按 taskIdentifier 隔离）
 final class InterceptionContext {
     static let shared = InterceptionContext()
@@ -207,6 +240,15 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
         task: URLSessionDataTask,
         didCompleteWithError error: Error?
     ) {
+        // 任何携带 Bearer token 的 Spotify 请求都顺手记录最新 token，
+        // 供 SpicyLyrics 歌词请求复用（先于一切 guard，保证所有任务都过一遍）。
+        if let request = task.currentRequest,
+           let headers = request.allHTTPHeaderFields,
+           let auth = headers["Authorization"] ?? headers["authorization"],
+           auth.hasPrefix("Bearer ") {
+            setSpotifyAccessToken(String(auth.dropFirst(7)))
+        }
+
         guard let url = task.currentRequest?.url else {
             orig.URLSession(session, task: task, didCompleteWithError: error)
             return
