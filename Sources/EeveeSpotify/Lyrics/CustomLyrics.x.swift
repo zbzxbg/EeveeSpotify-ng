@@ -18,6 +18,9 @@ private func lyricsRepository(for source: LyricsSource) -> LyricsRepository {
     case .lrclib: return LrclibLyricsRepository.shared
     case .musixmatch: return MusixmatchLyricsRepository.shared
     case .petit: return petitLyricsRepository
+    case .spicy:
+        // SpicyLyrics 仓库尚未接入，先用占位实现保证编译通过（UI 已就绪）。
+        return geniusLyricsRepository
     case .notReplaced:
         // Never actually reached — callers filter this out beforehand.
         return geniusLyricsRepository
