@@ -1,7 +1,7 @@
 # Changelog
 
 <details open>
-<summary><b>2026</b> (32 versions)</summary>
+<summary><b>2026</b> </summary>
 
 
 </details>
@@ -316,3 +316,13 @@ Additional notes:
 
 </details>
 
+### 08.24
+
+<details>
+<summary><b>v3.0.0-beta.6</b></summary>
+
+- Remove the “stricter Japanese lyrics romanization” feature introduced in v3.0.0-beta.4.
+
+</details>
+
+</details>
