@@ -325,4 +325,19 @@ Additional notes:
 
 </details>
 
+<details>
+<summary><b>v3.0.0</b></summary>
+
+- Feature: Added enhanced Genius lyrics matching logic.
+- Improved Genius lyrics search and matching accuracy.
+- Fixed an issue where the ngzhwm settings page did not scroll correctly.
+- Fixed an issue where lyrics translations were not returned when Mxm was selected as the lyrics source.
+- Fixed an issue where the first letter after 「 could not be capitalized when a romanized line started with it.
+- Fixed an issue where the first letter of Mxm’s romanized lyrics was not capitalized.
+
+</details>
+
+</details>
+
+
 </details>
