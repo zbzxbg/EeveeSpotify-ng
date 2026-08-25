@@ -125,8 +125,15 @@ class NeteaseLyricsRepository: LyricsRepository {
             "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
         let secKey = String((0..<16).compactMap { _ in secKeyCharacters.randomElement() })
 
-        guard let firstPass = aesCbcEncrypt(Data(text.utf8), key: Self.aesFirstKey),
-              let secondPass = aesCbcEncrypt(firstPass, key: secKey) else {
+        // 与官网前端 asrsea / darknessomi 版一致的双层 AES 链：
+        // 第二轮加密的输入必须是第一轮的 base64 文本（而非密文字节）。
+        // 若传密文字节，服务器解密流程对不上，返回 HTTP 200 + 空 body。
+        guard let firstPass = aesCbcEncrypt(Data(text.utf8), key: Self.aesFirstKey) else {
+            writeDebugLog("[NetEase] weapiEncrypt AES failure")
+            throw LyricsError.decodingError
+        }
+        let firstPassBase64 = firstPass.base64EncodedString()
+        guard let secondPass = aesCbcEncrypt(Data(firstPassBase64.utf8), key: secKey) else {
             writeDebugLog("[NetEase] weapiEncrypt AES failure")
             throw LyricsError.decodingError
         }
