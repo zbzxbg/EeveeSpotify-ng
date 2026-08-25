@@ -300,11 +300,15 @@ class NeteaseLyricsRepository: LyricsRepository {
         return songs
     }
 
-    private func fetchLyricsRaw(songId: Int) throws -> (lrc: String?, tlyric: String?) {
+    private func fetchLyricsRaw(songId: Int) throws -> (lrc: String?, tlyric: String?, romalrc: String?) {
+        // os/rv 两个参数控制 romalrc（官方日语罗马音）是否下发，参考 Lyricify-Lyrics-Helper。
         let data = try performWeapi("/weapi/song/lyric", params: [
             "id": songId,
+            "os": "pc",
             "lv": -1,
+            "kv": -1,
             "tv": -1,
+            "rv": -1,
         ])
 
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -317,7 +321,8 @@ class NeteaseLyricsRepository: LyricsRepository {
 
         let lrc = (json["lrc"] as? [String: Any])?["lyric"] as? String
         let tlyric = (json["tlyric"] as? [String: Any])?["lyric"] as? String
-        return (lrc, tlyric)
+        let romalrc = (json["romalrc"] as? [String: Any])?["lyric"] as? String
+        return (lrc, tlyric, romalrc)
     }
 
     private func songId(from song: [String: Any]) -> Int? {
@@ -338,6 +343,19 @@ class NeteaseLyricsRepository: LyricsRepository {
 
     private func isCreditLine(_ content: String) -> Bool {
         content ~= Self.creditLinePattern
+    }
+
+    /// 「删除间奏符号 ♪」开关（与 Musixmatch 共用同一个 ngzhwm 设置项）。
+    private var shouldRemoveInterludeSymbol: Bool {
+        UserDefaults.standard.bool(
+            forKey: NgzhwmSettingsViewModel.removeMxmInterludeSymbolKey
+        )
+    }
+
+    /// 开关开启时，把含 ♪ 的间奏行清成空白（与 MxM 的 cleanedMxmLyricsText 行为一致）。
+    private func cleanedInterludeSymbol(_ text: String) -> String {
+        guard shouldRemoveInterludeSymbol, text.contains("♪") else { return text }
+        return ""
     }
 
     /// 把 LRC 文本解析成 (offsetMs, content)，丢弃非时间戳行与制作信息行。
@@ -418,7 +436,13 @@ class NeteaseLyricsRepository: LyricsRepository {
                 translatedLines.append("")
                 continue
             }
-            translatedLines.append(translated)
+            // 开关开启时：翻译里 ♪ 单独作为一行的，清成空白（保持行数对齐）。
+            if shouldRemoveInterludeSymbol,
+               translated.trimmingCharacters(in: .whitespaces) == "♪" {
+                translatedLines.append("")
+            } else {
+                translatedLines.append(translated)
+            }
             matchedCount += 1
         }
 
@@ -426,6 +450,37 @@ class NeteaseLyricsRepository: LyricsRepository {
 
         let languageCode = translatedLines.romanizationLanguageCode ?? "zh"
         return LyricsTranslationDto(languageCode: languageCode, lines: translatedLines)
+    }
+
+    // MARK: - 官方罗马音
+
+    /// 用网易官方 romalrc（日语罗马音）按时间戳替换主歌词行。
+    /// 只有对应 offset 命中时才替换，未命中的行保留原文，返回实际替换的行数。
+    private func applyRomanization(
+        _ romalrc: String,
+        originalLines: [LyricsLineDto]
+    ) -> (lines: [LyricsLineDto], matched: Int) {
+        let parsed = parseLrc(romalrc)
+        guard !parsed.isEmpty else { return (originalLines, 0) }
+
+        var romanizedByOffset: [Int: String] = [:]
+        for entry in parsed {
+            if romanizedByOffset[entry.offsetMs] == nil, !entry.content.isEmpty {
+                romanizedByOffset[entry.offsetMs] = entry.content
+            }
+        }
+
+        var out: [LyricsLineDto] = []
+        var matched = 0
+        for line in originalLines {
+            if let offset = line.offsetMs, let roma = romanizedByOffset[offset] {
+                out.append(LyricsLineDto(content: roma, offsetMs: offset))
+                matched += 1
+            } else {
+                out.append(line)
+            }
+        }
+        return (out, matched)
     }
 
     // MARK: - 候选匹配
@@ -561,7 +616,7 @@ class NeteaseLyricsRepository: LyricsRepository {
         for entry in ranked.prefix(8) where entry.score >= Self.minimumMatchScore {
             guard let songId = songId(from: entry.song) else { continue }
 
-            let raw: (lrc: String?, tlyric: String?)
+            let raw: (lrc: String?, tlyric: String?, romalrc: String?)
             do {
                 raw = try fetchLyricsRaw(songId: songId)
             } catch {
@@ -572,8 +627,10 @@ class NeteaseLyricsRepository: LyricsRepository {
 
             let parsed = parseLrc(lrc)
 
-            // 纯音乐：网易对无词歌曲返回空 LRC 或「纯音乐」占位。
-            if parsed.isEmpty, lrc.contains("纯音乐") {
+            // 纯音乐：网易对无词歌曲返回空 LRC，或返回带时间戳的
+            // 「[00:00.00]纯音乐，请欣赏」占位行。只要 lrc 含「纯音乐」字样
+            // 就按纯音乐处理，返回空 lines 走 Spotify 的 instrumental 占位。
+            if lrc.contains("纯音乐") {
                 writeDebugLog("[NetEase] Instrumental — returning empty lyrics")
                 let dto = LyricsDto(lines: [], timeSynced: false, romanization: .original)
                 lyricsCache.setObject(CachedLyrics(dto: dto), forKey: cacheKey as NSString)
@@ -582,8 +639,17 @@ class NeteaseLyricsRepository: LyricsRepository {
 
             guard !parsed.isEmpty else { continue }
 
-            let lines = parsed.map {
-                LyricsLineDto(content: $0.content.lyricsNoteIfEmpty, offsetMs: $0.offsetMs)
+            var lines = parsed.map {
+                LyricsLineDto(
+                    content: cleanedInterludeSymbol($0.content.lyricsNoteIfEmpty),
+                    offsetMs: $0.offsetMs
+                )
+            }
+
+            // 开关开启时（仅网易云）：删除开头连续的间奏空行（原 ♪ 行），
+            // 让真正的歌词顶到第一行；中间靠下的间奏行保持空白、不清除位置。
+            if shouldRemoveInterludeSymbol {
+                lines = Array(lines.drop(while: { $0.content.isEmpty }))
             }
 
             var translation: LyricsTranslationDto? = nil
@@ -592,12 +658,31 @@ class NeteaseLyricsRepository: LyricsRepository {
             }
 
             let contents = lines.map(\.content)
+            var romanization: LyricsRomanizationStatus = contents.canBeRomanized
+                ? .canBeRomanized : .original
+            let languageCode = contents.romanizationLanguageCode
+
+            // 官方罗马音：日语歌、用户开启日语罗马化、且网易下发了 romalrc 时，
+            // 直接用官方罗马音替换主歌词行（标记 .romanized 跳过本地转换）。
+            // 否则保持原文 + .canBeRomanized，交给显示层做本地转换。
+            if let romalrc = raw.romalrc, !romalrc.isEmpty,
+               languageCode == "ja",
+               options.romanization,
+               UserDefaults.standard.bool(forKey: "ngzhwm_japaneseRomanization") {
+                let romanized = applyRomanization(romalrc, originalLines: lines)
+                if romanized.matched > 0 {
+                    lines = romanized.lines
+                    romanization = .romanized
+                    writeDebugLog("[NetEase] Applied official romaji (\(romanized.matched) line(s))")
+                }
+            }
+
             let dto = LyricsDto(
                 lines: lines,
                 timeSynced: true,
-                romanization: contents.canBeRomanized ? .canBeRomanized : .original,
+                romanization: romanization,
                 translation: translation,
-                languageCode: contents.romanizationLanguageCode
+                languageCode: languageCode
             )
 
             writeDebugLog("[NetEase] Synced lyrics — \(lines.count) line(s)")

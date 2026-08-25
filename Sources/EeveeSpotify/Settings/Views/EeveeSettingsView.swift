@@ -176,6 +176,9 @@ struct EeveeSettingsView: View {
                     }
                 }
             }
+            // 底部留白：防止最后的「重置数据」方框和说明被底部 Home 指示条裁掉，
+            // 列表没有足够滚动余量只能橡皮筋弹回。
+            NonIPadSpacerView()
         }
         .listStyle(GroupedListStyle())
         // 强制 List 占满宿主视图可用空间，避免在 SPTPageViewController 里

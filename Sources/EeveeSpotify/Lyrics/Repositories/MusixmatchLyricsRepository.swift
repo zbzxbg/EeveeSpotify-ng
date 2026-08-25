@@ -271,7 +271,11 @@ class MusixmatchLyricsRepository: LyricsRepository {
                     // 这样主歌词是本地转换的罗马字，翻译层是 MxM 返回的翻译。
                     translation = LyricsTranslationDto(
                         languageCode: requestedLanguage,
-                        lines: subtitlesTranslated.map { $0.text }
+                        lines: subtitlesTranslated.map {
+                            (shouldRemoveMxmInterludeSymbol
+                                && $0.text.trimmingCharacters(in: .whitespaces) == "♪")
+                                ? "" : $0.text
+                        }
                     )
                 }
             }

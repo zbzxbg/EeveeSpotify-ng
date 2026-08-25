@@ -44,7 +44,7 @@ Musixmatch: The service Spotify uses. Provides time-synced lyrics for many songs
 lyrics_additional_info = "If EeveeSpotify is unable to find a song or process the lyrics, you'll see a \"Couldn't load the lyrics for this song\" message. The lyrics might be wrong for some songs when using Genius due to how the tweak searches songs. I've made it work in most cases.";
 petitlyrics_description = "PetitLyrics: Offers plenty of time-synced Japanese and some international lyrics.";
 spicylyrics_description = "SpicyLyrics: A lyrics provider serving the desktop Spotify client (Spicetify). It features word-by-word highlighted lyrics (currently unavailable on mobile) and lyrics for some songs that other providers do not have. Inspired by / code from SideloadLabs/EeveeSpotifyReincarnated on GitHub. Thanks!";
-netease_description = "NetEase: A lyrics provider mainly serving mainland China. Its highlight is that lyrics for some songs become available much faster than on other platforms. However, it basically provides no lyrics without timestamps, and some lyrics may not match the song or have misaligned timestamps; lyric translations are only available in Simplified Chinese.";
+netease_description = "NetEase: A lyrics provider mainly serving mainland China. Pros: lyrics for some songs are updated much faster than other platforms, and lyrics always come with timestamps. Cons: lyrics may be incorrect or misaligned. Translations are only available in Simplified Chinese, and support for users outside mainland China is weaker — disconnections or access denials may occur.";
 
 musixmatch_user_token = "Musixmatch User Token";
 user_token_placeholder = "Enter User Token or Paste Debug Info";
@@ -155,8 +155,8 @@ ngzhwm_romanization_description = "Configure romanization separately for each la
 ngzhwm_chinese_romanization = "Romanize Chinese Lyrics";
 ngzhwm_japanese_romanization = "Romanize Japanese Lyrics";
 ngzhwm_korean_romanization = "Romanize Korean Lyrics";
-ngzhwm_remove_mxm_interlude_symbol = "Delete Mxm Interlude Symbol \"♪\"";
-ngzhwm_remove_mxm_interlude_symbol_description = "When enabled, lines containing \"♪\" in Mxm lyrics will be displayed as blank.";
+ngzhwm_remove_mxm_interlude_symbol = "Delete Interlude Symbol \"♪\"";
+ngzhwm_remove_mxm_interlude_symbol_description = "When enabled, lines containing \"♪\" in lyrics will be displayed as blank.";
 
 // Debug
 
