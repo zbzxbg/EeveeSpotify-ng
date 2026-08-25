@@ -20,8 +20,7 @@ private func lyricsRepository(for source: LyricsSource) -> LyricsRepository {
     case .petit: return petitLyricsRepository
     case .spicy: return SpicyLyricsRepository.shared
     case .netease:
-        // NetEase 仓库尚未接入，先用占位实现保证编译通过（UI 已就绪）。
-        return geniusLyricsRepository
+        return NeteaseLyricsRepository.shared
     case .notReplaced:
         // Never actually reached — callers filter this out beforehand.
         return geniusLyricsRepository
