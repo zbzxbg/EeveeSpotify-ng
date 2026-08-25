@@ -59,7 +59,7 @@ hide_lyrics_on_error = "Hide on Error";
 hide_lyrics_on_error_description = "Remove the lyrics component if lyrics fail to load.";
 
 romanized_lyrics = "Romanized Lyrics";
-romanized_lyrics_description = "Display romanized lyrics for Japanese, Korean, and Chinese.";
+romanized_lyrics_description = "Display romanized lyrics for Japanese, Korean, and Chinese. For specific adjustments, go to the ngzhwm menu.";
 
 musixmatch_language = "Musixmatch Lyrics Language";
 musixmatch_language_description = "You can enter a 2-letter Musixmatch language code and see translated lyrics on Musixmatch if they are available.";
