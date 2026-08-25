@@ -364,7 +364,14 @@ Additional notes:
 <details>
 <summary><b>v4.0.0-beta.3</b></summary>
 
-- Experimental: Tested the NetEase lyrics provider.
+- Experimental: Tested the NetEase lyrics provider.❌
+
+</details>
+
+<details>
+<summary><b>v4.0.0-beta.4</b></summary>
+
+- Experimental: Added logging (code from SideloadLabs/EeveeSpotifyReincarnated).
 
 </details>
 
