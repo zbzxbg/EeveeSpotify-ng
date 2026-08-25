@@ -470,8 +470,10 @@ class GeniusLyricsRepository: LyricsRepository {
     }
 
     func getLyrics(_ query: LyricsSearchQuery, options: LyricsOptions) throws -> LyricsDto {
+        writeDebugLog("[Genius] Fetching lyrics for \"\(query.title)\" - \(query.primaryArtist)")
         let strippedTitle = query.title.strippedTrackTitle
         let hits = try searchSongs(for: query, strippedTitle: strippedTitle)
+        writeDebugLog("[Genius] Search returned \(hits.count) hit(s)")
 
         let strictMatch = UserDefaults.standard.bool(forKey: NgzhwmSettingsViewModel.geniusStrictMatchKey)
 
@@ -490,6 +492,7 @@ class GeniusLyricsRepository: LyricsRepository {
                 preferRomanized: options.romanization
             )
             guard !eligible.isEmpty else {
+                writeDebugLog("[Genius] Strict match found no eligible candidate")
                 throw LyricsError.noSuchSong
             }
             candidates = eligible
@@ -538,6 +541,7 @@ class GeniusLyricsRepository: LyricsRepository {
                 romanization = .canBeRomanized
             }
 
+            writeDebugLog("[Genius] Using candidate \"\(candidate.title)\" — \(mappedLines.count) line(s)")
             return LyricsDto(
                 lines: mappedLines.map { LyricsLineDto(content: $0) },
                 timeSynced: false,
@@ -546,6 +550,7 @@ class GeniusLyricsRepository: LyricsRepository {
             )
         }
 
+        writeDebugLog("[Genius] No usable lyrics among \(candidates.count) candidate(s)")
         throw LyricsError.noSuchSong
     }
 }

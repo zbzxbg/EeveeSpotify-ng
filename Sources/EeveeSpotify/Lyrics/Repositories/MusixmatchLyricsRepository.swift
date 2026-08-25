@@ -129,6 +129,7 @@ class MusixmatchLyricsRepository: LyricsRepository {
         if let header = message["header"] as? [String: Any],
             header["status_code"] as? Int == 401
         {
+            writeDebugLog("[Musixmatch] 401 — invalid token")
             throw LyricsError.invalidMusixmatchToken
         }
 
@@ -146,6 +147,7 @@ class MusixmatchLyricsRepository: LyricsRepository {
         }
 
         if let restricted = subtitle["restricted"] as? Bool, restricted {
+            writeDebugLog("[Musixmatch] Lyrics restricted")
             throw LyricsError.musixmatchRestricted
         }
 
@@ -187,9 +189,11 @@ class MusixmatchLyricsRepository: LyricsRepository {
     //
 
     func getLyrics(_ query: LyricsSearchQuery, options: LyricsOptions) throws -> LyricsDto {
+        writeDebugLog("[Musixmatch] Fetching lyrics for \"\(query.title)\" - \(query.primaryArtist)")
         let cacheKey = getCacheKey(for: query)
 
         if let cached = lyricsCache.object(forKey: cacheKey as NSString) {
+            writeDebugLog("[Musixmatch] Cache hit")
             return cached.dto
         }
 
@@ -319,6 +323,7 @@ class MusixmatchLyricsRepository: LyricsRepository {
                 languageCode: subtitleLanguage
             )
 
+            writeDebugLog("[Musixmatch] Synced lyrics — \(lyricsDto.lines.count) line(s)")
             lyricsCache.setObject(CachedLyrics(dto: lyricsDto), forKey: cacheKey as NSString)
             return lyricsDto
         }
@@ -330,6 +335,7 @@ class MusixmatchLyricsRepository: LyricsRepository {
         {
 
             if lyricsStatusCode == 404 {
+                writeDebugLog("[Musixmatch] 404 — no song")
                 throw LyricsError.noSuchSong
             }
 
@@ -357,11 +363,13 @@ class MusixmatchLyricsRepository: LyricsRepository {
                     languageCode: lyricsLanguage
                 )
 
+                writeDebugLog("[Musixmatch] Plain lyrics — \(plainLines.count) line(s)")
                 lyricsCache.setObject(CachedLyrics(dto: lyricsDto), forKey: cacheKey as NSString)
                 return lyricsDto
             }
         }
 
+        writeDebugLog("[Musixmatch] No usable lyrics")
         throw LyricsError.decodingError
     }
 }

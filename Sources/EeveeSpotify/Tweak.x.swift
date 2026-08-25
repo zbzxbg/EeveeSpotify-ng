@@ -85,6 +85,13 @@ struct EeveeSpotify: Tweak {
     }
     
     init() {
+        writeDebugLog("=== EeveeSpotify \(EeveeSpotify.version) starting ===")
+        writeDebugLog("[INIT] Spotify: \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?")")
+        writeDebugLog("[INIT] iOS: \(UIDevice.current.systemVersion), Device: \(UIDevice.current.model)")
+        writeDebugLog("[INIT] Hook target: \(String(describing: EeveeSpotify.hookTarget))")
+        writeDebugLog("[INIT] Patch type: \(String(describing: UserDefaults.patchType))")
+        writeDebugLog("[INIT] Lyrics source: \(UserDefaults.lyricsSource.description)")
+
         if UserDefaults.experimentsOptions.showInstagramDestination {
             InstgramDestinationGroup().activate()
         }

@@ -48,9 +48,11 @@ class LrclibLyricsRepository: LyricsRepository {
         semaphore.wait()
 
         if let error = error {
+            writeDebugLog("[LRCLIB] Request error for \(stringUrl): \(error)")
             throw error
         }
 
+        writeDebugLog("[LRCLIB] \(stringUrl) -> \(data?.count ?? 0) bytes")
         return data!
     }
     
@@ -92,6 +94,7 @@ class LrclibLyricsRepository: LyricsRepository {
     }
 
     func getLyrics(_ query: LyricsSearchQuery, options: LyricsOptions) throws -> LyricsDto {
+        writeDebugLog("[LRCLIB] Fetching lyrics for \"\(query.title)\" - \(query.primaryArtist)")
         let song: LrclibSong
 
         do {
@@ -106,6 +109,7 @@ class LrclibLyricsRepository: LyricsRepository {
         }
 
         if song.instrumental {
+            writeDebugLog("[LRCLIB] Instrumental — returning empty lyrics")
             return LyricsDto(
                 lines: [],
                 timeSynced: false,
@@ -115,6 +119,7 @@ class LrclibLyricsRepository: LyricsRepository {
 
         if let syncedLyrics = song.syncedLyrics {
             let lines = Array(syncedLyrics.components(separatedBy: "\n").dropLast())
+            writeDebugLog("[LRCLIB] Synced lyrics — \(lines.count) line(s)")
             return LyricsDto(
                 lines: mapSyncedLyricsLines(lines),
                 timeSynced: true,
@@ -127,7 +132,7 @@ class LrclibLyricsRepository: LyricsRepository {
         }
         
         let lines = Array(plainLyrics.components(separatedBy: "\n").dropLast())
-        
+        writeDebugLog("[LRCLIB] Plain lyrics — \(lines.count) line(s)")
         return LyricsDto(
             lines: lines.map { content in LyricsLineDto(content: content) },
             timeSynced: false,

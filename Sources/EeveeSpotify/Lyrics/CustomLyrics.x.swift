@@ -66,13 +66,16 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
 
     let options = UserDefaults.lyricsOptions
     lyricsState = LyricsLoadingState()
+    writeDebugLog("[Lyrics] Track \"\(searchQuery.title)\" - \(searchQuery.primaryArtist) (id \(searchQuery.spotifyTrackId))")
 
     // ngzhwm_multiLevelLyricsFallback 开启 -> 固定顺序多级回退（并发 + 超时）
     // ngzhwm_multiLevelLyricsFallback 关闭（默认）-> 用户选择的单一源 + 可选 Genius 回退
     if UserDefaults.standard.bool(forKey: "ngzhwm_multiLevelLyricsFallback") {
 
+        writeDebugLog("[Lyrics] Multi-level fallback enabled")
         let attempts: [LyricsSource] = [.musixmatch, .petit, .lrclib, .genius]
         for (index, source) in attempts.enumerated() {
+            writeDebugLog("[Lyrics] Attempt \(index + 1)/\(attempts.count): \(source.description)")
             let isLastAttempt = index == attempts.count - 1
             let requestTimeout: TimeInterval =
                 source == .musixmatch || source == .petit ? 5.0 : 3.0
@@ -99,6 +102,7 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
             }
 
             if let dto = resultDto {
+                writeDebugLog("[Lyrics] \(source.description) returned \(dto.lines.count) line(s)")
                 lyricsState.isEmpty = dto.lines.isEmpty
                 lyricsState.wasRomanized = dto.romanization == .romanized
                     || (dto.romanization == .canBeRomanized && options.romanization)
@@ -111,6 +115,7 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
                     )
                 }
             } else if let error = requestError {
+                writeDebugLog("[Lyrics] \(source.description) failed: \(error)")
                 let lyricsError = error as? LyricsError
                 if source != .genius {
                     if index == 0 { lyricsState.fallbackError = lyricsError ?? .unknownError }
@@ -137,6 +142,7 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
     } else {
 
         var source = UserDefaults.lyricsSource
+        writeDebugLog("[Lyrics] Single source: \(source.description)")
 
         if source == .notReplaced {
             throw LyricsError.invalidSource
@@ -163,6 +169,7 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
                     throw error
                 }
 
+                writeDebugLog("[Lyrics] \(source.description) failed — falling back to Genius")
                 source = .genius
                 repository = geniusLyricsRepository
                 // Genius 兜底源同样直接抛错，不再兜底为空歌词
@@ -185,7 +192,9 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
 }
 
 func getLyricsDataForCurrentTrack(_ originalPath: String, originalLyrics: Lyrics? = nil) throws -> Data {
+    writeDebugLog("[Lyrics] Request for \(originalPath)")
     guard !NgzhwmSettingsViewModel.isLyricsFeatureDisabled else {
+        writeDebugLog("[Lyrics] Feature disabled — refusing")
         throw LyricsError.invalidSource
     }
 
@@ -221,6 +230,7 @@ func getLyricsDataForCurrentTrack(_ originalPath: String, originalLyrics: Lyrics
     let lyricsColorsSettings = UserDefaults.lyricsColors
 
     if lyricsColorsSettings.displayOriginalColors, let originalLyrics = originalLyrics {
+        writeDebugLog("[Lyrics] Using original colors")
         lyrics.colors = originalLyrics.colors
     } else {
         let extractedColor = switch EeveeSpotify.hookTarget {

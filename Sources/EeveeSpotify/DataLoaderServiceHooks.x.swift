@@ -162,6 +162,7 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
 
         // 1. 歌词请求且状态码非200：伪造200响应
         if url.isLyrics && response.statusCode != 200 {
+            writeDebugLog("[DL] Lyrics request non-200 (\(response.statusCode)) — replacing")
             do {
                 let customData = try getLyricsDataForCurrentTrack(url.path)
 
@@ -199,6 +200,7 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
         // 即使抛错，Spotify 已经收到 2xx 响应，也只会显示空歌词。
         InterceptionContext.shared.setState(.buffering, for: task)
         if url.isLyrics {
+            writeDebugLog("[DL] Buffering lyrics response (status \(response.statusCode))")
             InterceptionContext.shared.setPendingResponse(response, for: task)
             // 允许网络继续传输；响应本身会在 didCompleteWithError 中
             // 根据自定义歌词结果再交给 Spotify 的原始处理器。
@@ -247,6 +249,7 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
            let auth = headers["Authorization"] ?? headers["authorization"],
            auth.hasPrefix("Bearer ") {
             setSpotifyAccessToken(String(auth.dropFirst(7)))
+            writeDebugLog("[TokenCapture] Bearer token from \(task.currentRequest?.url?.absoluteString ?? "?")")
         }
 
         guard let url = task.currentRequest?.url else {
@@ -268,6 +271,7 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
         case .replacingResponse:
             // 使用缓存的自定义歌词数据；缓存丢失时将错误交给官方流程。
             if let cached = InterceptionContext.shared.getCustomData(for: task) {
+                writeDebugLog("[DL] Custom lyrics accepted (non-200 fallback)")
                 sendDataAndComplete(cached, task: task, session: session, error: nil)
             } else {
                 do {
@@ -315,6 +319,7 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
                         url.path,
                         originalLyrics: try? Lyrics(serializedBytes: buffer)
                     )
+                    writeDebugLog("[DL] Custom lyrics accepted")
                     if let pendingResponse {
                         orig.URLSession(
                             session,
@@ -325,19 +330,23 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
                     }
                     sendDataAndComplete(customData, task: task, session: session, error: nil)
                 } else if url.isPremiumPlanRow {
+                    writeDebugLog("[DL] Patching premium plan row")
                     let customData = try getPremiumPlanRowData(
                         originalPremiumPlanRow: try PremiumPlanRow(serializedBytes: buffer)
                     )
                     sendDataAndComplete(customData, task: task, session: session, error: nil)
                 } else if url.isPremiumBadge {
+                    writeDebugLog("[DL] Patching premium badge")
                     let customData = try getPremiumPlanBadge()
                     sendDataAndComplete(customData, task: task, session: session, error: nil)
                 } else if url.isCustomize {
+                    writeDebugLog("[DL] Patching customize response")
                     var customizeMessage = try CustomizeMessage(serializedBytes: buffer)
                     modifyRemoteConfiguration(&customizeMessage.response)
                     let customData = try customizeMessage.serializedData()
                     sendDataAndComplete(customData, task: task, session: session, error: nil)
                 } else if url.isPlanOverview {
+                    writeDebugLog("[DL] Patching plan overview")
                     let customData = try getPlanOverviewData()
                     sendDataAndComplete(customData, task: task, session: session, error: nil)
                 } else {

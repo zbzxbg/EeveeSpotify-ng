@@ -88,6 +88,7 @@ class PetitLyricsRepository: LyricsRepository {
     //
     
     func getLyrics(_ query: LyricsSearchQuery, options: LyricsOptions) throws -> LyricsDto {
+        writeDebugLog("[Petit] Fetching lyrics for \"\(query.title)\" - \(query.primaryArtist)")
         let searchResult = try searchSong(query.title, artist: query.primaryArtist)
         let song = try getSong(
             searchResult.lyricsId,
@@ -106,6 +107,7 @@ class PetitLyricsRepository: LyricsRepository {
                 throw LyricsError.decodingError
             }
             
+            writeDebugLog("[Petit] Words-synced lyrics — \(lyrics.lines.count) line(s)")
             return LyricsDto(
                 lines: lyrics.lines.map {
                     LyricsLineDto(
@@ -122,7 +124,7 @@ class PetitLyricsRepository: LyricsRepository {
         case .plain:
             let stringLyrics = String(data: lyricsData, encoding: .utf8)!
             let lines = stringLyrics.components(separatedBy: "\n")
-            
+            writeDebugLog("[Petit] Plain lyrics — \(lines.count) line(s)")
             return LyricsDto(
                 lines: lines.map { LyricsLineDto(content: $0) },
                 timeSynced: false,

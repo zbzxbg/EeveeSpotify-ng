@@ -446,8 +446,10 @@ class NeteaseLyricsRepository: LyricsRepository {
     // MARK: - LyricsRepository
 
     func getLyrics(_ query: LyricsSearchQuery, options: LyricsOptions) throws -> LyricsDto {
+        writeDebugLog("[NetEase] Fetching lyrics for \"\(query.title)\" - \(query.primaryArtist)")
         let cacheKey = String(query.hashValue)
         if let cached = lyricsCache.object(forKey: cacheKey as NSString) {
+            writeDebugLog("[NetEase] Cache hit")
             return cached.dto
         }
 
@@ -478,10 +480,13 @@ class NeteaseLyricsRepository: LyricsRepository {
 
         if songs.isEmpty {
             if let error = lastSearchError {
+                writeDebugLog("[NetEase] Search error: \(error)")
                 throw error
             }
+            writeDebugLog("[NetEase] No search results")
             throw LyricsError.noSuchSong
         }
+        writeDebugLog("[NetEase] Search returned \(songs.count) result(s)")
 
         let ranked = songs
             .map { (song: $0, score: matchScore(candidate: $0, query: query, strippedTitle: strippedTitle)) }
@@ -503,6 +508,7 @@ class NeteaseLyricsRepository: LyricsRepository {
 
             // 纯音乐：网易对无词歌曲返回空 LRC 或「纯音乐」占位。
             if parsed.isEmpty, lrc.contains("纯音乐") {
+                writeDebugLog("[NetEase] Instrumental — returning empty lyrics")
                 let dto = LyricsDto(lines: [], timeSynced: false, romanization: .original)
                 lyricsCache.setObject(CachedLyrics(dto: dto), forKey: cacheKey as NSString)
                 return dto
@@ -528,10 +534,12 @@ class NeteaseLyricsRepository: LyricsRepository {
                 languageCode: contents.romanizationLanguageCode
             )
 
+            writeDebugLog("[NetEase] Synced lyrics — \(lines.count) line(s)")
             lyricsCache.setObject(CachedLyrics(dto: dto), forKey: cacheKey as NSString)
             return dto
         }
 
+        writeDebugLog("[NetEase] No usable lyrics")
         throw LyricsError.noSuchSong
     }
 }

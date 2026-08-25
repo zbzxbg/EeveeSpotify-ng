@@ -106,7 +106,12 @@ struct EeveeSettingsView: View {
                     "enable_log_recording".localized,
                     isOn: Binding<Bool>(
                         get: { UserDefaults.enableLogRecording },
-                        set: { UserDefaults.enableLogRecording = $0 }
+                        set: { newValue in
+                            UserDefaults.enableLogRecording = newValue
+                            if newValue {
+                                writeDebugLog("[LOG] Log recording enabled")
+                            }
+                        }
                     )
                 )
 
