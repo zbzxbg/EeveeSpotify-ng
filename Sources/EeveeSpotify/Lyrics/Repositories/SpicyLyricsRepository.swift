@@ -256,6 +256,9 @@ class SpicyLyricsRepository: LyricsRepository {
             lines.append(LyricsLineDto(content: lineText.lyricsNoteIfEmpty, offsetMs: offsetMs))
         }
 
+        // 删除歌曲术语标识（与 Genius 一致）
+        lines = lines.filter { !GeniusLyricsRepository.isNonLyricLine($0.content) }
+
         let romanization: LyricsRomanizationStatus = hasRomanized
             ? .romanized
             : (lines.map(\.content).canBeRomanized ? .canBeRomanized : .original)
@@ -283,6 +286,9 @@ class SpicyLyricsRepository: LyricsRepository {
             lines.append(LyricsLineDto(content: text.lyricsNoteIfEmpty, offsetMs: startTime.map { Int($0 * 1000) }))
         }
 
+        // 删除歌曲术语标识（与 Genius 一致）
+        lines = lines.filter { !GeniusLyricsRepository.isNonLyricLine($0.content) }
+
         let romanization: LyricsRomanizationStatus = hasRomanized
             ? .romanized
             : (lines.map(\.content).canBeRomanized ? .canBeRomanized : .original)
@@ -299,9 +305,10 @@ class SpicyLyricsRepository: LyricsRepository {
 
     private func parseStaticLyrics(_ root: SLObjPackValue) -> LyricsDto {
         let rawLines = root["Lines"]?.arrayValue ?? []
-        let lines = rawLines.compactMap { entry -> LyricsLineDto? in
-            guard let text = entry["Text"]?.stringValue else { return nil }
-            return LyricsLineDto(content: text.lyricsNoteIfEmpty, offsetMs: nil)
+        let texts = rawLines.compactMap { $0["Text"]?.stringValue }
+        // 删除歌曲术语标识（与 Genius 一致，含首尾空行处理）
+        let lines = GeniusLyricsRepository.mapLyricsLines(texts).map {
+            LyricsLineDto(content: $0.lyricsNoteIfEmpty, offsetMs: nil)
         }
         let romanization: LyricsRomanizationStatus = lines.map(\.content).canBeRomanized
             ? .canBeRomanized : .original

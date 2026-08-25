@@ -8,9 +8,10 @@ enum LyricsSource: Int, CaseIterable, CustomStringConvertible {
     case notReplaced
     // 新增分支追加在末尾，避免改变既有 rawValue 导致已存设置错位。
     case spicy
+    case netease
     
     static var allCases: [LyricsSource] {
-        return [.genius, .lrclib, .musixmatch, .petit, .spicy]
+        return [.genius, .lrclib, .musixmatch, .petit, .spicy, .netease]
     }
 
     // swift 5.8 compatible
@@ -28,6 +29,8 @@ enum LyricsSource: Int, CaseIterable, CustomStringConvertible {
         return "Spotify"
     case .spicy:
         return "SpicyLyrics"
+    case .netease:
+        return "NetEase"
     }
     }
 

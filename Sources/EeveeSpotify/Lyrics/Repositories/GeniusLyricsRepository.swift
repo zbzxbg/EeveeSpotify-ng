@@ -401,7 +401,7 @@ class GeniusLyricsRepository: LyricsRepository {
     private static let repeatCountSuffix = "(?:\\s+X\\d+)?"
 
     /// Trims, strips diacritics, uppercases — for case/accent-insensitive matching.
-    private func normalizedForMarkerMatch(_ line: String) -> String {
+    private static func normalizedForMarkerMatch(_ line: String) -> String {
         return line
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .folding(options: .diacriticInsensitive, locale: nil)
@@ -411,7 +411,7 @@ class GeniusLyricsRepository: LyricsRepository {
     /// True if the line is structural metadata rather than actual lyric content:
     /// recognized bracketed tags, parenthesized section markers, bare section-marker
     /// lines, or `Letra de "..."` / `Text of "..."` style headers.
-    private func isNonLyricLine(_ line: String) -> Bool {
+    static func isNonLyricLine(_ line: String) -> Bool {
         let normalized = normalizedForMarkerMatch(line)
         guard !normalized.isEmpty else { return false }
 
@@ -455,7 +455,7 @@ class GeniusLyricsRepository: LyricsRepository {
         return false
     }
 
-    private func mapLyricsLines(_ rawLines: [String]) -> [String] {
+    static func mapLyricsLines(_ rawLines: [String]) -> [String] {
         var lines = rawLines
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
 
