@@ -65,6 +65,10 @@ class NeteaseLyricsRepository: LyricsRepository {
 
     private static let rsaExponent = 65537
 
+    /// 候选匹配最低分数：低于此分的候选一律拒绝（宁可「查无此歌」也不显示错误歌词）。
+    /// 满分约 160（标题全等 100 + 歌手全等 60）；标题全等但歌手完全不匹配 = 20，会被拒。
+    private static let minimumMatchScore = 40
+
     /// 响应下发的 cookie 持久化（部分接口会返回会话 cookie，留作复用）。
     private static let anonymousCookieKey = "ngzhwm_neteaseAnonymousCookie"
 
@@ -338,32 +342,51 @@ class NeteaseLyricsRepository: LyricsRepository {
 
     /// 把 LRC 文本解析成 (offsetMs, content)，丢弃非时间戳行与制作信息行。
     /// 网易 LRC 的时间戳混用两种厘秒分隔符：[mm:ss.xx] 与 [mm:ss:xx]，
-    /// 正则统一捕获后在数值解析时归一。
+    /// 且重复段落会合并成一行多时间戳（如 [00:01.00][00:02.00]歌词），
+    /// 每个时间戳都拆成独立一行，避免时间戳混进正文显示。
     private func parseLrc(_ text: String) -> [(offsetMs: Int, content: String)] {
         var parsed: [(offsetMs: Int, content: String)] = []
 
+        let timestampPattern = "\\[(?<minute>\\d*):(?<seconds>\\d+(?:[.:]\\d+)?)\\]"
+        guard let regex = try? NSRegularExpression(pattern: timestampPattern) else {
+            return parsed
+        }
+
         for rawLine in text.components(separatedBy: "\n") {
             let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let match = line.firstMatch(
-                "\\[(?<minute>\\d*):(?<seconds>\\d+(?:[.:]\\d+)?)\\] ?(?<content>.*)"
-            ) else {
-                continue
-            }
+            let nsLine = line as NSString
 
-            guard let minuteRange = Range(match.range(withName: "minute"), in: line),
-                  let secondsRange = Range(match.range(withName: "seconds"), in: line),
-                  let contentRange = Range(match.range(withName: "content"), in: line),
-                  let minute = Int(line[minuteRange]),
-                  let seconds = Float(
-                      line[secondsRange].replacingOccurrences(of: ":", with: ".")
-                  ) else {
-                continue
-            }
+            let matches = regex.matches(
+                in: line,
+                range: NSRange(location: 0, length: nsLine.length)
+            )
+            guard let lastMatch = matches.last else { continue }
 
-            let content = String(line[contentRange])
+            // 正文 = 最后一个时间戳之后的内容
+            let lastRange = lastMatch.range
+            let content = nsLine.substring(from: lastRange.location + lastRange.length)
+                .trimmingCharacters(in: .whitespaces)
             guard !isCreditLine(content) else { continue }
 
-            parsed.append((minute * 60 * 1000 + Int(seconds * 1000), content))
+            // 每个时间戳拆成独立一行（相同正文、不同 offset）
+            for match in matches {
+                let minuteRange = match.range(withName: "minute")
+                let secondsRange = match.range(withName: "seconds")
+                guard minuteRange.location != NSNotFound,
+                      secondsRange.location != NSNotFound else {
+                    continue
+                }
+
+                guard let minute = Int(nsLine.substring(with: minuteRange)),
+                      let seconds = Float(
+                          nsLine.substring(with: secondsRange)
+                              .replacingOccurrences(of: ":", with: ".")
+                      ) else {
+                    continue
+                }
+
+                parsed.append((minute * 60 * 1000 + Int(seconds * 1000), content))
+            }
         }
 
         return parsed
@@ -479,26 +502,39 @@ class NeteaseLyricsRepository: LyricsRepository {
         }
 
         let strippedTitle = query.title.strippedTrackTitle
-        let keywords = [
-            "\(query.title) \(query.primaryArtist)",
-            "\(strippedTitle) \(query.primaryArtist)",
-            query.title,
-            strippedTitle,
+        // 关键词分组：组内所有关键词都搜索并把结果合并去重，某组命中即停。
+        // 「歌名+歌手」「歌手+歌名」双顺序合并，提高命中并让打分在更大候选池里选。
+        let keywordGroups: [[String]] = [
+            ["\(query.title) \(query.primaryArtist)", "\(query.primaryArtist) \(query.title)"],
+            ["\(strippedTitle) \(query.primaryArtist)", "\(query.primaryArtist) \(strippedTitle)"],
+            [query.title],
+            [strippedTitle],
         ]
 
         var songs: [[String: Any]] = []
+        var seenIds = Set<Int>()
         var lastSearchError: Error?
 
-        for keyword in keywords {
-            let trimmed = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { continue }
-            do {
-                songs = try searchSongs(keyword: trimmed)
-            } catch {
-                lastSearchError = error
-                continue
+        for group in keywordGroups {
+            var groupSongs: [[String: Any]] = []
+            for keyword in group {
+                let trimmed = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { continue }
+                do {
+                    for song in try searchSongs(keyword: trimmed) {
+                        guard let id = songId(from: song), seenIds.insert(id).inserted else {
+                            continue
+                        }
+                        groupSongs.append(song)
+                    }
+                } catch {
+                    lastSearchError = error
+                }
             }
-            if !songs.isEmpty { break }
+            if !groupSongs.isEmpty {
+                songs = groupSongs
+                break
+            }
         }
 
         if songs.isEmpty {
@@ -515,7 +551,14 @@ class NeteaseLyricsRepository: LyricsRepository {
             .map { (song: $0, score: matchScore(candidate: $0, query: query, strippedTitle: strippedTitle)) }
             .sorted { $0.score > $1.score }
 
-        for entry in ranked.prefix(8) {
+        // 分数门槛：低于门槛的候选一律不接受，宁可报「查无此歌」也不返回错误歌词。
+        let bestScore = ranked.first?.score ?? 0
+        guard bestScore >= Self.minimumMatchScore else {
+            writeDebugLog("[NetEase] Best score below threshold (\(bestScore) < \(Self.minimumMatchScore))")
+            throw LyricsError.noSuchSong
+        }
+
+        for entry in ranked.prefix(8) where entry.score >= Self.minimumMatchScore {
             guard let songId = songId(from: entry.song) else { continue }
 
             let raw: (lrc: String?, tlyric: String?)

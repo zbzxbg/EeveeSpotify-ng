@@ -178,6 +178,9 @@ struct EeveeSettingsView: View {
             }
         }
         .listStyle(GroupedListStyle())
+        // 强制 List 占满宿主视图可用空间，避免在 SPTPageViewController 里
+        // 被按内容高度拉伸导致滚动区错误、底部 section 滚不到。
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         
         .animation(.default, value: isClearingData)
         .animation(.default, value: hasShownCommonIssuesTip)

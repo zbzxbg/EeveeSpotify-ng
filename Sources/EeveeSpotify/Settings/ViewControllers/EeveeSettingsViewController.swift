@@ -20,25 +20,20 @@ class EeveeSettingsViewController: SPTPageViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        // Do NOT pin the SwiftUI view to the full navigationController frame here.
-        // That fixed frame is larger than this controller's visible area once the
-        // nav bar / home indicator are accounted for, so the List's scroll range
-        // is wrong and the last sections get clipped off-screen ("只能到这").
-        // Instead pin the hosting view to this controller's bounds so the List
-        // scrolls within the actual visible area.
+        // Hosting view 必须钉在本控制器可见区域内滚动。
+        // 曾尝试用 NSLayoutConstraint 把 hosting view 四边钉到 self.view，
+        // 但在 SPTPageViewController（Spotify 私有控制器）的某些版本/iOS 上
+        // 约束无法正确收敛，List 滚动区仍按超大的内容高度计算，
+        // 底部 section（如「重置数据」）被裁切、滚不到。
+        // frame + autoresizingMask 由父控制器在布局时直接驱动，最鲁棒：
+        // push 动画结束后 viewDidLayoutSubviews 会用最新 bounds 重算。
         let hostingController = UIHostingController(rootView: settingsView)
-        hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+        hostingController.view.frame = view.bounds
+        hostingController.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
 
         view.addSubview(hostingController.view)
         addChild(hostingController)
         hostingController.didMove(toParent: self)
-
-        NSLayoutConstraint.activate([
-            hostingController.view.topAnchor.constraint(equalTo: view.topAnchor),
-            hostingController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            hostingController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            hostingController.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-        ])
     }
     
     @objc func openRepositoryUrl(_ sender: UIButton) {
