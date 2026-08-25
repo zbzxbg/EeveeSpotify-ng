@@ -523,7 +523,7 @@ class GeniusLyricsRepository: LyricsRepository {
             }
 
             let plainLines = songInfo.lyrics.plain.components(separatedBy: .newlines)
-            let mappedLines = mapLyricsLines(plainLines)
+            let mappedLines = GeniusLyricsRepository.mapLyricsLines(plainLines)
 
             // Skip pages without usable lyric content (instrumentals, tracklists,
             // annotation-only pages) and try the next candidate.
