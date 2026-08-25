@@ -392,4 +392,11 @@ Additional notes:
 
 </details>
 
+<details>
+<summary><b>v4.0.0-beta.7</b></summary>
+
+- Adjusted: When NetEase is selected as the lyrics provider, Japanese romanized lyrics will use the official romanization instead of local processing.
+- Improved the translations in the EeveeSpotify menu.
+- Fixed an issue where the EeveeSpotify menu could not be scrolled to the bottom.
+
 </details>
