@@ -361,4 +361,11 @@ Additional notes:
 
 </details>
 
+<details>
+<summary><b>v4.0.0-beta.3</b></summary>
+
+- Experimental: Tested the NetEase lyrics provider.
+
+</details>
+
 </details>
