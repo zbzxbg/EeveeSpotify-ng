@@ -18,3 +18,4 @@ packages/
 /fetch-crypto.js
 /netease-cookie-test.js
 /netease-e2e.js
+/netease-repro.js

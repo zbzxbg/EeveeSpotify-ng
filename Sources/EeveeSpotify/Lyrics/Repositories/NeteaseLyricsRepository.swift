@@ -127,18 +127,23 @@ class NeteaseLyricsRepository: LyricsRepository {
 
         guard let firstPass = aesCbcEncrypt(Data(text.utf8), key: Self.aesFirstKey),
               let secondPass = aesCbcEncrypt(firstPass, key: secKey) else {
+            writeDebugLog("[NetEase] weapiEncrypt AES failure")
             throw LyricsError.decodingError
         }
         let params = secondPass.base64EncodedString()
 
         // encSecKey = hex(reverse(secKey) 作为大整数 ^ 65537 mod modulus)，左补零到 256 hex。
+        // 手动 hex 表（避免 String(format:) 变参在设备端的类型歧义）。
+        let hexTable = Array("0123456789abcdef".utf8)
         var reversedKeyHex = ""
         for byte in String(secKey.reversed()).utf8 {
-            reversedKeyHex += String(format: "%02x", byte)
+            reversedKeyHex.append(Character(UnicodeScalar(hexTable[Int(byte) >> 4])))
+            reversedKeyHex.append(Character(UnicodeScalar(hexTable[Int(byte) & 0xF])))
         }
 
         guard let message = NeteaseBigUInt(hex: reversedKeyHex),
               let modulus = NeteaseBigUInt(hex: Self.rsaModulusHex) else {
+            writeDebugLog("[NetEase] weapiEncrypt hex parse failure: \(reversedKeyHex)")
             throw LyricsError.decodingError
         }
 
@@ -172,6 +177,7 @@ class NeteaseLyricsRepository: LyricsRepository {
 
         let csrf = csrfToken
         guard let url = URL(string: "\(Self.weapiBaseUrl)\(path)?csrf_token=\(csrf)") else {
+            writeDebugLog("[NetEase] Invalid URL for \(path), csrf=\(csrf)")
             throw LyricsError.decodingError
         }
 
@@ -234,10 +240,13 @@ class NeteaseLyricsRepository: LyricsRepository {
         }
 
         guard statusCode == 200 else {
+            let body = responseData.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+            writeDebugLog("[NetEase] Non-200 status \(statusCode) for \(path): \(body.prefix(200))")
             throw LyricsError.unknownError
         }
 
         guard let data = responseData else {
+            writeDebugLog("[NetEase] Empty response data for \(path)")
             throw LyricsError.decodingError
         }
 
@@ -263,6 +272,8 @@ class NeteaseLyricsRepository: LyricsRepository {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let result = json["result"] as? [String: Any],
               let songs = result["songs"] as? [[String: Any]] else {
+            let body = String(data: data, encoding: .utf8) ?? "<non-utf8 \(data.count) bytes>"
+            writeDebugLog("[NetEase] Search response malformed for \"\(keyword)\": \(body.prefix(300))")
             throw LyricsError.decodingError
         }
 
