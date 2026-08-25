@@ -349,6 +349,16 @@ Additional notes:
 <details>
 <summary><b>v4.0.0-beta.1</b></summary>
 
+</details>
+
 - Experimental: Added the SpicyLyrics lyrics provider (code from SideloadLabs/EeveeSpotifyReincarnated).
+
+<details>
+<summary><b>v4.0.0-beta.2</b></summary>
+
+- Fixed an issue where SpicyLyrics could not remove lyric annotation terminology.
+- Experimental: Implemented a UI prototype for the NetEase lyrics provider.
+
+</details>
 
 </details>
