@@ -157,3 +157,15 @@ ngzhwm_japanese_romanization = "Romanize Japanese Lyrics";
 ngzhwm_korean_romanization = "Romanize Korean Lyrics";
 ngzhwm_remove_mxm_interlude_symbol = "Delete Mxm Interlude Symbol \"♪\"";
 ngzhwm_remove_mxm_interlude_symbol_description = "When enabled, lines containing \"♪\" in Mxm lyrics will be displayed as blank.";
+
+// Debug
+
+debug_title = "Debug";
+enable_log_recording = "Enable Log Recording";
+enable_log_recording_description = "When enabled, EeveeSpotify records logs at the debug level (recommended to enable only when debugging; not needed for normal use, as it records more detail than the jaydenjcpy version).";
+export_debug_log = "Export Debug Log";
+clear_debug_log = "Clear Debug Log";
+debug_log_cleared = "Debug log cleared.";
+debug_log_cleared_ok = "OK";
+no_debug_log_found = "No debug log found. The log starts recording when the app launches.";
+no_debug_log_found_ok = "OK";

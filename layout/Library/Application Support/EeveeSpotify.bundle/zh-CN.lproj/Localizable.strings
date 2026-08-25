@@ -145,3 +145,15 @@ ngzhwm_japanese_romanization = "日语歌词罗马化";
 ngzhwm_korean_romanization = "韩语歌词罗马化";
 ngzhwm_remove_mxm_interlude_symbol = "删除Mxm的间奏符号「♪」";
 ngzhwm_remove_mxm_interlude_symbol_description = "当此选项开启时，会删除Mxm歌词内的间奏符号「♪」，有♪的这一行会显示空白。";
+
+// Debug
+
+debug_title = "调试";
+enable_log_recording = "开启日志记录";
+enable_log_recording_description = "此选项开启后，EeveeSpotify会采用debug的等级来记录日志内容（推荐在调试状态下开启此开关，平常使用无须开启，因为它记录的内容比jaydenjcpy版本的要详细）。";
+export_debug_log = "导出调试日志";
+clear_debug_log = "清除调试日志";
+debug_log_cleared = "调试日志已清除。";
+debug_log_cleared_ok = "确定";
+no_debug_log_found = "未找到调试日志。日志从应用启动时开始记录。";
+no_debug_log_found_ok = "确定";

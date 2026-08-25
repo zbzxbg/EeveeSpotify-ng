@@ -10,6 +10,7 @@ extension UserDefaults {
     private static let lyricsColorsKey = "lyricsColors"
     private static let lyricsOptionsKey = "lyricsOptions"
     private static let hasShownCommonIssuesTipKey = "hasShownCommonIssuesTip"
+    private static let enableLogRecordingKey = "enableLogRecording"
 
     static var musixmatchToken: String {
         get {
@@ -57,6 +58,16 @@ extension UserDefaults {
         }
         set (hasShownCommonIssuesTip) {
             container.set(hasShownCommonIssuesTip, forKey: hasShownCommonIssuesTipKey)
+        }
+    }
+
+    /// When true, EeveeSpotify logs content at the debug level.
+    static var enableLogRecording: Bool {
+        get {
+            container.bool(forKey: enableLogRecordingKey)
+        }
+        set {
+            container.set(newValue, forKey: enableLogRecordingKey)
         }
     }
 }

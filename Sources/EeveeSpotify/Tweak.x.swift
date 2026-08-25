@@ -1,17 +1,39 @@
 import Orion
 import EeveeSpotifyC
 import UIKit
+import Foundation
 import os
 
-/// 统一 debug 日志出口（SpicyLyrics 等歌词仓库使用）。
-/// os.Logger 的 .debug 级别在 Console.app 默认不显示，可按需过滤。
-private let eeveeDebugLogger = Logger(
+/// Debug-level unified-log sink。相对 NSLog（默认 .default 级别），这里用真正的
+/// .debug 级别，可在 Console.app 中按需过滤。
+private let eeveeLogger = Logger(
     subsystem: "com.eeveespotify",
     category: "debug"
 )
 
 func writeDebugLog(_ message: String) {
-    eeveeDebugLogger.debug("\(message, privacy: .public)")
+    // 受设置开关控制：关闭时既不写统一日志，也不写导出文件。
+    guard UserDefaults.enableLogRecording else { return }
+
+    // Console：真正的 debug 级别。
+    eeveeLogger.debug("\(message, privacy: .public)")
+
+    // 导出文件：沿用追加到临时文件的既有行为。
+    let logPath = NSTemporaryDirectory() + "eeveespotify_debug.log"
+    let timestamp = Date().description
+    let logMessage = "[\(timestamp)] \(message)\n"
+
+    if FileManager.default.fileExists(atPath: logPath) {
+        if let fileHandle = FileHandle(forWritingAtPath: logPath) {
+            fileHandle.seekToEndOfFile()
+            if let data = logMessage.data(using: .utf8) {
+                fileHandle.write(data)
+            }
+            fileHandle.closeFile()
+        }
+    } else {
+        try? logMessage.write(toFile: logPath, atomically: true, encoding: .utf8)
+    }
 }
 
 func exitApplication() {
