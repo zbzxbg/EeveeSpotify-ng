@@ -199,12 +199,21 @@ class NeteaseLyricsRepository: LyricsRepository {
         }
         request.setValue(cookie, forHTTPHeaderField: "Cookie")
 
-        var bodyComponents = URLComponents()
-        bodyComponents.queryItems = [
-            URLQueryItem(name: "params", value: encryptedParams),
-            URLQueryItem(name: "encSecKey", value: encSecKey),
-        ]
-        request.httpBody = bodyComponents.query?.data(using: .utf8)
+        // 手动拼 form body 并 percent-encode：不能用 URLComponents，
+        // 它按 RFC 3986 不编码 query 中的 + / =，而 base64 恰好含这三个字符，
+        // 会导致 + 被服务器当成空格、= 被当成键值分隔符，base64 在传输中损坏
+        // （服务器解密失败 → 返回空 body）。
+        let allowedQueryCharacters = CharacterSet(
+            charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~"
+        )
+        let encodedParams = encryptedParams.addingPercentEncoding(
+            withAllowedCharacters: allowedQueryCharacters
+        ) ?? encryptedParams
+        let encodedSecKey = encSecKey.addingPercentEncoding(
+            withAllowedCharacters: allowedQueryCharacters
+        ) ?? encSecKey
+        let bodyString = "params=\(encodedParams)&encSecKey=\(encodedSecKey)"
+        request.httpBody = bodyString.data(using: .utf8)
 
         let semaphore = DispatchSemaphore(value: 0)
         var responseData: Data?
