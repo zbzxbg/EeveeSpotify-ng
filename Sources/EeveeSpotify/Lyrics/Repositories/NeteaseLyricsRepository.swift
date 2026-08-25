@@ -446,7 +446,7 @@ class NeteaseLyricsRepository: LyricsRepository {
     // MARK: - LyricsRepository
 
     func getLyrics(_ query: LyricsSearchQuery, options: LyricsOptions) throws -> LyricsDto {
-        let cacheKey = query.hashValue
+        let cacheKey = String(query.hashValue)
         if let cached = lyricsCache.object(forKey: cacheKey as NSString) {
             return cached.dto
         }
