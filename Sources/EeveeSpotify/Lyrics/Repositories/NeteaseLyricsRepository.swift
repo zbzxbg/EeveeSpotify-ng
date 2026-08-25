@@ -9,8 +9,10 @@ import CommonCrypto
 // music.163.com 的 weapi 接口要求每个请求体携带 params / encSecKey 两个
 // 加密字段，但整套加密是「无状态」的：AES 密钥、IV 与 RSA 公钥都是全网
 // 写死的常量，不涉及任何用户身份，因此无需像 Musixmatch 那样要求用户
-// 提供 token。会话层只需一个匿名 cookie（MUS_U，由 register/anonimous
-// 接口自动下发，有效期约一年），客户端自己申请并持久化即可。
+// 提供 token。实测 2026 年当前状态下，搜索（search/get）与歌词
+// （song/lyric）接口仅需 `Cookie: os=pc` 即可匿名访问；
+// register/anonimous 匿名注册接口已废弃（返回「参数错误」），不再调用。
+// 若响应下发会话 cookie 会自动持久化并随后续请求携带。
 //
 // ── weapi 加密流程（与 NeteaseCloudMusicApi/util/crypto.js 一致）───────
 // 1. 随机 16 字符 secKey；
@@ -63,11 +65,8 @@ class NeteaseLyricsRepository: LyricsRepository {
 
     private static let rsaExponent = 65537
 
-    /// 匿名 cookie 持久化 key（MUS_U 有效期约一年，跨启动复用）。
+    /// 响应下发的 cookie 持久化（部分接口会返回会话 cookie，留作复用）。
     private static let anonymousCookieKey = "ngzhwm_neteaseAnonymousCookie"
-
-    /// 匿名注册并发保护：首次使用可能有多个歌词请求同时触发注册。
-    private static let cookieLock = NSLock()
 
     private var anonymousCookie: String {
         get { UserDefaults.standard.string(forKey: Self.anonymousCookieKey) ?? "" }
@@ -249,25 +248,16 @@ class NeteaseLyricsRepository: LyricsRepository {
         return data
     }
 
-    /// 确保已持有匿名 cookie；没有则调 register/anonimous 自动申请。
-    /// 接口下发的 MUS_U 有效期约一年，持久化后跨启动复用。
-    private func ensureAnonymousCookie() throws {
-        Self.cookieLock.lock()
-        defer { Self.cookieLock.unlock() }
-
-        if !anonymousCookie.isEmpty { return }
-        _ = try performWeapi("/weapi/register/anonimous", params: [:])
-    }
-
     // MARK: - 接口
 
+    /// 搜索走老接口 /weapi/search/get：cloudsearch/get/web 已被网易风控
+    /// （固定返回 code 50000005），实测老接口带 os=pc cookie 即可匿名使用。
     private func searchSongs(keyword: String) throws -> [[String: Any]] {
-        let data = try performWeapi("/weapi/cloudsearch/get/web", params: [
+        let data = try performWeapi("/weapi/search/get", params: [
             "s": keyword,
             "type": 1,
             "limit": 30,
             "offset": 0,
-            "total": true,
         ])
 
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -320,13 +310,15 @@ class NeteaseLyricsRepository: LyricsRepository {
     }
 
     /// 把 LRC 文本解析成 (offsetMs, content)，丢弃非时间戳行与制作信息行。
+    /// 网易 LRC 的时间戳混用两种厘秒分隔符：[mm:ss.xx] 与 [mm:ss:xx]，
+    /// 正则统一捕获后在数值解析时归一。
     private func parseLrc(_ text: String) -> [(offsetMs: Int, content: String)] {
         var parsed: [(offsetMs: Int, content: String)] = []
 
         for rawLine in text.components(separatedBy: "\n") {
             let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let match = line.firstMatch(
-                "\\[(?<minute>\\d*):(?<seconds>\\d+\\.\\d+|\\d+)\\] ?(?<content>.*)"
+                "\\[(?<minute>\\d*):(?<seconds>\\d+(?:[.:]\\d+)?)\\] ?(?<content>.*)"
             ) else {
                 continue
             }
@@ -335,7 +327,9 @@ class NeteaseLyricsRepository: LyricsRepository {
                   let secondsRange = Range(match.range(withName: "seconds"), in: line),
                   let contentRange = Range(match.range(withName: "content"), in: line),
                   let minute = Int(line[minuteRange]),
-                  let seconds = Float(line[secondsRange]) else {
+                  let seconds = Float(
+                      line[secondsRange].replacingOccurrences(of: ":", with: ".")
+                  ) else {
                 continue
             }
 
@@ -398,8 +392,12 @@ class NeteaseLyricsRepository: LyricsRepository {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// 老接口 search/get 的艺术家字段是 `artists`，cloudsearch 是 `ar`，
+    /// 两种结构都兼容。
     private func candidateArtistNames(_ song: [String: Any]) -> String {
-        guard let artists = song["ar"] as? [[String: Any]] else { return "" }
+        let artists = (song["artists"] as? [[String: Any]])
+            ?? (song["ar"] as? [[String: Any]])
+            ?? []
         return artists.compactMap { $0["name"] as? String }.joined(separator: " ")
     }
 
@@ -452,8 +450,6 @@ class NeteaseLyricsRepository: LyricsRepository {
             writeDebugLog("[NetEase] Cache hit")
             return cached.dto
         }
-
-        try ensureAnonymousCookie()
 
         let strippedTitle = query.title.strippedTrackTitle
         let keywords = [

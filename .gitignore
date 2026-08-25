@@ -12,3 +12,9 @@ xcuserdata/
 packages/
 .DS_Store
 .vscode/
+
+# 临时调试脚本（网易云源排查用，用后即删，勿提交）
+/fetch-frontend.js
+/fetch-crypto.js
+/netease-cookie-test.js
+/netease-e2e.js
