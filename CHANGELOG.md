@@ -386,8 +386,8 @@ Additional notes:
 <summary><b>v4.0.0-beta.6</b></summary>
 
 - Fixed an issue where some features were missing from the EeveeSpotify menu.😢
-- Fixed an issue where NetEase Cloud Music lyrics incorrectly displayed timestamps in the lyric text.😢
-- Improved the NetEase Cloud Music lyrics search logic.
+- Fixed an issue where NetEase lyrics incorrectly displayed timestamps in the lyric text.😢
+- Improved the NetEase lyrics search logic.
 - Improved the translations in the EeveeSpotify menu.
 
 </details>
