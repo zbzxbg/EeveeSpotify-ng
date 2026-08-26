@@ -31,10 +31,10 @@ overwrite_configuration_description = "用转存的 Premium 配置替换远程�
 do_not_replace_lyrics = "禁用歌词替换";
 lyrics_source = "歌词来源";
 lyrics_source_description = "可以自由选择自己喜欢的歌词来源。\n\nGenius：提供最多的歌曲和拥有最优质的歌词，歌词更新速度最快。但歌词不会有时间轴。\nLRCLIB：最开放的服务，提供带时间轴的歌词。但它缺少很多歌曲的歌词。\nMusixmatch：Spotify 本身所使用的服务，为很多歌曲提供带时间轴的歌词，但需要用户令牌才能使用。";
-lyrics_additional_info = "如果插件无法找到歌曲或处理歌词，将看到 “无法加载这首歌的歌词” 的提示。使用 Genius 时，由于插件搜索歌曲的方式，某些歌词可能会有展示错误的情况。但在大多数情况下它都正常工作。";
-petitlyrics_description = "PetitLyrics：提供大量日语歌词和一些非日语歌词。";
-spicylyrics_description = "SpicyLyrics：一个服务于桌面端Spotify(Spicetify)的歌词提供商，特色是提供逐词高亮的歌词（该功能目前在移动端不可用），以及部分其他提供商没有的歌词。灵感和代码来源于GitHub的SideloadLabs/EeveeSpotifyReincarnated，感谢！";
-netease_description = "NetEase：一个主要面向中国大陆的歌词提供商。优点是部分歌曲的歌词更新速度比其他平台快很多，歌词必带时间轴。缺点是可能出现歌词内容不正确、时间轴不对齐等情况。歌词翻译仅提供简体中文，并且此提供商对非中国大陆用户的支持较差，可能会出现断流和拒绝访问之类的问题。";
+lyrics_additional_info = "如果插件无法找到歌曲或处理歌词，将看到 “无法加载这首歌的歌词” 的提示。使用Genius或者NetEase时，由于这两种歌词提供商搜索歌曲的方式和其他几种歌词提供商不一样，某些歌词可能会有展示错误的情况。但在大多数情况下它都正常工作。";
+petitlyrics_description = "PetitLyrics：提供大量日语歌词。";
+spicylyrics_description = "SpicyLyrics：面向桌面端Spotify的歌词提供商，提供逐词高亮歌词(此功能在移动端咱不可用)及部分其他提供商没有的歌词。具体介绍可前往spicylyrics.org查看。";
+netease_description = "NetEase：主要面向中国大陆的歌词提供商，部分歌曲的歌词更新速度可能比Genius更快，且歌词必带时间轴。但对非中国大陆用户的支持较差，且可能出现歌词内容错误或时间轴不对齐等情况。";
 
 musixmatch_user_token = "Musixmatch 用户令牌";
 user_token_placeholder = "输入用户令牌或粘贴调试信息";
