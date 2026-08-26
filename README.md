@@ -38,11 +38,11 @@ See the complete license in the [LICENSE](LICENSE) file.
 ---
 Acknowledgements
 
-Thanks to whoeevee⁠ (https://github.com/whoeevee) for the original EeveeSpotify project.
+Thanks to [whoeevee⁠](https://github.com/whoeevee) for the original EeveeSpotify project.
 
-SpicyLyrics provider: Based on the implementation from (https://github.com/SideloadLabs/EeveeSpotifyReincarnated)￼.
+SpicyLyrics provider: Based on the implementation from [SideloadLabs](https://github.com/SideloadLabs/EeveeSpotifyReincarnated)￼.
 
-Logging/export: Parts of the logging and export functionality are based on code from (https://github.com/SideloadLabs/EeveeSpotifyReincarnated)￼, with modifications made for this project.
+Logging/export: Parts of the logging and export functionality are based on code from [SideloadLabs](https://github.com/SideloadLabs/EeveeSpotifyReincarnated)￼, with modifications made for this project.
 
 
 
