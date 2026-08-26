@@ -400,3 +400,17 @@ Additional notes:
 - Fixed an issue where the EeveeSpotify menu could not be scrolled to the bottom.
 
 </details>
+
+### 08.26
+
+<details>
+<summary><b>v4.0.0-beta.8</b></summary>
+
+- Removed the “Romanize Lyrics” toggle from the EeveeSpotify menu.
+- Improved NetEase lyrics search logic.
+- Reverted Genius lyrics search logic.
+- Moved the “Romanize Lyrics” toggle from the ngzhwm menu to the EeveeSpotify menu.
+
+</details>
+
+</details>

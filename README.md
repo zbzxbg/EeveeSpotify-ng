@@ -29,9 +29,9 @@ Test environment: iPhone 11, iOS 26.6.1, certificate-signed build, LCSign, rootl
 
 This project follows the GNU General Public License v3.0 of the original project.
 
-Current version: `v4.0.0-beta.6`
+Current version: `v4.0.0-beta.8`
 
-Last modified: 2026-08-25.
+Last modified: 2026-08-26.
 
 See the complete license in the [LICENSE](LICENSE) file.
 
