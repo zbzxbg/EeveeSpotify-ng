@@ -8,6 +8,16 @@ class EeveeLyricsSettingsViewModel: ObservableObject {
         didSet { UserDefaults.lyricsOptions = lyricsOptions }
     }
     
+    @Published var chineseRomanization = UserDefaults.standard.bool(forKey: "ngzhwm_chineseRomanization") {
+        didSet { UserDefaults.standard.set(chineseRomanization, forKey: "ngzhwm_chineseRomanization") }
+    }
+    @Published var japaneseRomanization = UserDefaults.standard.bool(forKey: "ngzhwm_japaneseRomanization") {
+        didSet { UserDefaults.standard.set(japaneseRomanization, forKey: "ngzhwm_japaneseRomanization") }
+    }
+    @Published var koreanRomanization = UserDefaults.standard.bool(forKey: "ngzhwm_koreanRomanization") {
+        didSet { UserDefaults.standard.set(koreanRomanization, forKey: "ngzhwm_koreanRomanization") }
+    }
+    
     @Published var musixmatchToken = UserDefaults.musixmatchToken
     @Published var isRequestingMusixmatchToken = false
     @Published var musixmatchTokenInputAlertPublisher = PassthroughSubject<Bool, Never>()

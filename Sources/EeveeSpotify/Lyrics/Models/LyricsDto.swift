@@ -21,8 +21,7 @@ struct LyricsDto {
             $0.providedBy = "\(source) (EeveeSpotify)"
         }
         
-        let shouldRomanize = UserDefaults.lyricsOptions.romanization
-        let canRomanize = shouldRomanize && romanization == .canBeRomanized
+        let canRomanize = romanization == .canBeRomanized
         
         if lines.isEmpty {
             if useInstrumentalPlaceholder {

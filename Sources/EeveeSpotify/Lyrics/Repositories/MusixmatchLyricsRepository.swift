@@ -17,10 +17,6 @@ class MusixmatchLyricsRepository: LyricsRepository {
     }
 
     private func isNgzhwmRomanizationEnabled(for romanizationLanguage: String) -> Bool {
-        guard UserDefaults.lyricsOptions.romanization else {
-            return false
-        }
-
         switch romanizationLanguage.lowercased() {
         case "rc", "rz":
             return UserDefaults.standard.bool(forKey: "ngzhwm_chineseRomanization")
@@ -65,9 +61,7 @@ class MusixmatchLyricsRepository: LyricsRepository {
     private let lyricsCache = NSCache<NSString, CachedLyrics>()
 
     private func getCacheKey(for query: LyricsSearchQuery) -> String {
-        let options = UserDefaults.lyricsOptions
         let romanizationSettings = [
-            options.romanization,
             UserDefaults.standard.bool(forKey: "ngzhwm_chineseRomanization"),
             UserDefaults.standard.bool(forKey: "ngzhwm_japaneseRomanization"),
             UserDefaults.standard.bool(forKey: "ngzhwm_koreanRomanization"),

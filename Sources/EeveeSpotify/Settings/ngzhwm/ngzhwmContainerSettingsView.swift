@@ -7,8 +7,7 @@ struct NgzhwmContainerSettingsView: View {
         List {
             disableLyricsSection()
             lyricsFallbackSection()
-            geniusStrictMatchSection()
-            romanizationSection()
+            removeInterludeSymbolSection()
             // 底部留白：防止最后一项（删除 MxM 间奏符号）的说明 footer 被底部
             // Home 指示条裁掉，列表没有滚动余量只能橡皮筋弹回。
             NonIPadSpacerView()
@@ -39,26 +38,7 @@ struct NgzhwmContainerSettingsView: View {
         }
     }
     
-    @ViewBuilder private func geniusStrictMatchSection() -> some View {
-        Section(
-            footer: Text("ngzhwm_genius_strict_match_description".localized)
-        ) {
-            Toggle(
-                "ngzhwm_genius_strict_match".localized,
-                isOn: $viewModel.geniusStrictMatch
-            )
-        }
-    }
-    
-    @ViewBuilder private func romanizationSection() -> some View {
-        Section(
-            footer: Text("ngzhwm_romanization_description".localized)
-        ) {
-            Toggle("ngzhwm_chinese_romanization".localized, isOn: $viewModel.chineseRomanization)
-            Toggle("ngzhwm_japanese_romanization".localized, isOn: $viewModel.japaneseRomanization)
-            Toggle("ngzhwm_korean_romanization".localized, isOn: $viewModel.koreanRomanization)
-        }
-
+    @ViewBuilder private func removeInterludeSymbolSection() -> some View {
         Section(
             footer: Text("ngzhwm_remove_mxm_interlude_symbol_description".localized)
         ) {

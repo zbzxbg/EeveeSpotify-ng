@@ -58,8 +58,6 @@ genius_fallback_description = "Load lyrics from Genius if there is a problem wit
 hide_lyrics_on_error = "Hide on Error";
 hide_lyrics_on_error_description = "Remove the lyrics component if lyrics fail to load.";
 
-romanized_lyrics = "Romanized Lyrics";
-romanized_lyrics_description = "Display romanized lyrics for Japanese, Korean, and Chinese. For specific adjustments, go to the ngzhwm menu.";
 
 musixmatch_language = "Musixmatch Lyrics Language";
 musixmatch_language_description = "You can enter a 2-letter Musixmatch language code and see translated lyrics on Musixmatch if they are available.";
@@ -149,8 +147,6 @@ ngzhwm_disable_lyrics_feature = "Disable Lyrics Function";
 ngzhwm_disable_lyrics_feature_description = "As the name suggests, this disables all lyrics-related functions. When enabled, EeveeSpotify also prevents Spotify from returning its own lyrics.";
 ngzhwm_multi_level_fallback = "Multi-level Lyrics Fallback";
 ngzhwm_multi_level_fallback_description = "When enabled, lyrics are queried using Mxm-PL-LRC-Gen's multi-level fallback method. Mxm and PL are given up to five seconds each, while LRCLIB and Genius are given up to three seconds each; if a source does not return valid lyrics within its time limit, the next source is queried. When disabled, lyrics are queried according to the user's settings in the whoeevee menu.";
-ngzhwm_genius_strict_match = "Optimize Genius Search Results Matching";
-ngzhwm_genius_strict_match_description = "Experimental. When enabled, Genius lyrics search performs stricter song matching, reducing the chance of showing lyrics from other artists' works, but it may also cause some correct lyrics to fail to display.";
 ngzhwm_romanization_description = "Configure romanization separately for each language. These options take effect only when \"Romanized Lyrics\" is enabled in the whoeevee menu. If romanization is disabled for a language, its lyrics are displayed as-is. Note: Chinese and Korean romanization have not been tested.";
 ngzhwm_chinese_romanization = "Romanize Chinese Lyrics";
 ngzhwm_japanese_romanization = "Romanize Japanese Lyrics";

@@ -65,10 +65,6 @@ class NeteaseLyricsRepository: LyricsRepository {
 
     private static let rsaExponent = 65537
 
-    /// 候选匹配最低分数：低于此分的候选一律拒绝（宁可「查无此歌」也不显示错误歌词）。
-    /// 满分约 160（标题全等 100 + 歌手全等 60）；标题全等但歌手完全不匹配 = 20，会被拒。
-    private static let minimumMatchScore = 40
-
     /// 响应下发的 cookie 持久化（部分接口会返回会话 cookie，留作复用）。
     private static let anonymousCookieKey = "ngzhwm_neteaseAnonymousCookie"
 
@@ -483,69 +479,6 @@ class NeteaseLyricsRepository: LyricsRepository {
         return (out, matched)
     }
 
-    // MARK: - 候选匹配
-
-    private func normalized(_ text: String) -> String {
-        text
-            .folding(options: .diacriticInsensitive, locale: nil)
-            .lowercased()
-            .replacingOccurrences(
-                of: "[^\\p{L}\\p{N}]+",
-                with: " ",
-                options: .regularExpression
-            )
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    /// 老接口 search/get 的艺术家字段是 `artists`，cloudsearch 是 `ar`，
-    /// 两种结构都兼容。
-    private func candidateArtistNames(_ song: [String: Any]) -> String {
-        let artists = (song["artists"] as? [[String: Any]])
-            ?? (song["ar"] as? [[String: Any]])
-            ?? []
-        return artists.compactMap { $0["name"] as? String }.joined(separator: " ")
-    }
-
-    private func matchScore(
-        candidate: [String: Any],
-        query: LyricsSearchQuery,
-        strippedTitle: String
-    ) -> Int {
-        let resultTitle = normalized(candidate["name"] as? String ?? "")
-        let fullTitle = normalized(query.title)
-        let cleanTitle = normalized(strippedTitle)
-        let resultArtist = normalized(candidateArtistNames(candidate))
-        let queryArtist = normalized(query.primaryArtist)
-
-        var score = 0
-
-        if !fullTitle.isEmpty, resultTitle == fullTitle {
-            score += 100
-        } else if !cleanTitle.isEmpty, resultTitle == cleanTitle {
-            score += 90
-        } else if (!fullTitle.isEmpty && (resultTitle.contains(fullTitle) || fullTitle.contains(resultTitle)))
-            || (!cleanTitle.isEmpty && (resultTitle.contains(cleanTitle) || cleanTitle.contains(resultTitle))) {
-            score += 70
-        }
-
-        if !queryArtist.isEmpty {
-            if resultArtist == queryArtist {
-                score += 60
-            } else if resultArtist.contains(queryArtist) || queryArtist.contains(resultArtist) {
-                score += 40
-            } else {
-                let tokens = queryArtist.split(separator: " ")
-                if tokens.contains(where: { resultArtist.contains(String($0)) }) {
-                    score += 15
-                } else {
-                    score -= 80
-                }
-            }
-        }
-
-        return score
-    }
-
     // MARK: - LyricsRepository
 
     func getLyrics(_ query: LyricsSearchQuery, options: LyricsOptions) throws -> LyricsDto {
@@ -557,141 +490,110 @@ class NeteaseLyricsRepository: LyricsRepository {
         }
 
         let strippedTitle = query.title.strippedTrackTitle
-        // 关键词分组：组内所有关键词都搜索并把结果合并去重，某组命中即停。
-        // 「歌名+歌手」「歌手+歌名」双顺序合并，提高命中并让打分在更大候选池里选。
-        let keywordGroups: [[String]] = [
-            ["\(query.title) \(query.primaryArtist)", "\(query.primaryArtist) \(query.title)"],
-            ["\(strippedTitle) \(query.primaryArtist)", "\(query.primaryArtist) \(strippedTitle)"],
-            [query.title],
-            [strippedTitle],
-        ]
+        let keyword = "\(strippedTitle) \(query.primaryArtist)"
+            .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        var songs: [[String: Any]] = []
-        var seenIds = Set<Int>()
-        var lastSearchError: Error?
-
-        for group in keywordGroups {
-            var groupSongs: [[String: Any]] = []
-            for keyword in group {
-                let trimmed = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else { continue }
-                do {
-                    for song in try searchSongs(keyword: trimmed) {
-                        guard let id = songId(from: song), seenIds.insert(id).inserted else {
-                            continue
-                        }
-                        groupSongs.append(song)
-                    }
-                } catch {
-                    lastSearchError = error
-                }
-            }
-            if !groupSongs.isEmpty {
-                songs = groupSongs
-                break
-            }
+        let songs: [[String: Any]]
+        do {
+            songs = try searchSongs(keyword: keyword)
+        } catch {
+            writeDebugLog("[NetEase] Search error: \(error)")
+            throw error
         }
 
-        if songs.isEmpty {
-            if let error = lastSearchError {
-                writeDebugLog("[NetEase] Search error: \(error)")
-                throw error
-            }
+        guard !songs.isEmpty else {
             writeDebugLog("[NetEase] No search results")
             throw LyricsError.noSuchSong
         }
         writeDebugLog("[NetEase] Search returned \(songs.count) result(s)")
 
-        let ranked = songs
-            .map { (song: $0, score: matchScore(candidate: $0, query: query, strippedTitle: strippedTitle)) }
-            .sorted { $0.score > $1.score }
-
-        // 分数门槛：低于门槛的候选一律不接受，宁可报「查无此歌」也不返回错误歌词。
-        let bestScore = ranked.first?.score ?? 0
-        guard bestScore >= Self.minimumMatchScore else {
-            writeDebugLog("[NetEase] Best score below threshold (\(bestScore) < \(Self.minimumMatchScore))")
+        // 上游思路：标题子串命中就取第一个命中的；没命中就取第一个结果（信任网易相关度）。
+        // 不打分、不查歌手——跨语言（罗马音 vs 汉字/假名）时字符串对不上，只能靠相关度。
+        let matchingByTitle = songs.filter {
+            ($0["name"] as? String ?? "").containsInsensitive(strippedTitle)
+        }
+        let chosen = matchingByTitle.first ?? songs.first!
+        guard let songId = songId(from: chosen) else {
+            writeDebugLog("[NetEase] Chosen result has no song id")
             throw LyricsError.noSuchSong
         }
 
-        for entry in ranked.prefix(8) where entry.score >= Self.minimumMatchScore {
-            guard let songId = songId(from: entry.song) else { continue }
+        let raw: (lrc: String?, tlyric: String?, romalrc: String?)
+        do {
+            raw = try fetchLyricsRaw(songId: songId)
+        } catch {
+            writeDebugLog("[NetEase] Fetch lyrics error: \(error)")
+            throw error
+        }
 
-            let raw: (lrc: String?, tlyric: String?, romalrc: String?)
-            do {
-                raw = try fetchLyricsRaw(songId: songId)
-            } catch {
-                continue
-            }
-
-            guard let lrc = raw.lrc, !lrc.isEmpty else { continue }
-
-            let parsed = parseLrc(lrc)
-
-            // 纯音乐：网易对无词歌曲返回空 LRC，或返回带时间戳的
-            // 「[00:00.00]纯音乐，请欣赏」占位行。只要 lrc 含「纯音乐」字样
-            // 就按纯音乐处理，返回空 lines 走 Spotify 的 instrumental 占位。
-            if lrc.contains("纯音乐") {
-                writeDebugLog("[NetEase] Instrumental — returning empty lyrics")
-                let dto = LyricsDto(lines: [], timeSynced: false, romanization: .original)
-                lyricsCache.setObject(CachedLyrics(dto: dto), forKey: cacheKey as NSString)
-                return dto
-            }
-
-            guard !parsed.isEmpty else { continue }
-
-            var lines = parsed.map {
-                LyricsLineDto(
-                    content: cleanedInterludeSymbol($0.content.lyricsNoteIfEmpty),
-                    offsetMs: $0.offsetMs
-                )
-            }
-
-            // 开关开启时（仅网易云）：删除开头连续的间奏空行（原 ♪ 行），
-            // 让真正的歌词顶到第一行；中间靠下的间奏行保持空白、不清除位置。
-            if shouldRemoveInterludeSymbol {
-                lines = Array(lines.drop(while: { $0.content.isEmpty }))
-            }
-
-            var translation: LyricsTranslationDto? = nil
-            if let tlyric = raw.tlyric, !tlyric.isEmpty {
-                translation = buildTranslation(tlyric, originalLines: lines)
-            }
-
-            let contents = lines.map(\.content)
-            var romanization: LyricsRomanizationStatus = contents.canBeRomanized
-                ? .canBeRomanized : .original
-            let languageCode = contents.romanizationLanguageCode
-
-            // 官方罗马音：日语歌、用户开启日语罗马化、且网易下发了 romalrc 时，
-            // 直接用官方罗马音替换主歌词行（标记 .romanized 跳过本地转换）。
-            // 否则保持原文 + .canBeRomanized，交给显示层做本地转换。
-            if let romalrc = raw.romalrc, !romalrc.isEmpty,
-               languageCode == "ja",
-               options.romanization,
-               UserDefaults.standard.bool(forKey: "ngzhwm_japaneseRomanization") {
-                let romanized = applyRomanization(romalrc, originalLines: lines)
-                if romanized.matched > 0 {
-                    lines = romanized.lines
-                    romanization = .romanized
-                    writeDebugLog("[NetEase] Applied official romaji (\(romanized.matched) line(s))")
-                }
-            }
-
-            let dto = LyricsDto(
-                lines: lines,
-                timeSynced: true,
-                romanization: romanization,
-                translation: translation,
-                languageCode: languageCode
-            )
-
-            writeDebugLog("[NetEase] Synced lyrics — \(lines.count) line(s)")
+        // 纯音乐：网易对无词歌曲返回「纯音乐，请欣赏」占位，按纯音乐返回占位。
+        if let lrc = raw.lrc, lrc.contains("纯音乐") {
+            writeDebugLog("[NetEase] Instrumental — returning empty lyrics")
+            let dto = LyricsDto(lines: [], timeSynced: false, romanization: .original)
             lyricsCache.setObject(CachedLyrics(dto: dto), forKey: cacheKey as NSString)
             return dto
         }
 
-        writeDebugLog("[NetEase] No usable lyrics")
-        throw LyricsError.noSuchSong
+        // 不把上游「空歌词 → 纯音乐占位」的 bug 带过来：没有可用歌词就抛查无此歌。
+        guard let lrc = raw.lrc, !lrc.isEmpty else {
+            writeDebugLog("[NetEase] No usable lyrics")
+            throw LyricsError.noSuchSong
+        }
+
+        let parsed = parseLrc(lrc)
+        guard !parsed.isEmpty else {
+            writeDebugLog("[NetEase] No usable lyrics")
+            throw LyricsError.noSuchSong
+        }
+
+        var lines = parsed.map {
+            LyricsLineDto(
+                content: cleanedInterludeSymbol($0.content.lyricsNoteIfEmpty),
+                offsetMs: $0.offsetMs
+            )
+        }
+
+        // 开关开启时（仅网易云）：删除开头连续的间奏空行（原 ♪ 行），
+        // 让真正的歌词顶到第一行；中间靠下的间奏行保持空白、不清除位置。
+        if shouldRemoveInterludeSymbol {
+            lines = Array(lines.drop(while: { $0.content.isEmpty }))
+        }
+
+        var translation: LyricsTranslationDto? = nil
+        if let tlyric = raw.tlyric, !tlyric.isEmpty {
+            translation = buildTranslation(tlyric, originalLines: lines)
+        }
+
+        let contents = lines.map(\.content)
+        var romanization: LyricsRomanizationStatus = contents.canBeRomanized
+            ? .canBeRomanized : .original
+        let languageCode = contents.romanizationLanguageCode
+
+        // 官方罗马音：日语歌、用户开启日语罗马化、且网易下发了 romalrc 时，
+        // 直接用官方罗马音替换主歌词行（标记 .romanized 跳过本地转换）。
+        // 否则保持原文 + .canBeRomanized，交给显示层做本地转换。
+        if let romalrc = raw.romalrc, !romalrc.isEmpty,
+           languageCode == "ja",
+           UserDefaults.standard.bool(forKey: "ngzhwm_japaneseRomanization") {
+            let romanized = applyRomanization(romalrc, originalLines: lines)
+            if romanized.matched > 0 {
+                lines = romanized.lines
+                romanization = .romanized
+                writeDebugLog("[NetEase] Applied official romaji (\(romanized.matched) line(s))")
+            }
+        }
+
+        let dto = LyricsDto(
+            lines: lines,
+            timeSynced: true,
+            romanization: romanization,
+            translation: translation,
+            languageCode: languageCode
+        )
+
+        writeDebugLog("[NetEase] Synced lyrics — \(lines.count) line(s)")
+        lyricsCache.setObject(CachedLyrics(dto: dto), forKey: cacheKey as NSString)
+        return dto
     }
 }
 

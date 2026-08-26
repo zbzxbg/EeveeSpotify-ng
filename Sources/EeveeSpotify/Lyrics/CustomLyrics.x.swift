@@ -105,7 +105,7 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
                 writeDebugLog("[Lyrics] \(source.description) returned \(dto.lines.count) line(s)")
                 lyricsState.isEmpty = dto.lines.isEmpty
                 lyricsState.wasRomanized = dto.romanization == .romanized
-                    || (dto.romanization == .canBeRomanized && options.romanization)
+                    || dto.romanization == .canBeRomanized
                 lyricsState.loadedSuccessfully = true
 
                 return Lyrics.with {
@@ -179,7 +179,7 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
 
         lyricsState.isEmpty = lyricsDto.lines.isEmpty
         lyricsState.wasRomanized = lyricsDto.romanization == .romanized
-            || (lyricsDto.romanization == .canBeRomanized && options.romanization)
+            || lyricsDto.romanization == .canBeRomanized
         lyricsState.loadedSuccessfully = true
 
         return Lyrics.with {

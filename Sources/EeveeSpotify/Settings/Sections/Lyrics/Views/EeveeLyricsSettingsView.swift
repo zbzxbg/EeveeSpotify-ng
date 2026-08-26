@@ -13,7 +13,7 @@ struct EeveeLyricsSettingsView: View {
                 }
                 
                 hideOnErrorSection()
-                romanizedLyricsSection()
+                romanizationSection()
                 
                 if viewModel.lyricsSource == .musixmatch {
                     musixmatchLanguageSection()
@@ -43,14 +43,13 @@ struct EeveeLyricsSettingsView: View {
         }
     }
     
-    @ViewBuilder private func romanizedLyricsSection() -> some View {
-        Section {
-            Toggle(
-                "romanized_lyrics".localized,
-                isOn: $viewModel.lyricsOptions.romanization
-            )
-        } footer: {
-            Text("romanized_lyrics_description".localized)
+    @ViewBuilder private func romanizationSection() -> some View {
+        Section(
+            footer: Text("ngzhwm_romanization_description".localized)
+        ) {
+            Toggle("ngzhwm_chinese_romanization".localized, isOn: $viewModel.chineseRomanization)
+            Toggle("ngzhwm_japanese_romanization".localized, isOn: $viewModel.japaneseRomanization)
+            Toggle("ngzhwm_korean_romanization".localized, isOn: $viewModel.koreanRomanization)
         }
     }
 
