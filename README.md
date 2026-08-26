@@ -36,7 +36,7 @@ Last modified: 2026-08-26.
 See the complete license in the [LICENSE](LICENSE) file.
 
 ---
-Acknowledgements
+## ❤️ Acknowledgements
 
 Thanks to [whoeevee⁠](https://github.com/whoeevee) for the original EeveeSpotify project.
 
