@@ -8,7 +8,7 @@ This project is a personal fork of [EeveeSpotify](https://github.com/whoeevee/Ee
 
 The original repository was taken down under a [DMCA notice](https://github.com/github/dmca/blob/master/2025/08/2025-08-14-spotify.md). This fork is maintained independently and is not affiliated with the original author, whoeevee.
 
-Test environment: iPhone 11, iOS 26.6.1, certificate-signed build, LCSign, rootless DEB.
+Verified environment: iPhone 11 + iOS 26.6.1 + certificate-signed build + LCSign + rootless DEB. The modified features in this fork have been verified to work in this environment. Compatibility with other iOS versions, jailbreak environments, TrollStore, installation methods, or Spotify versions has not been tested.
 
 ## 🔧 Personal Modifications
 
