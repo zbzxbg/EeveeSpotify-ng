@@ -438,3 +438,15 @@ Additional notes:
 - Feature: Modified the display method of NetEase Japanese romanized lyrics.
 
 </details>
+
+### 08.28
+
+<details>
+<summary><b>v4.0.0-beta.12</b></summary>
+
+- Improved NetEase lyrics search logic.
+- Improved translations in the EeveeSpotify menu.
+- Fixed an issue where the NetEase lyrics provider would ignore lyrics without timestamps.
+- Changed the default lyrics provider from LRCLIB to SpicyLyrics. The default lyrics provider remains PetitLyrics in Japan/Japanese-language regions.
+
+</details>
