@@ -425,4 +425,9 @@ Additional notes:
 
 </details>
 
-* Fixed: Fixed an issue where the NetEase lyrics provider could incorrectly filter out valid lyrics and return “Lyrics Not Found”.😢
+<details>
+<summary><b>v4.0.0-beta.10</b></summary>
+
+- Fixed: Fixed an issue where the NetEase lyrics provider could incorrectly filter out valid lyrics and return “Lyrics Not Found”.😢
+
+</details>
