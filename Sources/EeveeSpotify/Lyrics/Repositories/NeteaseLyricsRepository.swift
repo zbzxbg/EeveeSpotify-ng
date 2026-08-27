@@ -513,17 +513,10 @@ class NeteaseLyricsRepository: LyricsRepository {
             return cached.dto
         }
 
-        let strippedTitle = query.title.strippedTrackTitle
-
-        // 标题可能带 (feat./ft. Xxx)：把合作歌手追加进关键词，帮助网易命中
-        // 同曲目的其他语言标题（如 Moderate (feat. wanko) → もでらーと (feat. わん子)）。
-        var keyword = "\(strippedTitle) \(query.primaryArtist)"
-        if let featMatch = query.title.firstMatch("\\(feat\\.?\\s*([^)]+)\\)")
-            ?? query.title.firstMatch("\\(ft\\.?\\s*([^)]+)\\)"),
-            let featRange = Range(featMatch.range(at: 1), in: query.title) {
-            keyword += " " + String(query.title[featRange])
-        }
-        keyword = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 歌名用完整标题（保留 feat./slowed 等后缀），它们本身是重要的区分信息；
+        // 网易模糊搜索能靠这些后缀直接命中同曲目的日文名。
+        let keyword = "\(query.title) \(query.primaryArtist)"
+            .trimmingCharacters(in: .whitespacesAndNewlines)
 
         let songs: [[String: Any]]
         do {
@@ -539,94 +532,90 @@ class NeteaseLyricsRepository: LyricsRepository {
         }
         writeDebugLog("[NetEase] Search returned \(songs.count) result(s)")
 
-        // 选歌（非打分：纯布尔分档 + 时长闸门）：
-        // 1) 时长可用时，按「标题+歌手 → 歌手 → 标题 → 相关度」分档扫描，
-        //    接受第一个时长与 Spotify 匹配（±5s）的候选。首位是错歌但正确歌在
-        //    结果里时（如 だれかの心臓になれたなら），会继续往后扫而不是直接放弃。
-        //    都不匹配说明网易没有这首，抛 noSuchSong 交给 Genius。
-        // 2) 时长不可用（本地文件等）时，信任网易相关度取第一位。
+        // 选歌：相信网易搜索相关度（按结果顺序），配合时长闸门与歌词可用性校验。
+        // 时长可用时过滤掉时长与 Spotify 不匹配（±5s）的候选；时长不可用（本地文件等）
+        // 时信任网易相关度取第一位。
         let spotifyDurationMs = query.durationMs
 
-        func songTitle(_ song: [String: Any]) -> String {
-            song["name"] as? String ?? ""
-        }
-        func songArtists(_ song: [String: Any]) -> [String] {
-            (song["artists"] as? [[String: Any]] ?? []).compactMap { $0["name"] as? String }
-        }
-        func songMatchesArtist(_ song: [String: Any]) -> Bool {
-            let artist = query.primaryArtist.trimmingCharacters(in: .whitespaces)
-            guard !artist.isEmpty else { return false }
-            return songArtists(song).contains {
-                $0.containsInsensitive(artist) || artist.containsInsensitive($0)
-            }
-        }
-        func songMatchesTitle(_ song: [String: Any]) -> Bool {
-            songTitle(song).containsInsensitive(strippedTitle)
-        }
-        func songDurationPasses(_ song: [String: Any]) -> Bool {
-            guard let spotify = spotifyDurationMs,
-                  let netease = (song["duration"] as? NSNumber)?.intValue else {
-                return false
-            }
-            return abs(netease - spotify) <= 5000
-        }
-
-        let chosen: [String: Any]
+        let candidates: [[String: Any]]
         if spotifyDurationMs != nil {
-            let byTitleAndArtist = songs.filter { songMatchesTitle($0) && songMatchesArtist($0) }
-            let byArtist = songs.filter { !songMatchesTitle($0) && songMatchesArtist($0) }
-            let byTitle = songs.filter { songMatchesTitle($0) && !songMatchesArtist($0) }
-            let byRelevance = songs.filter { !songMatchesTitle($0) && !songMatchesArtist($0) }
-            let tiered = byTitleAndArtist + byArtist + byTitle + byRelevance
-            guard let match = tiered.first(where: { songDurationPasses($0) }) else {
-                writeDebugLog("[NetEase] No result within \(spotifyDurationMs ?? 0)ms ±5s — noSuchSong")
-                throw LyricsError.noSuchSong
+            candidates = songs.filter { song in
+                guard let netease = (song["duration"] as? NSNumber)?.intValue,
+                      let spotify = spotifyDurationMs else {
+                    return false
+                }
+                return abs(netease - spotify) <= 5000
             }
-            chosen = match
         } else {
-            chosen = songs.first!
+            candidates = [songs.first!]
         }
-        writeDebugLog("[NetEase] Chosen: \(chosen["name"] as? String ?? "?") (id \(chosen["id"] ?? "?"))")
-
-        guard let songId = songId(from: chosen) else {
-            writeDebugLog("[NetEase] Chosen result has no song id")
+        guard !candidates.isEmpty else {
+            writeDebugLog("[NetEase] No result within \(spotifyDurationMs ?? 0)ms ±5s — noSuchSong")
             throw LyricsError.noSuchSong
         }
 
-        let raw: (lrc: String?, tlyric: String?, romalrc: String?)
-        do {
-            raw = try fetchLyricsRaw(songId: songId)
-        } catch {
-            writeDebugLog("[NetEase] Fetch lyrics error: \(error)")
-            throw error
-        }
+        // 候选扫描：选中的候选歌词不可用（空串 / 仅制作信息行 / 纯音乐占位）时
+        // 不放弃，按顺序继续试下一个候选，直到拿到有真实歌词的。
+        var instrumentalFallback: LyricsDto? = nil
+        for chosen in candidates {
+            guard let songId = songId(from: chosen) else { continue }
+            writeDebugLog("[NetEase] Trying candidate: \(chosen["name"] as? String ?? "?") (id \(songId))")
 
-        // 纯音乐：网易对无词歌曲返回「纯音乐，请欣赏」占位，按纯音乐返回占位。
-        if let lrc = raw.lrc, lrc.contains("纯音乐") {
-            writeDebugLog("[NetEase] Instrumental — returning empty lyrics")
-            let dto = LyricsDto(lines: [], timeSynced: false, romanization: .original)
-            lyricsCache.setObject(CachedLyrics(dto: dto), forKey: cacheKey as NSString)
-            return dto
-        }
+            let raw: (lrc: String?, tlyric: String?, romalrc: String?)
+            do {
+                raw = try fetchLyricsRaw(songId: songId)
+            } catch {
+                writeDebugLog("[NetEase] Fetch lyrics error: \(error)")
+                throw error
+            }
 
-        // 不把上游「空歌词 → 纯音乐占位」的 bug 带过来：没有可用歌词就抛查无此歌。
-        guard let lrc = raw.lrc, !lrc.isEmpty else {
-            writeDebugLog("[NetEase] No usable lyrics")
-            throw LyricsError.noSuchSong
-        }
+            // 纯音乐占位：网易对无词歌曲返回「纯音乐，请欣赏」。先记下第一个占位
+            // 候选，继续扫描（占位可能是错歌，真正带词候选在后面）。
+            if let lrc = raw.lrc, lrc.contains("纯音乐") {
+                if instrumentalFallback == nil {
+                    writeDebugLog("[NetEase] Instrumental placeholder — keep scanning")
+                    instrumentalFallback = LyricsDto(
+                        lines: [], timeSynced: false, romanization: .original
+                    )
+                }
+                continue
+            }
 
-        let parsed = parseLrc(lrc)
-        guard !parsed.isEmpty else {
-            writeDebugLog("[NetEase] No usable lyrics")
-            throw LyricsError.noSuchSong
-        }
+            // 不把上游「空歌词 → 纯音乐占位」的 bug 带过来：空串/无有效行视为
+            // 该候选不可用，继续下一个候选。
+            guard let lrc = raw.lrc, !lrc.isEmpty else {
+                writeDebugLog("[NetEase] Empty lyrics for \(songId) — trying next candidate")
+                continue
+            }
 
-        var lines = parsed.map {
-            LyricsLineDto(
-                content: cleanedInterludeSymbol($0.content.lyricsNoteIfEmpty),
-                offsetMs: $0.offsetMs
-            )
-        }
+            let parsed = parseLrc(lrc)
+
+            var lines: [LyricsLineDto]
+            var timeSynced = true
+            if parsed.isEmpty {
+                // 网易部分歌只有静态歌词（无 [mm:ss] 时间戳、没做滚动歌词）：
+                // 按行拆分、过滤制作信息行与空行，作为非同步歌词收录传给上游。
+                var fallbackLines: [LyricsLineDto] = []
+                for rawLine in lrc.components(separatedBy: .newlines) {
+                    let content = rawLine.trimmingCharacters(in: .whitespaces)
+                    guard !content.isEmpty, !isCreditLine(content) else { continue }
+                    fallbackLines.append(LyricsLineDto(content: content, offsetMs: nil))
+                }
+                guard !fallbackLines.isEmpty else {
+                    writeDebugLog("[NetEase] No usable lyrics for \(songId) — trying next candidate")
+                    continue
+                }
+                lines = fallbackLines
+                timeSynced = false
+                writeDebugLog("[NetEase] Unsynced lyrics fallback (\(lines.count) line(s))")
+            } else {
+                lines = parsed.map {
+                    LyricsLineDto(
+                        content: cleanedInterludeSymbol($0.content.lyricsNoteIfEmpty),
+                        offsetMs: $0.offsetMs
+                    )
+                }
+            }
 
         // 开关开启时（仅网易云）：删除开头连续的间奏空行（原 ♪ 行），
         // 让真正的歌词顶到第一行；中间靠下的间奏行保持空白、不清除位置。
@@ -689,15 +678,28 @@ class NeteaseLyricsRepository: LyricsRepository {
 
         let dto = LyricsDto(
             lines: lines,
-            timeSynced: true,
+            timeSynced: timeSynced,
             romanization: romanization,
             translation: translation,
             languageCode: languageCode
         )
 
-        writeDebugLog("[NetEase] Synced lyrics — \(lines.count) line(s)")
-        lyricsCache.setObject(CachedLyrics(dto: dto), forKey: cacheKey as NSString)
-        return dto
+            writeDebugLog("[NetEase] Synced lyrics — \(lines.count) line(s)")
+            lyricsCache.setObject(CachedLyrics(dto: dto), forKey: cacheKey as NSString)
+            return dto
+        }
+
+        // 全部候选都没有可用歌词：有纯音乐占位则返回占位，否则抛查无此歌（交给 Genius）。
+        if let instrumentalFallback {
+            writeDebugLog("[NetEase] Instrumental — returning empty lyrics")
+            lyricsCache.setObject(
+                CachedLyrics(dto: instrumentalFallback),
+                forKey: cacheKey as NSString
+            )
+            return instrumentalFallback
+        }
+        writeDebugLog("[NetEase] No usable lyrics across all candidates")
+        throw LyricsError.noSuchSong
     }
 }
 

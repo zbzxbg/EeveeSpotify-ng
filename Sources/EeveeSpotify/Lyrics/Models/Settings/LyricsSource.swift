@@ -40,6 +40,6 @@ enum LyricsSource: Int, CaseIterable, CustomStringConvertible {
     static var defaultSource: LyricsSource {
         Locale.isInRegion("JP", orHasLanguage: "ja")
             ? .petit
-            : .lrclib
+            : .spicy
     }
 }
