@@ -514,8 +514,16 @@ class NeteaseLyricsRepository: LyricsRepository {
         }
 
         let strippedTitle = query.title.strippedTrackTitle
-        let keyword = "\(strippedTitle) \(query.primaryArtist)"
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // 标题可能带 (feat./ft. Xxx)：把合作歌手追加进关键词，帮助网易命中
+        // 同曲目的其他语言标题（如 Moderate (feat. wanko) → もでらーと (feat. わん子)）。
+        var keyword = "\(strippedTitle) \(query.primaryArtist)"
+        if let featMatch = query.title.firstMatch("\\(feat\\.?\\s*([^)]+)\\)")
+            ?? query.title.firstMatch("\\(ft\\.?\\s*([^)]+)\\)"),
+            let featRange = Range(featMatch.range(at: 1), in: query.title) {
+            keyword += " " + String(query.title[featRange])
+        }
+        keyword = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
 
         let songs: [[String: Any]]
         do {
@@ -531,19 +539,54 @@ class NeteaseLyricsRepository: LyricsRepository {
         }
         writeDebugLog("[NetEase] Search returned \(songs.count) result(s)")
 
-        // 信任网易搜索相关度，直接取第一位。标题子串匹配在跨语言（罗马音 vs 汉字/假名）
-        // 时对不上、英文通用标题又会撞上别的歌手同名歌，反而选错，故不再使用。
-        let chosen = songs.first!
-        writeDebugLog("[NetEase] Chosen: \(chosen["name"] as? String ?? "?") (id \(chosen["id"] ?? "?"))")
+        // 选歌（非打分：纯布尔分档 + 时长闸门）：
+        // 1) 时长可用时，按「标题+歌手 → 歌手 → 标题 → 相关度」分档扫描，
+        //    接受第一个时长与 Spotify 匹配（±5s）的候选。首位是错歌但正确歌在
+        //    结果里时（如 だれかの心臓になれたなら），会继续往后扫而不是直接放弃。
+        //    都不匹配说明网易没有这首，抛 noSuchSong 交给 Genius。
+        // 2) 时长不可用（本地文件等）时，信任网易相关度取第一位。
+        let spotifyDurationMs = query.durationMs
 
-        // 时长闸门：Spotify 侧能拿到时长时才生效。原曲不在网易时，第一位的错歌
-        // 时长通常对不上，直接抛 noSuchSong 交给 Genius，避免返回错误歌词。
-        if let spotifyDurationMs = query.durationMs,
-           let neteaseDurationMs = (chosen["duration"] as? NSNumber)?.intValue,
-           abs(neteaseDurationMs - spotifyDurationMs) > 5000 {
-            writeDebugLog("[NetEase] Duration mismatch: spotify=\(spotifyDurationMs)ms netease=\(neteaseDurationMs)ms — noSuchSong")
-            throw LyricsError.noSuchSong
+        func songTitle(_ song: [String: Any]) -> String {
+            song["name"] as? String ?? ""
         }
+        func songArtists(_ song: [String: Any]) -> [String] {
+            (song["artists"] as? [[String: Any]] ?? []).compactMap { $0["name"] as? String }
+        }
+        func songMatchesArtist(_ song: [String: Any]) -> Bool {
+            let artist = query.primaryArtist.trimmingCharacters(in: .whitespaces)
+            guard !artist.isEmpty else { return false }
+            return songArtists(song).contains {
+                $0.containsInsensitive(artist) || artist.containsInsensitive($0)
+            }
+        }
+        func songMatchesTitle(_ song: [String: Any]) -> Bool {
+            songTitle(song).containsInsensitive(strippedTitle)
+        }
+        func songDurationPasses(_ song: [String: Any]) -> Bool {
+            guard let spotify = spotifyDurationMs,
+                  let netease = (song["duration"] as? NSNumber)?.intValue else {
+                return false
+            }
+            return abs(netease - spotify) <= 5000
+        }
+
+        let chosen: [String: Any]
+        if spotifyDurationMs != nil {
+            let byTitleAndArtist = songs.filter { songMatchesTitle($0) && songMatchesArtist($0) }
+            let byArtist = songs.filter { !songMatchesTitle($0) && songMatchesArtist($0) }
+            let byTitle = songs.filter { songMatchesTitle($0) && !songMatchesArtist($0) }
+            let byRelevance = songs.filter { !songMatchesTitle($0) && !songMatchesArtist($0) }
+            let tiered = byTitleAndArtist + byArtist + byTitle + byRelevance
+            guard let match = tiered.first(where: { songDurationPasses($0) }) else {
+                writeDebugLog("[NetEase] No result within \(spotifyDurationMs ?? 0)ms ±5s — noSuchSong")
+                throw LyricsError.noSuchSong
+            }
+            chosen = match
+        } else {
+            chosen = songs.first!
+        }
+        writeDebugLog("[NetEase] Chosen: \(chosen["name"] as? String ?? "?") (id \(chosen["id"] ?? "?"))")
 
         guard let songId = songId(from: chosen) else {
             writeDebugLog("[NetEase] Chosen result has no song id")
