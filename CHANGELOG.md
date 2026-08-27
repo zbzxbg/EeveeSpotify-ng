@@ -431,3 +431,10 @@ Additional notes:
 - Fixed: Fixed an issue where the NetEase lyrics provider could incorrectly filter out valid lyrics and return “Lyrics Not Found”.😢
 
 </details>
+
+<details>
+<summary><b>v4.0.0-beta.11</b></summary>
+
+- Feature: Modified the display method of NetEase Japanese romanized lyrics.
+
+</details>
