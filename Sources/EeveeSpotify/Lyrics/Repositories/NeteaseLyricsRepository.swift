@@ -646,10 +646,22 @@ class NeteaseLyricsRepository: LyricsRepository {
 
         // 官方罗马音：日语歌、用户开启日语罗马化、且网易下发了 romalrc 时，
         // 直接用官方罗马音替换主歌词行（标记 .romanized 跳过本地转换）。
-        // 否则保持原文 + .canBeRomanized，交给显示层做本地转换。
-        if let romalrc = raw.romalrc, !romalrc.isEmpty,
+        // 若开启「修改 NetEase 日语罗马字展示方式」开关，则跳过官方罗马音，
+        // 保持原文 + .canBeRomanized，把所有日语行统一交给显示层本地罗马化。
+        // 未命中上述条件时同样保持原文 + .canBeRomanized，交给显示层本地转换。
+        let preferLocalRomaji = UserDefaults.standard.bool(
+            forKey: NgzhwmSettingsViewModel.neteaseRomajiLocalKey
+        )
+        if preferLocalRomaji,
            languageCode == "ja",
            UserDefaults.standard.bool(forKey: "ngzhwm_japaneseRomanization") {
+            writeDebugLog("[NetEase] Local romaji display enabled — skipping official romaji")
+        }
+
+        if let romalrc = raw.romalrc, !romalrc.isEmpty,
+           languageCode == "ja",
+           UserDefaults.standard.bool(forKey: "ngzhwm_japaneseRomanization"),
+           !preferLocalRomaji {
             let romanized = applyRomanization(romalrc, originalLines: lines)
             if romanized.matched > 0 {
                 lines = romanized.lines
