@@ -413,4 +413,14 @@ Additional notes:
 
 </details>
 
+### 08.27
+
+<details>
+<summary><b>v4.0.0-beta.9</b></summary>
+
+- Experimental: Attempted to fetch the track duration from Spotify.
+- Fixed: Fixed an issue where the NetEase lyrics provider could assign a line’s translation to the previous line’s ♪.
+- Fixed: Fixed an issue where some Japanese lyric lines from the NetEase lyrics provider could fail to be romanized.
+- Removed: Removed localization files other than English and Simplified Chinese.
+
 </details>
