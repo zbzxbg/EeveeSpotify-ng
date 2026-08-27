@@ -397,7 +397,7 @@ Additional notes:
 
 - Adjusted: When NetEase is selected as the lyrics provider, Japanese romanized lyrics will use the official romanization instead of local processing.
 - Improved the translations in the EeveeSpotify menu.
-- Fixed an issue where the EeveeSpotify menu could not be scrolled to the bottom.
+- Fixed an issue where the EeveeSpotify menu could not be scrolled to the bottom.😢
 
 </details>
 
@@ -419,8 +419,15 @@ Additional notes:
 <summary><b>v4.0.0-beta.9</b></summary>
 
 - Experimental: Attempted to fetch the track duration from Spotify.
-- Fixed: Fixed an issue where the NetEase lyrics provider could assign a line’s translation to the previous line’s ♪.
-- Fixed: Fixed an issue where some Japanese lyric lines from the NetEase lyrics provider could fail to be romanized.
+- Fixed: Fixed an issue where the NetEase lyrics provider could assign a line’s translation to the previous line’s ♪.😢
+- Fixed: Fixed an issue where some Japanese lyric lines from the NetEase lyrics provider could fail to be romanized.😢
 - Removed: Removed localization files other than English and Simplified Chinese.
+
+</details>
+
+<details>
+<summary><b>v4.0.0-beta.10</b></summary>
+
+- Fixed: Fixed an issue where the NetEase lyrics provider could incorrectly filter out valid lyrics and return “Lyrics Not Found”.😢
 
 </details>
