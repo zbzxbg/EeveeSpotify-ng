@@ -61,12 +61,18 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
     let searchQuery = LyricsSearchQuery(
         title: track.trackTitle(),
         primaryArtist: EeveeSpotify.hookTarget == .lastAvailableiOS14 ? track.artistTitle() : track.artistName(),
-        spotifyTrackId: track.trackIdentifier
+        spotifyTrackId: track.trackIdentifier,
+        durationMs: track.trackDurationMilliseconds
     )
 
     let options = UserDefaults.lyricsOptions
     lyricsState = LyricsLoadingState()
     writeDebugLog("[Lyrics] Track \"\(searchQuery.title)\" - \(searchQuery.primaryArtist) (id \(searchQuery.spotifyTrackId))")
+    if let durationMs = searchQuery.durationMs {
+        writeDebugLog("[Lyrics] Track duration \(durationMs)ms (from metadata)")
+    } else {
+        writeDebugLog("[Lyrics] Track duration unavailable — NetEase duration gate skipped")
+    }
 
     // ngzhwm_multiLevelLyricsFallback 开启 -> 固定顺序多级回退（并发 + 超时）
     // ngzhwm_multiLevelLyricsFallback 关闭（默认）-> 用户选择的单一源 + 可选 Genius 回退

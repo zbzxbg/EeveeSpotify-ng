@@ -354,6 +354,13 @@ class NeteaseLyricsRepository: LyricsRepository {
         return ""
     }
 
+    /// 是否为 ♪ 间奏行：空行，或整行只有 ♪ 符号（含多个 ♪ / 前后空白）。
+    /// 用作翻译错位修复时「哪一行算间奏」的判定。
+    private func isInterludeRow(_ content: String) -> Bool {
+        let trimmed = content.trimmingCharacters(in: .whitespaces)
+        return trimmed.isEmpty || trimmed.allSatisfy { $0 == "♪" }
+    }
+
     /// 把 LRC 文本解析成 (offsetMs, content)，丢弃非时间戳行与制作信息行。
     /// 网易 LRC 的时间戳混用两种厘秒分隔符：[mm:ss.xx] 与 [mm:ss:xx]，
     /// 且重复段落会合并成一行多时间戳（如 [00:01.00][00:02.00]歌词），
@@ -444,6 +451,23 @@ class NeteaseLyricsRepository: LyricsRepository {
 
         guard matchedCount > 0 else { return nil }
 
+        // 网易 tlyric 的时间戳偶发与主歌词错位：某行歌词的翻译可能落在
+        // 上一行的 ♪ 间奏行上。逐行检查：♪ 间奏行有翻译、而下一行歌词没有
+        // 翻译时，把翻译下移给下一行；下一行已有翻译则保持不变。
+        // 从左到右处理，连续多行间奏会自动接力下移。
+        if translatedLines.count > 1 {
+            for i in 0..<(translatedLines.count - 1) where isInterludeRow(originalLines[i].content) {
+                let current = translatedLines[i].trimmingCharacters(in: .whitespaces)
+                let next = translatedLines[i + 1].trimmingCharacters(in: .whitespaces)
+                // 纯 ♪ 占位翻译不算真翻译，不搬；下一行已有翻译则保持不变。
+                guard !current.isEmpty,
+                      !current.allSatisfy({ $0 == "♪" }),
+                      next.isEmpty else { continue }
+                translatedLines[i + 1] = translatedLines[i]
+                translatedLines[i] = ""
+            }
+        }
+
         let languageCode = translatedLines.romanizationLanguageCode ?? "zh"
         return LyricsTranslationDto(languageCode: languageCode, lines: translatedLines)
     }
@@ -507,12 +531,20 @@ class NeteaseLyricsRepository: LyricsRepository {
         }
         writeDebugLog("[NetEase] Search returned \(songs.count) result(s)")
 
-        // 上游思路：标题子串命中就取第一个命中的；没命中就取第一个结果（信任网易相关度）。
-        // 不打分、不查歌手——跨语言（罗马音 vs 汉字/假名）时字符串对不上，只能靠相关度。
-        let matchingByTitle = songs.filter {
-            ($0["name"] as? String ?? "").containsInsensitive(strippedTitle)
+        // 信任网易搜索相关度，直接取第一位。标题子串匹配在跨语言（罗马音 vs 汉字/假名）
+        // 时对不上、英文通用标题又会撞上别的歌手同名歌，反而选错，故不再使用。
+        let chosen = songs.first!
+        writeDebugLog("[NetEase] Chosen: \(chosen["name"] as? String ?? "?") (id \(chosen["id"] ?? "?"))")
+
+        // 时长闸门：Spotify 侧能拿到时长时才生效。原曲不在网易时，第一位的错歌
+        // 时长通常对不上，直接抛 noSuchSong 交给 Genius，避免返回错误歌词。
+        if let spotifyDurationMs = query.durationMs,
+           let neteaseDurationMs = (chosen["duration"] as? NSNumber)?.intValue,
+           abs(neteaseDurationMs - spotifyDurationMs) > 5000 {
+            writeDebugLog("[NetEase] Duration mismatch: spotify=\(spotifyDurationMs)ms netease=\(neteaseDurationMs)ms — noSuchSong")
+            throw LyricsError.noSuchSong
         }
-        let chosen = matchingByTitle.first ?? songs.first!
+
         guard let songId = songId(from: chosen) else {
             writeDebugLog("[NetEase] Chosen result has no song id")
             throw LyricsError.noSuchSong
@@ -580,6 +612,23 @@ class NeteaseLyricsRepository: LyricsRepository {
                 lines = romanized.lines
                 romanization = .romanized
                 writeDebugLog("[NetEase] Applied official romaji (\(romanized.matched) line(s))")
+
+                // 官方罗马音可能不全：时间戳未命中的行保留原文、或官方行内
+                // 残留假名/汉字。逐行检查，仍含日文的行交给本地罗马字转换兜底；
+                // 已罗马化的行保持官方译文不动（避免二次转换破坏官方分写）。
+                // 本段位于「开启日语罗马化」守卫之内，开关关闭时不生效。
+                var locallyConverted = 0
+                lines = lines.map { line in
+                    guard line.content.containsJapaneseScriptForRomajiFallback else { return line }
+                    locallyConverted += 1
+                    return LyricsLineDto(
+                        content: line.content.toJapaneseRomaji(),
+                        offsetMs: line.offsetMs
+                    )
+                }
+                if locallyConverted > 0 {
+                    writeDebugLog("[NetEase] Local romaji fallback for \(locallyConverted) line(s)")
+                }
             }
         }
 
@@ -594,6 +643,27 @@ class NeteaseLyricsRepository: LyricsRepository {
         writeDebugLog("[NetEase] Synced lyrics — \(lines.count) line(s)")
         lyricsCache.setObject(CachedLyrics(dto: dto), forKey: cacheKey as NSString)
         return dto
+    }
+}
+
+// MARK: - Japanese Script Detection
+
+private extension String {
+    /// 是否仍含日文假名/汉字（用于判定官方罗马音是否完整、需要本地兜底）。
+    var containsJapaneseScriptForRomajiFallback: Bool {
+        unicodeScalars.contains { scalar in
+            switch scalar.value {
+            case 0x3040...0x30FF, // 平假名 + 片假名
+                 0x31F0...0x31FF, // 片假名拼音扩展
+                 0xFF66...0xFF9D, // 半角片假名
+                 0x3400...0x4DBF, // CJK 扩展 A
+                 0x4E00...0x9FFF, // CJK 统一表意文字
+                 0xF900...0xFAFF: // CJK 兼容表意文字
+                return true
+            default:
+                return false
+            }
+        }
     }
 }
 
