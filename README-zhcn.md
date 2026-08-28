@@ -1,4 +1,4 @@
-*该文件的内容可能不会随着README.md文件更新*
+*该文件的内容不会随着README.md文件的更新而更新*
 
 > **语言：** [English](README.md) | 简体中文
 
@@ -10,7 +10,7 @@
 
 原仓库因 [DMCA](https://github.com/github/dmca/blob/master/2025/08/2025-08-14-spotify.md) 下架，本分支仅为个人维护，与原作者whoeevee无任何关联
 
-测试环境：iPhone 11  iOS 26.6 证书签名 签名软件LCSign 无根deb
+测试环境：iPhone 11  iOS 26.6.1 证书签名 签名软件LCSign 无根deb
 
 ## 🔧 自用修改内容
 
@@ -22,8 +22,7 @@
 
 - 仅在 Spotify 9.1.0 版本测试过
 - 不提供 IPA 包，请自行构建
-- 本插件含多个实验性功能
-- 本地化内容目前只做了英文和简体中文
+- 本地化内容只做了英文和简体中文
 
 ---
 
