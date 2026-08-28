@@ -471,3 +471,10 @@ Additional notes:
 - Reverted NetEase lyrics search logic
 
 </details>
+
+<details>
+<summary><b>v4.0.0-beta.16</b></summary>
+
+- Feature: Added an option to hide NetEase lyrics translations.
+
+</details>
