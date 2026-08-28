@@ -532,57 +532,45 @@ class NeteaseLyricsRepository: LyricsRepository {
         }
         writeDebugLog("[NetEase] Search returned \(songs.count) result(s)")
 
-        // 选歌：相信网易搜索相关度（按结果顺序），配合时长闸门与歌词可用性校验。
-        // 时长可用时过滤掉时长与 Spotify 不匹配（±5s）的候选；时长不可用（本地文件等）
-        // 时信任网易相关度取第一位。
-        let spotifyDurationMs = query.durationMs
+        // 选歌：信任网易搜索相关度，直接取第一位（搜索词已是完整歌名+歌手，
+        // 第一位基本就是目标歌）。时长闸门：第一位时长与 Spotify 差 > 5s 时
+        // 视为不是目标歌，抛 noSuchSong 交给 Genius。
+        let chosen = songs.first!
+        writeDebugLog("[NetEase] Chosen: \(chosen["name"] as? String ?? "?") (id \(chosen["id"] ?? "?"))")
 
-        let candidates: [[String: Any]]
-        if spotifyDurationMs != nil {
-            candidates = songs.filter { song in
-                guard let netease = (song["duration"] as? NSNumber)?.intValue,
-                      let spotify = spotifyDurationMs else {
-                    return false
-                }
-                return abs(netease - spotify) <= 5000
-            }
-        } else {
-            candidates = [songs.first!]
-        }
-        guard !candidates.isEmpty else {
-            writeDebugLog("[NetEase] No result within \(spotifyDurationMs ?? 0)ms ±5s — noSuchSong")
+        if let spotifyDurationMs = query.durationMs,
+           let neteaseDurationMs = (chosen["duration"] as? NSNumber)?.intValue,
+           abs(neteaseDurationMs - spotifyDurationMs) > 5000 {
+            writeDebugLog("[NetEase] Duration mismatch: spotify=\(spotifyDurationMs)ms netease=\(neteaseDurationMs)ms — noSuchSong")
             throw LyricsError.noSuchSong
         }
 
-        // 候选扫描：选中的候选歌词不可用（空串 / 仅制作信息行）时不放弃，
-        // 按顺序继续试下一个候选，直到拿到有真实歌词的。
-        for chosen in candidates {
-            guard let songId = songId(from: chosen) else { continue }
-            writeDebugLog("[NetEase] Trying candidate: \(chosen["name"] as? String ?? "?") (id \(songId))")
+        guard let songId = songId(from: chosen) else {
+            writeDebugLog("[NetEase] Chosen result has no song id")
+            throw LyricsError.noSuchSong
+        }
 
-            let raw: (lrc: String?, tlyric: String?, romalrc: String?)
-            do {
-                raw = try fetchLyricsRaw(songId: songId)
-            } catch {
-                writeDebugLog("[NetEase] Fetch lyrics error: \(error)")
-                throw error
-            }
+        let raw: (lrc: String?, tlyric: String?, romalrc: String?)
+        do {
+            raw = try fetchLyricsRaw(songId: songId)
+        } catch {
+            writeDebugLog("[NetEase] Fetch lyrics error: \(error)")
+            throw error
+        }
 
-            // 网易「纯音乐，请欣赏」= 这首歌是纯音乐（可信分类，不是无歌词占位）：
-            // 直接返回纯音乐占位，不再继续扫描（避免拿到同名错歌的歌词，如 Play → PLAY）。
-            if let lrc = raw.lrc, lrc.contains("纯音乐") {
-                writeDebugLog("[NetEase] Instrumental — returning empty lyrics")
-                let dto = LyricsDto(lines: [], timeSynced: false, romanization: .original)
-                lyricsCache.setObject(CachedLyrics(dto: dto), forKey: cacheKey as NSString)
-                return dto
-            }
+        // 网易「纯音乐，请欣赏」= 这首歌是纯音乐（可信分类）：直接返回纯音乐占位。
+        if let lrc = raw.lrc, lrc.contains("纯音乐") {
+            writeDebugLog("[NetEase] Instrumental — returning empty lyrics")
+            let dto = LyricsDto(lines: [], timeSynced: false, romanization: .original)
+            lyricsCache.setObject(CachedLyrics(dto: dto), forKey: cacheKey as NSString)
+            return dto
+        }
 
-            // 不把上游「空歌词 → 纯音乐占位」的 bug 带过来：空串/无有效行视为
-            // 该候选不可用，继续下一个候选。
-            guard let lrc = raw.lrc, !lrc.isEmpty else {
-                writeDebugLog("[NetEase] Empty lyrics for \(songId) — trying next candidate")
-                continue
-            }
+        // 不把上游「空歌词 → 纯音乐占位」的 bug 带过来：没有可用歌词就抛查无此歌。
+        guard let lrc = raw.lrc, !lrc.isEmpty else {
+            writeDebugLog("[NetEase] No usable lyrics")
+            throw LyricsError.noSuchSong
+        }
 
             let parsed = parseLrc(lrc)
 
@@ -616,8 +604,8 @@ class NeteaseLyricsRepository: LyricsRepository {
                     fallbackLines.append(LyricsLineDto(content: content, offsetMs: nil))
                 }
                 guard !fallbackLines.isEmpty else {
-                    writeDebugLog("[NetEase] No usable lyrics for \(songId) — trying next candidate")
-                    continue
+                    writeDebugLog("[NetEase] No usable lyrics")
+                    throw LyricsError.noSuchSong
                 }
                 lines = fallbackLines
                 timeSynced = false
@@ -637,8 +625,15 @@ class NeteaseLyricsRepository: LyricsRepository {
             lines = Array(lines.drop(while: { $0.content.isEmpty }))
         }
 
+        // 网易云翻译只有简体中文。开启「不展示网易云歌词翻译」开关时，
+        // 跳过翻译层构建，不把简体中文翻译交给上游（不影响中日韩罗马化）。
         var translation: LyricsTranslationDto? = nil
-        if let tlyric = raw.tlyric, !tlyric.isEmpty {
+        let hideNetEaseTranslation = UserDefaults.standard.bool(
+            forKey: NgzhwmSettingsViewModel.neteaseHideTranslationKey
+        )
+        if hideNetEaseTranslation {
+            writeDebugLog("[NetEase] Hide translation enabled — skipping translation layer")
+        } else if let tlyric = raw.tlyric, !tlyric.isEmpty {
             translation = buildTranslation(tlyric, originalLines: lines)
         }
 
@@ -698,14 +693,9 @@ class NeteaseLyricsRepository: LyricsRepository {
             languageCode: languageCode
         )
 
-            writeDebugLog("[NetEase] Synced lyrics — \(lines.count) line(s)")
-            lyricsCache.setObject(CachedLyrics(dto: dto), forKey: cacheKey as NSString)
-            return dto
-        }
-
-        // 全部候选都没有可用歌词（空串 / 仅制作信息行）：抛查无此歌（交给 Genius）。
-        writeDebugLog("[NetEase] No usable lyrics across all candidates")
-        throw LyricsError.noSuchSong
+        writeDebugLog("[NetEase] Synced lyrics — \(lines.count) line(s)")
+        lyricsCache.setObject(CachedLyrics(dto: dto), forKey: cacheKey as NSString)
+        return dto
     }
 }
 
