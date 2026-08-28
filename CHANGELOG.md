@@ -457,3 +457,17 @@ Additional notes:
 - Fixed an issue where NetEase incorrectly handled instrumental tracks or songs without lyrics.
 
 </details>
+
+<details>
+<summary><b>v4.0.0-beta.14</b></summary>
+
+- Optimized NetEase lyrics search logic.
+
+</details>
+
+<details>
+<summary><b>v4.0.0-beta.15</b></summary>
+
+- Reverted NetEase lyrics search logic
+
+</details>
