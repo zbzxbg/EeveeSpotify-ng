@@ -554,9 +554,8 @@ class NeteaseLyricsRepository: LyricsRepository {
             throw LyricsError.noSuchSong
         }
 
-        // 候选扫描：选中的候选歌词不可用（空串 / 仅制作信息行 / 纯音乐占位）时
-        // 不放弃，按顺序继续试下一个候选，直到拿到有真实歌词的。
-        var instrumentalFallback: LyricsDto? = nil
+        // 候选扫描：选中的候选歌词不可用（空串 / 仅制作信息行）时不放弃，
+        // 按顺序继续试下一个候选，直到拿到有真实歌词的。
         for chosen in candidates {
             guard let songId = songId(from: chosen) else { continue }
             writeDebugLog("[NetEase] Trying candidate: \(chosen["name"] as? String ?? "?") (id \(songId))")
@@ -569,16 +568,13 @@ class NeteaseLyricsRepository: LyricsRepository {
                 throw error
             }
 
-            // 纯音乐占位：网易对无词歌曲返回「纯音乐，请欣赏」。先记下第一个占位
-            // 候选，继续扫描（占位可能是错歌，真正带词候选在后面）。
+            // 网易「纯音乐，请欣赏」= 这首歌是纯音乐（可信分类，不是无歌词占位）：
+            // 直接返回纯音乐占位，不再继续扫描（避免拿到同名错歌的歌词，如 Play → PLAY）。
             if let lrc = raw.lrc, lrc.contains("纯音乐") {
-                if instrumentalFallback == nil {
-                    writeDebugLog("[NetEase] Instrumental placeholder — keep scanning")
-                    instrumentalFallback = LyricsDto(
-                        lines: [], timeSynced: false, romanization: .original
-                    )
-                }
-                continue
+                writeDebugLog("[NetEase] Instrumental — returning empty lyrics")
+                let dto = LyricsDto(lines: [], timeSynced: false, romanization: .original)
+                lyricsCache.setObject(CachedLyrics(dto: dto), forKey: cacheKey as NSString)
+                return dto
             }
 
             // 不把上游「空歌词 → 纯音乐占位」的 bug 带过来：空串/无有效行视为
@@ -707,15 +703,7 @@ class NeteaseLyricsRepository: LyricsRepository {
             return dto
         }
 
-        // 全部候选都没有可用歌词：有纯音乐占位则返回占位，否则抛查无此歌（交给 Genius）。
-        if let instrumentalFallback {
-            writeDebugLog("[NetEase] Instrumental — returning empty lyrics")
-            lyricsCache.setObject(
-                CachedLyrics(dto: instrumentalFallback),
-                forKey: cacheKey as NSString
-            )
-            return instrumentalFallback
-        }
+        // 全部候选都没有可用歌词（空串 / 仅制作信息行）：抛查无此歌（交给 Genius）。
         writeDebugLog("[NetEase] No usable lyrics across all candidates")
         throw LyricsError.noSuchSong
     }
