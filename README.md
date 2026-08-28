@@ -22,7 +22,7 @@ Verified environment: iPhone 11 + iOS 26.6.1 + certificate-signed build + LCSign
 * Alpha and beta versions are for internal testing and are not publicly distributed.
 * Localization currently includes English and Simplified Chinese only. Localization files for other languages have been removed from this repository for maintenance purposes.
 
-⸻
+
 
 ## 📄 License
 
@@ -36,7 +36,7 @@ Development version last updated: 2026-08-28
 
 See the complete license in the [LICENSE](LICENSE) file.
 
-⸻
+
 
 ## ❤️ Acknowledgements
 
@@ -44,6 +44,6 @@ Thanks to [whoeevee⁠](https://github.com/whoeevee) for the original EeveeSpoti
 
 Thanks to [SideloadLabs](https://github.com/SideloadLabs/EeveeSpotifyReincarnated) for the SpicyLyrics provider implementation and parts of the logging/export functionality. The relevant code has been modified to fit this project.
 
-⸻
+
 
 - [Changelog](CHANGELOG.md)
