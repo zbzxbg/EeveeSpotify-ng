@@ -595,10 +595,28 @@ class NeteaseLyricsRepository: LyricsRepository {
             if parsed.isEmpty {
                 // 网易部分歌只有静态歌词（无 [mm:ss] 时间戳、没做滚动歌词）：
                 // 按行拆分、过滤制作信息行与空行，作为非同步歌词收录传给上游。
+                // 先剥掉行首残留时间戳（如 [00:00.00-1]，parseLrc 解析不出），
+                // 否则「作曲 : xxx」这类制作信息会被误当成歌词收录。
                 var fallbackLines: [LyricsLineDto] = []
                 for rawLine in lrc.components(separatedBy: .newlines) {
                     let content = rawLine.trimmingCharacters(in: .whitespaces)
-                    guard !content.isEmpty, !isCreditLine(content) else { continue }
+                    guard !content.isEmpty else { continue }
+                    let stripped = content.replacingOccurrences(
+                        of: "^\\s*\\[[^\\]]*\\]\\s*",
+                        with: "",
+                        options: .regularExpression
+                    ).trimmingCharacters(in: .whitespaces)
+                    guard !stripped.isEmpty, !isCreditLine(stripped) else { continue }
+                    // 合并式制作信息（如「作词/作曲 : xxx」）isCreditLine 匹配不到，单独兜住：
+                    // 以制作关键词开头且后面带冒号，视为制作信息，不收录。
+                    let creditKeywords = ["作词", "作曲", "编曲", "混音", "混音师", "母带",
+                                          "录音", "录音师", "制作", "出品", "发行", "监制",
+                                          "和声", "配唱", "统筹", "企划", "推广", "文案",
+                                          "摄影", "封面", "导演", "经纪人"]
+                    if creditKeywords.contains(where: { stripped.hasPrefix($0) }),
+                       stripped.contains(":") || stripped.contains("：") {
+                        continue
+                    }
                     fallbackLines.append(LyricsLineDto(content: content, offsetMs: nil))
                 }
                 guard !fallbackLines.isEmpty else {
