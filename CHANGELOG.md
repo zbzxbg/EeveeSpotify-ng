@@ -450,3 +450,10 @@ Additional notes:
 - Changed the default lyrics provider from LRCLIB to SpicyLyrics. The default lyrics provider remains PetitLyrics in Japan/Japanese-language regions.
 
 </details>
+
+<details>
+<summary><b>v4.0.0-beta.13</b></summary>
+
+- Fixed an issue where NetEase incorrectly handled instrumental tracks or songs without lyrics.
+
+</details>
