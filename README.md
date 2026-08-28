@@ -2,19 +2,19 @@
 
 Based on [EeveeSpotify](https://github.com/whoeevee/EeveeSpotifyReborn).
 
-📌 Overview
+## 📌 Overview
 
 The original repository was taken down under a [DMCA notice](https://github.com/github/dmca/blob/master/2025/08/2025-08-14-spotify.md). This fork is maintained independently and is not affiliated with the original author, whoeevee.
 
 Verified environment: iPhone 11 + iOS 26.6.1 + certificate-signed build + LCSign + rootless DEB. The modified features in this fork have been verified to work in this environment. Other iOS versions, jailbreak environments, TrollStore, installation methods, and Spotify versions have not been tested, so compatibility with them is unknown.
 
-🔧 Modifications
+## 🔧 Modifications
 
 * Multi-level lyrics fallback.
 * Independent controls for romanization of Chinese, Japanese, and Korean lyrics.
 * And other modifications and improvements.
 
-⚠️ Disclaimer
+## ⚠️ Disclaimer
 
 * Tested with Spotify 9.1.0 only. Compatibility with other Spotify versions is unknown.
 * No IPA package is provided.
@@ -24,7 +24,7 @@ Verified environment: iPhone 11 + iOS 26.6.1 + certificate-signed build + LCSign
 
 ⸻
 
-📄 License
+## 📄 License
 
 This project is licensed under the GNU General Public License v3.0.
 
@@ -38,7 +38,7 @@ See the complete license in the [LICENSE](LICENSE) file.
 
 ⸻
 
-❤️ Acknowledgements
+## ❤️ Acknowledgements
 
 Thanks to [whoeevee⁠](https://github.com/whoeevee) for the original EeveeSpotify project.
 
