@@ -464,3 +464,10 @@ Additional notes:
 - Optimized NetEase lyrics search logic.
 
 </details>
+
+<details>
+<summary><b>v4.0.0-beta.15</b></summary>
+
+- Reverted NetEase lyrics search logic
+
+</details>
