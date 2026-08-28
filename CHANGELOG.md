@@ -478,3 +478,21 @@ Additional notes:
 - Feature: Added an option to hide NetEase lyrics translations.
 
 </details>
+
+<details>
+<summary><b>v4.0.0</b></summary>
+
+- Feature: Added the SpicyLyrics lyrics provider.
+- Feature: Added the NetEase lyrics provider.
+- Feature: Added an option to hide NetEase lyrics translations.
+- Feature: Added logging support.
+- Improved NetEase lyrics search logic.
+- Improved translations in the EeveeSpotify menu.
+- Improved incomplete lyric annotation removal in SpicyLyrics.
+- Changed the default lyrics provider from LRCLIB to SpicyLyrics. The default lyrics provider remains PetitLyrics in Japan/Japanese-language regions.
+- Reverted Genius lyrics search logic.
+- Removed the “Romanize Lyrics” toggle from the EeveeSpotify menu.
+- Removed localization files other than English and Simplified Chinese.
+- Moved the “Romanize Lyrics” toggle from the ngzhwm menu to the EeveeSpotify menu.
+
+</details>
