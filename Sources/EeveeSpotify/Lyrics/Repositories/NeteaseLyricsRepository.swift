@@ -54,6 +54,7 @@ class NeteaseLyricsRepository: LyricsRepository {
     private static let weapiBaseUrl = "https://music.163.com"
     private static let aesFirstKey = "0CoJUm6Qyw8W8jud"
     private static let aesIv = "0102030405060708"
+    private static let eapiKey = "e82ckenh8dichen8"
 
     /// weapi 固定 RSA 公钥模数（1024 位，hex，无前导 00）。
     private static let rsaModulusHex =
@@ -117,6 +118,80 @@ class NeteaseLyricsRepository: LyricsRepository {
 
         guard status == kCCSuccess else { return nil }
         return buffer.prefix(bytesEncrypted)
+    }
+
+    /// AES-128-ECB + PKCS7（eapi 用，无 IV）。
+    private func aesEcbEncrypt(_ data: Data, key: String) -> Data? {
+        guard let keyData = key.data(using: .utf8) else { return nil }
+
+        let bufferSize = data.count + kCCBlockSizeAES128
+        var buffer = Data(count: bufferSize)
+        var bytesEncrypted = 0
+
+        let status: CCCryptorStatus = buffer.withUnsafeMutableBytes { outBytes in
+            data.withUnsafeBytes { inBytes in
+                keyData.withUnsafeBytes { keyBytes in
+                    CCCrypt(
+                        CCOperation(kCCEncrypt),
+                        CCAlgorithm(kCCAlgorithmAES),
+                        CCOptions(kCCOptionPKCS7Padding | kCCOptionECBMode),
+                        keyBytes.baseAddress, keyData.count,
+                        nil,
+                        inBytes.baseAddress, data.count,
+                        outBytes.baseAddress, bufferSize,
+                        &bytesEncrypted
+                    )
+                }
+            }
+        }
+
+        guard status == kCCSuccess else { return nil }
+        return buffer.prefix(bytesEncrypted)
+    }
+
+    /// Data → 小写 hex（eapi params 用；与 weapi 的 base64 不同）。
+    private func hexString(_ data: Data) -> String {
+        let hexTable = Array("0123456789abcdef".utf8)
+        var bytes = [UInt8]()
+        bytes.reserveCapacity(data.count * 2)
+        for byte in data {
+            bytes.append(hexTable[Int(byte) >> 4])
+            bytes.append(hexTable[Int(byte) & 0xF])
+        }
+        return String(bytes: bytes, encoding: .utf8) ?? ""
+    }
+
+    private func md5Hex(_ text: String) -> String {
+        guard let data = text.data(using: .utf8) else { return "" }
+        var digest = [UInt8](repeating: 0, count: Int(CC_MD5_DIGEST_LENGTH))
+        data.withUnsafeBytes { raw in
+            digest.withUnsafeMutableBytes { md in
+                _ = CC_MD5(
+                    raw.baseAddress,
+                    CC_LONG(data.count),
+                    md.bindMemory(to: UInt8.self).baseAddress
+                )
+            }
+        }
+        return hexString(Data(digest))
+    }
+
+    /// eapi 参数加密（/api/song/lyric/v1 等新接口）：
+    /// params = hex( AES-128-ECB( url + "-36cd479b6b5-" + JSON + "-36cd479b6b5-" + md5("nobody"+url+"use"+JSON+"md5forencrypt") ) )
+    private func eapiEncrypt(_ params: [String: Any], url: String) -> String? {
+        guard let bodyData = try? JSONSerialization.data(withJSONObject: params),
+              let text = String(data: bodyData, encoding: .utf8) else {
+            return nil
+        }
+
+        let message = "nobody\(url)use\(text)md5forencrypt"
+        let digest = md5Hex(message)
+        let data = "\(url)-36cd479b6b5-\(text)-36cd479b6b5-\(digest)"
+
+        guard let cipher = aesEcbEncrypt(Data(data.utf8), key: Self.eapiKey) else {
+            return nil
+        }
+        return hexString(cipher)
     }
 
     /// 生成 (params, encSecKey)，与网易前端 weapi 加密等价。
@@ -273,6 +348,96 @@ class NeteaseLyricsRepository: LyricsRepository {
         return data
     }
 
+    /// eapi 请求：form 只有一个 params 字段（hex，无 encSecKey），
+    /// 地址把 /api/ 换成 /eapi/，加密里的 url 仍用 /api/。
+    private func performEapi(_ path: String, params: [String: Any]) throws -> Data {
+        var eapiParams = params
+        eapiParams["csrf_token"] = csrfToken
+
+        guard let encryptedParams = eapiEncrypt(eapiParams, url: path) else {
+            writeDebugLog("[NetEase] eapiEncrypt failure for \(path)")
+            throw LyricsError.decodingError
+        }
+
+        let eapiPath = path.replacingOccurrences(of: "/api/", with: "/eapi/")
+        let csrf = csrfToken
+        guard let url = URL(string: "\(Self.weapiBaseUrl)\(eapiPath)?csrf_token=\(csrf)") else {
+            writeDebugLog("[NetEase] Invalid eapi URL for \(path)")
+            throw LyricsError.decodingError
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue("https://music.163.com", forHTTPHeaderField: "Referer")
+        request.setValue("https://music.163.com/", forHTTPHeaderField: "Origin")
+        request.setValue(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            forHTTPHeaderField: "User-Agent"
+        )
+        request.setValue("*/*", forHTTPHeaderField: "Accept")
+
+        var cookie = "os=pc"
+        let savedCookie = anonymousCookie
+        if !savedCookie.isEmpty {
+            cookie += "; " + savedCookie
+        }
+        request.setValue(cookie, forHTTPHeaderField: "Cookie")
+
+        let bodyString = "params=\(encryptedParams)"
+        request.httpBody = bodyString.data(using: .utf8)
+
+        let semaphore = DispatchSemaphore(value: 0)
+        var responseData: Data?
+        var responseError: Error?
+        var statusCode = 0
+        var responseCookie: String?
+
+        let task = session.dataTask(with: request) { data, response, error in
+            responseData = data
+            responseError = error
+            if let http = response as? HTTPURLResponse {
+                statusCode = http.statusCode
+                if let headers = http.allHeaderFields as? [String: String] {
+                    let cookies = HTTPCookie.cookies(withResponseHeaderFields: headers, for: url)
+                    if !cookies.isEmpty {
+                        responseCookie = cookies
+                            .map { "\($0.name)=\($0.value)" }
+                            .joined(separator: "; ")
+                    }
+                }
+            }
+            semaphore.signal()
+        }
+        task.resume()
+
+        if semaphore.wait(timeout: .now() + 12) == .timedOut {
+            task.cancel()
+            throw LyricsError.unknownError
+        }
+
+        if let error = responseError {
+            throw error
+        }
+
+        guard statusCode == 200 else {
+            let body = responseData.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+            writeDebugLog("[NetEase] Non-200 eapi status \(statusCode) for \(path): \(body.prefix(200))")
+            throw LyricsError.unknownError
+        }
+
+        guard let data = responseData else {
+            writeDebugLog("[NetEase] Empty eapi response data for \(path)")
+            throw LyricsError.decodingError
+        }
+
+        if let cookieValue = responseCookie, !cookieValue.isEmpty {
+            anonymousCookie = cookieValue
+        }
+
+        return data
+    }
+
     // MARK: - 接口
 
     /// 搜索走老接口 /weapi/search/get：cloudsearch/get/web 已被网易风控
@@ -296,9 +461,8 @@ class NeteaseLyricsRepository: LyricsRepository {
         return songs
     }
 
-    private func fetchLyricsRaw(songId: Int) throws -> (lrc: String?, tlyric: String?, romalrc: String?, yrc: String?) {
+    private func fetchLyricsRaw(songId: Int) throws -> (lrc: String?, tlyric: String?, romalrc: String?) {
         // os/rv 两个参数控制 romalrc（官方日语罗马音）是否下发，参考 Lyricify-Lyrics-Helper。
-        // yv/ytv/yrv 控制逐字（yrc / 翻译逐字 / 罗马音逐字）是否下发。
         let data = try performWeapi("/weapi/song/lyric", params: [
             "id": songId,
             "os": "pc",
@@ -306,9 +470,6 @@ class NeteaseLyricsRepository: LyricsRepository {
             "kv": -1,
             "tv": -1,
             "rv": -1,
-            "yv": -1,
-            "ytv": -1,
-            "yrv": -1,
         ])
 
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -322,8 +483,34 @@ class NeteaseLyricsRepository: LyricsRepository {
         let lrc = (json["lrc"] as? [String: Any])?["lyric"] as? String
         let tlyric = (json["tlyric"] as? [String: Any])?["lyric"] as? String
         let romalrc = (json["romalrc"] as? [String: Any])?["lyric"] as? String
+        return (lrc, tlyric, romalrc)
+    }
+
+    /// 逐字（yrc）走新接口 /api/song/lyric/v1（eapi 加密）；
+    /// 老 weapi /weapi/song/lyric 不下发 yrc。
+    private func fetchYrcRaw(songId: Int) throws -> String? {
+        let data = try performEapi("/api/song/lyric/v1", params: [
+            "id": songId,
+            "cp": false,
+            "tv": -1,
+            "lv": -1,
+            "rv": -1,
+            "kv": -1,
+            "yv": -1,
+            "ytv": -1,
+            "yrv": -1,
+        ])
+
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw LyricsError.decodingError
+        }
+        guard (json["code"] as? Int ?? 200) == 200 else {
+            throw LyricsError.noSuchSong
+        }
+
         let yrc = (json["yrc"] as? [String: Any])?["lyric"] as? String
-        return (lrc, tlyric, romalrc, yrc)
+        writeDebugLog("[NetEase] eapi /api/song/lyric/v1 → yrc \(yrc == nil ? "absent" : "\(yrc!.count) chars")")
+        return yrc
     }
 
     private func songId(from song: [String: Any]) -> Int? {
@@ -615,7 +802,7 @@ class NeteaseLyricsRepository: LyricsRepository {
             throw LyricsError.noSuchSong
         }
 
-        let raw: (lrc: String?, tlyric: String?, romalrc: String?, yrc: String?)
+        let raw: (lrc: String?, tlyric: String?, romalrc: String?)
         do {
             raw = try fetchLyricsRaw(songId: songId)
         } catch {
@@ -643,8 +830,16 @@ class NeteaseLyricsRepository: LyricsRepository {
             // 逐字歌词：开关开启且网易下发 yrc 时，优先用词级（逐字）时间轴；
             // yrc 缺失/解析为空时回退到 lrc 行级时间轴（下面原逻辑不变）。
             let preferWordByWord = NgzhwmSettingsViewModel.isWordByWordLyricsEnabled
+            var yrcText: String? = nil
+            if preferWordByWord {
+                do {
+                    yrcText = try fetchYrcRaw(songId: songId)
+                } catch {
+                    writeDebugLog("[NetEase] yrc (eapi) fetch failed: \(error)")
+                }
+            }
             let yrcParsed: [(offsetMs: Int, content: String, words: [LyricsWordDto])] =
-                preferWordByWord ? (raw.yrc.map { parseYrc($0) } ?? []) : []
+                yrcText.map { parseYrc($0) } ?? []
 
             if !yrcParsed.isEmpty {
                 writeDebugLog("[NetEase] Word-by-word (yrc) lyrics — \(yrcParsed.count) line(s)")
