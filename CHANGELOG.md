@@ -496,3 +496,19 @@ Additional notes:
 - Moved the “Romanize Lyrics” toggle from the ngzhwm menu to the EeveeSpotify menu.
 
 </details>
+
+### 08.29
+
+<details>
+<summary><b>v4.1.0-beta.1</b></summary>
+
+- Improved translations in the EeveeSpotify menu.
+
+</details>
+
+<details>
+<summary><b>v4.1.0</b></summary>
+
+- Improved translations in the EeveeSpotify menu.
+
+</details>
