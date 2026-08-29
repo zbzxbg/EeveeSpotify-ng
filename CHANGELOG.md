@@ -533,3 +533,10 @@ Additional notes:
 - Experimental: Tested fetching NetEase word-by-word lyrics.
 
 </details>
+
+<details>
+<summary><b>v5.0.0-alpha.4</b></summary>
+
+- Experimental: Tested fetching NetEase word-by-word lyrics.
+
+</details>
