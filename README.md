@@ -44,6 +44,6 @@ Thanks to [whoeevee⁠](https://github.com/whoeevee) for the original EeveeSpoti
 
 Thanks to [SideloadLabs](https://github.com/SideloadLabs/EeveeSpotifyReincarnated) for the SpicyLyrics provider implementation and parts of the logging/export functionality. The relevant code has been modified to fit this project.
 
-
+————————————
 
 - [Changelog](CHANGELOG.md)
