@@ -510,6 +510,9 @@ class NeteaseLyricsRepository: LyricsRepository {
 
         let yrc = (json["yrc"] as? [String: Any])?["lyric"] as? String
         writeDebugLog("[NetEase] eapi /api/song/lyric/v1 → yrc \(yrc == nil ? "absent" : "\(yrc!.count) chars")")
+        if let yrc {
+            writeDebugLog("[NetEase] yrc raw head: \(yrc.prefix(600))")
+        }
         return yrc
     }
 
@@ -616,6 +619,7 @@ class NeteaseLyricsRepository: LyricsRepository {
 
         guard let lineRegex = try? NSRegularExpression(pattern: linePattern),
               let wordRegex = try? NSRegularExpression(pattern: wordPattern) else {
+            writeDebugLog("[NetEase] yrc regex compile failed")
             return parsed
         }
 
@@ -662,6 +666,7 @@ class NeteaseLyricsRepository: LyricsRepository {
             parsed.append((offsetMs: startMs, content: content, words: words))
         }
 
+        writeDebugLog("[NetEase] yrc parsed \(parsed.count) line(s)")
         return parsed
     }
 
