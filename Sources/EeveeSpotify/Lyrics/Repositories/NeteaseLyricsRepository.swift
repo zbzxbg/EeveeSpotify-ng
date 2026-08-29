@@ -608,14 +608,14 @@ class NeteaseLyricsRepository: LyricsRepository {
         return parsed
     }
 
-    /// 解析网易逐字（yrc）格式：`[起始,结束](起始,时长)词(起始,时长)词...`，
-    /// 时间单位均为毫秒；词括号内的第二个数字是持续时长（不是结束时间）。
+    /// 解析网易逐字（yrc）格式：`[起始,时长](起始,时长,标志)词(起始,时长,标志)词...`，
+    /// 时间单位均为毫秒；行头第二个数字是持续时长，词括号第三个数字是标志位（忽略）。
     /// 返回 (行偏移, 行正文, 词级时间轴)。
     private func parseYrc(_ text: String) -> [(offsetMs: Int, content: String, words: [LyricsWordDto])] {
         var parsed: [(offsetMs: Int, content: String, words: [LyricsWordDto])] = []
 
         let linePattern = "^\\[(\\d+),(\\d+)\\]"
-        let wordPattern = "\\((\\d+),(\\d+)\\)([^\\(]*)"
+        let wordPattern = "\\((\\d+),(\\d+)(?:,\\d+)?\\)([^\\(]*)"
 
         guard let lineRegex = try? NSRegularExpression(pattern: linePattern),
               let wordRegex = try? NSRegularExpression(pattern: wordPattern) else {

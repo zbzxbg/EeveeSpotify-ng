@@ -180,14 +180,38 @@ class MusixmatchLyricsRepository: LyricsRepository {
         }
     }
 
-    private func commontrackId(subtitle: [String: Any], message: [String: Any]) -> Int? {
-        let body = message["body"] as? [String: Any]
-        for dict in [subtitle, body].compactMap({ $0 }) {
-            if let value = dict["track_id"] as? Int { return value }
-            if let value = dict["track_id"] as? Int64 { return Int(value) }
-            if let value = dict["track_id"] as? NSNumber { return value.intValue }
-        }
+    private func intValue(_ dict: [String: Any], _ key: String) -> Int? {
+        if let value = dict[key] as? Int { return value }
+        if let value = dict[key] as? Int64 { return Int(value) }
+        if let value = dict[key] as? NSNumber { return value.intValue }
         return nil
+    }
+
+    /// 用 matcher.track.get 把 Spotify track id / 歌名+歌手解析成 MxM 内部 commontrack id。
+    /// 返回 (trackId, hasRichSync)。macro.subtitles.get 的响应里没有 commontrack id，
+    /// 必须单独走这一步才能拿到。
+    private func getTrackId(_ query: LyricsSearchQuery) throws -> (trackId: Int, hasRichSync: Bool) {
+        let data = try perform(
+            "/ws/1.1/matcher.track.get",
+            query: [
+                "track_spotify_id": query.spotifyTrackId,
+                "q_track": query.title,
+                "q_artist": query.primaryArtist,
+            ]
+        )
+
+        guard
+            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let message = json["message"] as? [String: Any],
+            let body = message["body"] as? [String: Any],
+            let track = body["track"] as? [String: Any],
+            let trackId = intValue(track, "track_id")
+        else {
+            throw LyricsError.decodingError
+        }
+
+        let hasRichSync = (intValue(track, "has_richsync") ?? 0) == 1
+        return (trackId, hasRichSync)
     }
 
     private func getRichSync(trackId: Int) throws -> [MusixmatchRichSyncLine] {
@@ -200,13 +224,29 @@ class MusixmatchLyricsRepository: LyricsRepository {
             let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
             let message = json["message"] as? [String: Any],
             let body = message["body"] as? [String: Any],
-            let richsync = body["richsync"] as? [String: Any],
-            let richsyncBody = richsync["richsync_body"] as? String,
-            let lines = try? JSONDecoder().decode(
-                [MusixmatchRichSyncLine].self,
-                from: richsyncBody.data(using: .utf8)!
-            )
+            let richsync = body["richsync"] as? [String: Any]
         else {
+            throw LyricsError.decodingError
+        }
+
+        if (intValue(richsync, "restricted") ?? 0) != 0 {
+            writeDebugLog("[Musixmatch] richsync restricted")
+            throw LyricsError.musixmatchRestricted
+        }
+
+        guard
+            let richsyncBody = richsync["richsync_body"] as? String,
+            let bodyData = richsyncBody.data(using: .utf8)
+        else {
+            throw LyricsError.decodingError
+        }
+
+        writeDebugLog("[Musixmatch] richsync body head: \(richsyncBody.prefix(300))")
+
+        guard let lines = try? JSONDecoder().decode(
+            [MusixmatchRichSyncLine].self,
+            from: bodyData
+        ) else {
             throw LyricsError.decodingError
         }
 
@@ -260,23 +300,30 @@ class MusixmatchLyricsRepository: LyricsRepository {
 
             let romanizationLanguage = "r\(subtitleLanguage.prefix(1))"
 
-            // 逐字歌词：开关开启时尝试从 richsync 取词级时间轴，按行序号附加；
-            // richsync 缺失/失败/取不到 track_id 时静默回退到行级时间轴。
+            // 逐字歌词：开关开启时先 matcher 解析 commontrack id，再取 richsync 词级时间轴；
+            // 任一环节失败/无 richsync 时静默回退到行级时间轴。
             var richSyncWordsByLineIndex: [Int: [LyricsWordDto]] = [:]
-            if NgzhwmSettingsViewModel.isWordByWordLyricsEnabled,
-               let trackId = commontrackId(subtitle: subtitle, message: subtitlesMessage) {
-                if let richSync = try? getRichSync(trackId: trackId) {
-                    for (index, richLine) in richSync.enumerated() {
-                        richSyncWordsByLineIndex[index] = richLine.l.map {
-                            LyricsWordDto(
-                                text: $0.c,
-                                startMs: Int((richLine.ts + $0.o) * 1000)
-                            )
+            if NgzhwmSettingsViewModel.isWordByWordLyricsEnabled {
+                if let (trackId, hasRichSync) = try? getTrackId(query) {
+                    if hasRichSync {
+                        if let richSync = try? getRichSync(trackId: trackId) {
+                            for (index, richLine) in richSync.enumerated() {
+                                richSyncWordsByLineIndex[index] = richLine.l.map {
+                                    LyricsWordDto(
+                                        text: $0.c,
+                                        startMs: Int((richLine.ts + $0.o) * 1000)
+                                    )
+                                }
+                            }
+                            writeDebugLog("[Musixmatch] Word-by-word (richsync) attached to \(richSync.count) line(s)")
+                        } else {
+                            writeDebugLog("[Musixmatch] richsync unavailable — falling back to line-synced lyrics")
                         }
+                    } else {
+                        writeDebugLog("[Musixmatch] no richsync (has_richsync=0) — falling back to line-synced lyrics")
                     }
-                    writeDebugLog("[Musixmatch] Word-by-word (richsync) attached to \(richSync.count) line(s)")
                 } else {
-                    writeDebugLog("[Musixmatch] richsync unavailable — falling back to line-synced lyrics")
+                    writeDebugLog("[Musixmatch] matcher.track.get failed — falling back to line-synced lyrics")
                 }
             }
 
