@@ -64,10 +64,10 @@ struct NgzhwmContainerSettingsView: View {
     
     @ViewBuilder private func removeInterludeSymbolSection() -> some View {
         Section(
-            footer: Text("ngzhwm_remove_mxm_interlude_symbol_description".localized)
+            footer: Text("ngzhwm_remove_interlude_symbol_description".localized)
         ) {
             Toggle(
-                "ngzhwm_remove_mxm_interlude_symbol".localized,
+                "ngzhwm_remove_interlude_symbol".localized,
                 isOn: $viewModel.removeMxmInterludeSymbol
             )
         }

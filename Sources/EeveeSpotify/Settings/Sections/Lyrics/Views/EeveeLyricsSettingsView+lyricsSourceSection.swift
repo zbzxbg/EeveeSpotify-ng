@@ -33,7 +33,7 @@ extension EeveeLyricsSettingsView {
                 )
             )
         } footer: {
-            Text("restart_is_required_description".localized)
+            Text("do_not_replace_lyrics_description".localized)
         }
         
         if viewModel.lyricsSource.isReplacingLyrics {
