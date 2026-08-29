@@ -540,3 +540,12 @@ Additional notes:
 - Experimental: Tested fetching NetEase word-by-word lyrics.
 
 </details>
+
+### 08.30
+
+<details>
+<summary><b>v5.0.0-alpha.5</b></summary>
+
+- Experimental: Attempted to fetch lyrics using Spotify’s lyrics probe.
+
+</details>
