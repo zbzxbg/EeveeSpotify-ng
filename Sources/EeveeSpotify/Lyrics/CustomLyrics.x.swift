@@ -54,6 +54,8 @@ private func handleLyricsErrorPopUp(_ error: LyricsError?) {
 }
 
 private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
+    runPlayerProbe() // ⚠️ 临时探针入口，确认签名后删除
+
     guard let track = statefulPlayer?.currentTrack() ?? nowPlayingScrollViewController?.loadedTrack else {
         throw LyricsError.noCurrentTrack
     }
