@@ -1,23 +1,13 @@
 import Orion
 import UIKit
+import ObjectiveC
 
-// ⚠️ 临时探针（确认签名后删除本文件）：
-// 验证 StatefulPlayer 的进度/seek 方法签名。二进制扫描线索：
-//   playbackPosition → Td（double）；elapsedTimeMs → TQ（uint64）
-//   seekToTimeInterval:（double 秒）；trackPosition / playbackControls → 对象 getter
-//   seekToPosition → Td,R（readonly double，疑似 scrub 目标位置）
+// ⚠️ 临时探针 round 2（确认签名后删除本文件）：
+// 用 runtime 枚举 StatefulPlayer 及其关联对象（曲目、歌词滚动 view model 等）的
+// 全部 @objc 方法名 + 类型编码（如 d16@0:8 = double 无参；v24@0:8d16 = void+double 参数），
+// 一次把进度/seek 的确切位置和签名钉死。
 
 private var playerProbeHasRun = false
-
-@objc protocol ProbePlayerPlaybackPositionDouble { func playbackPosition() -> Double }
-@objc protocol ProbePlayerPlaybackPositionInt64 { func playbackPosition() -> Int64 }
-@objc protocol ProbePlayerCurrentPlaybackTimeDouble { func currentPlaybackTime() -> Double }
-@objc protocol ProbePlayerCurrentPlaybackTimeInt64 { func currentPlaybackTime() -> Int64 }
-@objc protocol ProbePlayerElapsedTimeMsInt64 { func elapsedTimeMs() -> Int64 }
-@objc protocol ProbePlayerTrackPositionGetter { func trackPosition() -> NSObject? }
-@objc protocol ProbePlayerPlaybackControlsGetter { func playbackControls() -> NSObject? }
-@objc protocol ProbePlayerPlayerValueGetter { func playerValue() -> NSObject? }
-@objc protocol ProbePlayerStateHandlerGetter { func stateHandler() -> NSObject? }
 
 func runPlayerProbe() {
     guard !playerProbeHasRun else { return }
@@ -28,75 +18,67 @@ func runPlayerProbe() {
     }
     playerProbeHasRun = true
 
-    writeDebugLog("[Probe] statefulPlayer class = \(NSStringFromClass(type(of: player)))")
-    probeSelectors(player, label: "player")
-    probePositionValues(player, label: "player")
+    writeDebugLog("[Probe] ===== round 2 =====")
 
-    if player.responds(to: Selector("trackPosition")) {
-        if let tp = Dynamic.convert(player, to: ProbePlayerTrackPositionGetter.self).trackPosition() {
-            writeDebugLog("[Probe] trackPosition class = \(NSStringFromClass(type(of: tp)))")
-            probeSelectors(tp, label: "trackPosition")
-            probePositionValues(tp, label: "trackPosition")
-        } else {
-            writeDebugLog("[Probe] trackPosition -> nil")
-        }
+    // 1) 玩家类方法全枚举（含父类链）
+    dumpMethods(of: type(of: player), label: "StatefulPlayerImpl")
+
+    // 2) 当前曲目
+    if let track = statefulPlayer?.currentTrack() {
+        let trackObj = track as AnyObject
+        writeDebugLog("[Probe] currentTrack class = \(NSStringFromClass(type(of: trackObj)))")
+        dumpMethods(of: type(of: trackObj), label: "SPTPlayerTrack")
     }
 
-    if player.responds(to: Selector("playbackControls")) {
-        if let c = Dynamic.convert(player, to: ProbePlayerPlaybackControlsGetter.self).playbackControls() {
-            writeDebugLog("[Probe] playbackControls class = \(NSStringFromClass(type(of: c)))")
-            probeSelectors(c, label: "playbackControls")
-        } else {
-            writeDebugLog("[Probe] playbackControls -> nil")
-        }
+    // 3) 歌词滚动相关对象（歌词同步必然用到位置）
+    if let scrollVC = nowPlayingScrollViewController {
+        writeDebugLog("[Probe] scrollVC class = \(NSStringFromClass(type(of: scrollVC as AnyObject)))")
+        dumpMethods(of: type(of: scrollVC as AnyObject), label: "scrollVC")
+
+        let vm = Ivars<NSObject>(scrollVC).scrollViewModel
+        writeDebugLog("[Probe] scrollViewModel class = \(NSStringFromClass(type(of: vm)))")
+        dumpMethods(of: type(of: vm), label: "scrollViewModel")
+    }
+    if let npv = npvScrollViewController {
+        writeDebugLog("[Probe] npvVC class = \(NSStringFromClass(type(of: npv as AnyObject)))")
+        dumpMethods(of: type(of: npv as AnyObject), label: "npvVC")
+    }
+    if let ds = scrollDataSource {
+        writeDebugLog("[Probe] scrollDataSource class = \(NSStringFromClass(type(of: ds as AnyObject)))")
+        dumpMethods(of: type(of: ds as AnyObject), label: "scrollDataSource")
     }
 
-    if player.responds(to: Selector("playerValue")) {
-        if let v = Dynamic.convert(player, to: ProbePlayerPlayerValueGetter.self).playerValue() {
-            writeDebugLog("[Probe] playerValue class = \(NSStringFromClass(type(of: v)))")
-            probeSelectors(v, label: "playerValue")
-            probePositionValues(v, label: "playerValue")
-        } else {
-            writeDebugLog("[Probe] playerValue -> nil")
-        }
-    }
-
-    if player.responds(to: Selector("stateHandler")) {
-        if let h = Dynamic.convert(player, to: ProbePlayerStateHandlerGetter.self).stateHandler() {
-            writeDebugLog("[Probe] stateHandler class = \(NSStringFromClass(type(of: h)))")
-            probeSelectors(h, label: "stateHandler")
-        } else {
-            writeDebugLog("[Probe] stateHandler -> nil")
-        }
+    // 4) 玩家对象上 getter 候选的 responds（显式打日志）
+    for sel in ["trackPosition", "playbackControls", "playerValue", "stateHandler",
+                "position", "currentPosition", "playbackState", "currentTrackTime"] {
+        writeDebugLog("[Probe] player responds \(sel) = \(player.responds(to: Selector(sel)))")
     }
 }
 
-/// 只查 responds，不调用带参方法（避免误触发 seek）。
-private func probeSelectors(_ obj: NSObject, label: String) {
-    let selectors = [
-        "playbackPosition", "currentPlaybackTime", "currentTrackPosition",
-        "currentTrackTimeSecs", "elapsedTimeMs", "seekToPosition",
-        "seekToTimeInterval:", "seekTo:", "seekToPosition:", "setPlaybackPosition:",
-    ]
-    for sel in selectors {
-        writeDebugLog("[Probe] \(label) responds \(sel) = \(obj.responds(to: Selector(sel)))")
+private func dumpMethods(of cls: AnyClass, label: String) {
+    var current: AnyClass? = cls
+    var depth = 0
+    while let c = current, depth < 8 {
+        var count: UInt32 = 0
+        if let methods = class_copyMethodList(c, &count) {
+            for i in 0..<Int(count) {
+                let m = methods[i]
+                let name = NSStringFromSelector(method_getName(m))
+                if matchesKeyword(name) {
+                    let type = method_getTypeEncoding(m).map { String(cString: $0) } ?? "?"
+                    writeDebugLog("[Dump] \(label)#\(depth) \(name) || \(type)")
+                }
+            }
+            free(methods)
+        }
+        current = class_getSuperclass(c)
+        depth += 1
     }
 }
 
-/// 值型 getter：分别按 double / Int64 读取，看哪个读出来是合理值（判断真实类型与单位）。
-private func probePositionValues(_ obj: NSObject, label: String) {
-    if obj.responds(to: Selector("playbackPosition")) {
-        let d = Dynamic.convert(obj, to: ProbePlayerPlaybackPositionDouble.self).playbackPosition()
-        let i = Dynamic.convert(obj, to: ProbePlayerPlaybackPositionInt64.self).playbackPosition()
-        writeDebugLog("[Probe] \(label).playbackPosition as Double = \(d); as Int64 = \(i)")
-    }
-    if obj.responds(to: Selector("currentPlaybackTime")) {
-        let d = Dynamic.convert(obj, to: ProbePlayerCurrentPlaybackTimeDouble.self).currentPlaybackTime()
-        let i = Dynamic.convert(obj, to: ProbePlayerCurrentPlaybackTimeInt64.self).currentPlaybackTime()
-        writeDebugLog("[Probe] \(label).currentPlaybackTime as Double = \(d); as Int64 = \(i)")
-    }
-    if obj.responds(to: Selector("elapsedTimeMs")) {
-        let i = Dynamic.convert(obj, to: ProbePlayerElapsedTimeMsInt64.self).elapsedTimeMs()
-        writeDebugLog("[Probe] \(label).elapsedTimeMs as Int64 = \(i)")
-    }
+private func matchesKeyword(_ name: String) -> Bool {
+    let lower = name.lowercased()
+    return lower.contains("position") || lower.contains("seek") || lower.contains("playback")
+        || lower.contains("time") || lower.contains("progress") || lower.contains("duration")
+        || lower.contains("state") || lower.contains("elapsed") || lower.contains("clock")
 }
