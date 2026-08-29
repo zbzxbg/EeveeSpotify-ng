@@ -512,3 +512,10 @@ Additional notes:
 - Improved translations in the EeveeSpotify menu.
 
 </details>
+
+<details>
+<summary><b>v5.0.0-alpha.1</b></summary>
+
+- Experimental: Implemented the UI for the “Enable Word-by-Word Lyrics” option.
+
+</details>
