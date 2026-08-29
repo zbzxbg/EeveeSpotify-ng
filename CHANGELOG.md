@@ -549,3 +549,10 @@ Additional notes:
 - Experimental: Attempted to fetch lyrics using Spotify’s lyrics probe.
 
 </details>
+
+<details>
+<summary><b>v5.0.0-beta.1</b></summary>
+
+- Experimental: Implemented word-by-word lyrics.
+
+</details>
