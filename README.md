@@ -30,9 +30,9 @@ This project is licensed under the GNU General Public License v3.0.
 
 Latest public release: `v4.1.0`
 
-Current development version: `v5.0.0-alpha.4`
+Current development version: `v5.0.0-alpha.5`
 
-Development version last updated: 2026-08-29
+Development version last updated: 2026-08-30
 
 See the complete license in the [LICENSE](LICENSE) file.
 
