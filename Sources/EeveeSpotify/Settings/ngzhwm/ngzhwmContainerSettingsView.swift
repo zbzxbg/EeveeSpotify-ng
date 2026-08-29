@@ -6,6 +6,7 @@ struct NgzhwmContainerSettingsView: View {
     var body: some View {
         List {
             disableLyricsSection()
+            wordByWordLyricsSection()
             lyricsFallbackSection()
             neteaseRomajiLocalSection()
             neteaseHideTranslationSection()
@@ -25,6 +26,17 @@ struct NgzhwmContainerSettingsView: View {
             Toggle(
                 "ngzhwm_disable_lyrics_feature".localized,
                 isOn: $viewModel.disableLyricsFeature
+            )
+        }
+    }
+
+    @ViewBuilder private func wordByWordLyricsSection() -> some View {
+        Section(
+            footer: Text("ngzhwm_word_by_word_lyrics_description".localized)
+        ) {
+            Toggle(
+                "ngzhwm_word_by_word_lyrics".localized,
+                isOn: $viewModel.wordByWordLyrics
             )
         }
     }

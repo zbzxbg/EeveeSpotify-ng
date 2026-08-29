@@ -6,6 +6,7 @@ class NgzhwmSettingsViewModel: ObservableObject {
     static let disableLyricsFeatureKey = "ngzhwm_disableLyricsFeature"
     static let neteaseRomajiLocalKey = "ngzhwm_neteaseRomajiLocal"
     static let neteaseHideTranslationKey = "ngzhwm_neteaseHideTranslation"
+    static let wordByWordLyricsKey = "ngzhwm_wordByWordLyrics"
 
     static var isLyricsFeatureDisabled: Bool {
         UserDefaults.standard.bool(forKey: disableLyricsFeatureKey)
@@ -40,6 +41,12 @@ class NgzhwmSettingsViewModel: ObservableObject {
             UserDefaults.standard.set(neteaseHideTranslation, forKey: Self.neteaseHideTranslationKey)
         }
     }
+    
+    @Published var wordByWordLyrics: Bool {
+        didSet {
+            UserDefaults.standard.set(wordByWordLyrics, forKey: Self.wordByWordLyricsKey)
+        }
+    }
 
     init() {
         self.disableLyricsFeature = UserDefaults.standard.bool(forKey: Self.disableLyricsFeatureKey)
@@ -47,5 +54,6 @@ class NgzhwmSettingsViewModel: ObservableObject {
         self.removeMxmInterludeSymbol = UserDefaults.standard.bool(forKey: Self.removeMxmInterludeSymbolKey)
         self.neteaseRomajiLocal = UserDefaults.standard.bool(forKey: Self.neteaseRomajiLocalKey)
         self.neteaseHideTranslation = UserDefaults.standard.bool(forKey: Self.neteaseHideTranslationKey)
+        self.wordByWordLyrics = UserDefaults.standard.bool(forKey: Self.wordByWordLyricsKey)
     }
 }
