@@ -107,12 +107,16 @@ class PetitLyricsRepository: LyricsRepository {
                 throw LyricsError.decodingError
             }
             
-            writeDebugLog("[Petit] Words-synced lyrics — \(lyrics.lines.count) line(s)")
+            let preserveWords = NgzhwmSettingsViewModel.isWordByWordLyricsEnabled
+            writeDebugLog("[Petit] Words-synced lyrics — \(lyrics.lines.count) line(s)\(preserveWords ? " (word-by-word preserved)" : "")")
             return LyricsDto(
                 lines: lyrics.lines.map {
                     LyricsLineDto(
                         content: $0.linestring,
-                        offsetMs: $0.words.first!.starttime
+                        offsetMs: $0.words.first?.starttime,
+                        words: preserveWords
+                            ? $0.words.map { LyricsWordDto(text: $0.text ?? "", startMs: $0.starttime) }
+                            : nil
                     )
                 },
                 timeSynced: true,

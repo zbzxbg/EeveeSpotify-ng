@@ -12,6 +12,10 @@ class NgzhwmSettingsViewModel: ObservableObject {
         UserDefaults.standard.bool(forKey: disableLyricsFeatureKey)
     }
 
+    static var isWordByWordLyricsEnabled: Bool {
+        UserDefaults.standard.bool(forKey: wordByWordLyricsKey)
+    }
+
     @Published var disableLyricsFeature: Bool {
         didSet {
             UserDefaults.standard.set(disableLyricsFeature, forKey: Self.disableLyricsFeatureKey)

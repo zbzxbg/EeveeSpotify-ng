@@ -180,6 +180,39 @@ class MusixmatchLyricsRepository: LyricsRepository {
         }
     }
 
+    private func commontrackId(subtitle: [String: Any], message: [String: Any]) -> Int? {
+        let body = message["body"] as? [String: Any]
+        for dict in [subtitle, body].compactMap({ $0 }) {
+            if let value = dict["track_id"] as? Int { return value }
+            if let value = dict["track_id"] as? Int64 { return Int(value) }
+            if let value = dict["track_id"] as? NSNumber { return value.intValue }
+        }
+        return nil
+    }
+
+    private func getRichSync(trackId: Int) throws -> [MusixmatchRichSyncLine] {
+        let data = try perform(
+            "/ws/1.1/track.richsync.get",
+            query: ["track_id": trackId]
+        )
+
+        guard
+            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let message = json["message"] as? [String: Any],
+            let body = message["body"] as? [String: Any],
+            let richsync = body["richsync"] as? [String: Any],
+            let richsyncBody = richsync["richsync_body"] as? String,
+            let lines = try? JSONDecoder().decode(
+                [MusixmatchRichSyncLine].self,
+                from: richsyncBody.data(using: .utf8)!
+            )
+        else {
+            throw LyricsError.decodingError
+        }
+
+        return lines
+    }
+
     //
 
     func getLyrics(_ query: LyricsSearchQuery, options: LyricsOptions) throws -> LyricsDto {
@@ -227,10 +260,31 @@ class MusixmatchLyricsRepository: LyricsRepository {
 
             let romanizationLanguage = "r\(subtitleLanguage.prefix(1))"
 
-            var lyricsLines = subtitles.dropLast().map { subtitle in
+            // 逐字歌词：开关开启时尝试从 richsync 取词级时间轴，按行序号附加；
+            // richsync 缺失/失败/取不到 track_id 时静默回退到行级时间轴。
+            var richSyncWordsByLineIndex: [Int: [LyricsWordDto]] = [:]
+            if NgzhwmSettingsViewModel.isWordByWordLyricsEnabled,
+               let trackId = commontrackId(subtitle: subtitle, message: subtitlesMessage) {
+                if let richSync = try? getRichSync(trackId: trackId) {
+                    for (index, richLine) in richSync.enumerated() {
+                        richSyncWordsByLineIndex[index] = richLine.l.map {
+                            LyricsWordDto(
+                                text: $0.c,
+                                startMs: Int((richLine.ts + $0.o) * 1000)
+                            )
+                        }
+                    }
+                    writeDebugLog("[Musixmatch] Word-by-word (richsync) attached to \(richSync.count) line(s)")
+                } else {
+                    writeDebugLog("[Musixmatch] richsync unavailable — falling back to line-synced lyrics")
+                }
+            }
+
+            var lyricsLines = subtitles.dropLast().enumerated().map { (index, subtitle) in
                 LyricsLineDto(
                     content: subtitle.text.lyricsNoteIfEmpty,
-                    offsetMs: Int(subtitle.time.total * 1000)
+                    offsetMs: Int(subtitle.time.total * 1000),
+                    words: richSyncWordsByLineIndex[index]
                 )
             }
 

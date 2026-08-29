@@ -296,8 +296,9 @@ class NeteaseLyricsRepository: LyricsRepository {
         return songs
     }
 
-    private func fetchLyricsRaw(songId: Int) throws -> (lrc: String?, tlyric: String?, romalrc: String?) {
+    private func fetchLyricsRaw(songId: Int) throws -> (lrc: String?, tlyric: String?, romalrc: String?, yrc: String?) {
         // os/rv 两个参数控制 romalrc（官方日语罗马音）是否下发，参考 Lyricify-Lyrics-Helper。
+        // yv/ytv/yrv 控制逐字（yrc / 翻译逐字 / 罗马音逐字）是否下发。
         let data = try performWeapi("/weapi/song/lyric", params: [
             "id": songId,
             "os": "pc",
@@ -305,6 +306,9 @@ class NeteaseLyricsRepository: LyricsRepository {
             "kv": -1,
             "tv": -1,
             "rv": -1,
+            "yv": -1,
+            "ytv": -1,
+            "yrv": -1,
         ])
 
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -318,7 +322,8 @@ class NeteaseLyricsRepository: LyricsRepository {
         let lrc = (json["lrc"] as? [String: Any])?["lyric"] as? String
         let tlyric = (json["tlyric"] as? [String: Any])?["lyric"] as? String
         let romalrc = (json["romalrc"] as? [String: Any])?["lyric"] as? String
-        return (lrc, tlyric, romalrc)
+        let yrc = (json["yrc"] as? [String: Any])?["lyric"] as? String
+        return (lrc, tlyric, romalrc, yrc)
     }
 
     private func songId(from song: [String: Any]) -> Int? {
@@ -408,6 +413,66 @@ class NeteaseLyricsRepository: LyricsRepository {
 
                 parsed.append((minute * 60 * 1000 + Int(seconds * 1000), content))
             }
+        }
+
+        return parsed
+    }
+
+    /// 解析网易逐字（yrc）格式：`[起始,结束](起始,时长)词(起始,时长)词...`，
+    /// 时间单位均为毫秒；词括号内的第二个数字是持续时长（不是结束时间）。
+    /// 返回 (行偏移, 行正文, 词级时间轴)。
+    private func parseYrc(_ text: String) -> [(offsetMs: Int, content: String, words: [LyricsWordDto])] {
+        var parsed: [(offsetMs: Int, content: String, words: [LyricsWordDto])] = []
+
+        let linePattern = "^\\[(\\d+),(\\d+)\\]"
+        let wordPattern = "\\((\\d+),(\\d+)\\)([^\\(]*)"
+
+        guard let lineRegex = try? NSRegularExpression(pattern: linePattern),
+              let wordRegex = try? NSRegularExpression(pattern: wordPattern) else {
+            return parsed
+        }
+
+        for rawLine in text.components(separatedBy: "\n") {
+            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            let nsLine = line as NSString
+
+            guard
+                let lineMatch = lineRegex.firstMatch(
+                    in: line,
+                    options: [],
+                    range: NSRange(location: 0, length: nsLine.length)
+                ),
+                lineMatch.numberOfRanges >= 3,
+                let startMs = Int(nsLine.substring(with: lineMatch.range(at: 1)))
+            else {
+                continue
+            }
+
+            let headerLength = lineMatch.range(at: 0).location + lineMatch.range(at: 0).length
+            let rest = nsLine.substring(from: headerLength) as NSString
+
+            var words: [LyricsWordDto] = []
+            var content = ""
+            let wordMatches = wordRegex.matches(
+                in: rest as String,
+                options: [],
+                range: NSRange(location: 0, length: rest.length)
+            )
+            for wordMatch in wordMatches {
+                guard wordMatch.numberOfRanges >= 4,
+                      let wordStart = Int(rest.substring(with: wordMatch.range(at: 1))),
+                      let wordDuration = Int(rest.substring(with: wordMatch.range(at: 2))) else {
+                    continue
+                }
+                let wordText = rest.substring(with: wordMatch.range(at: 3))
+                content += wordText
+                words.append(
+                    LyricsWordDto(text: wordText, startMs: wordStart, endMs: wordStart + wordDuration)
+                )
+            }
+
+            guard !content.isEmpty else { continue }
+            parsed.append((offsetMs: startMs, content: content, words: words))
         }
 
         return parsed
@@ -550,7 +615,7 @@ class NeteaseLyricsRepository: LyricsRepository {
             throw LyricsError.noSuchSong
         }
 
-        let raw: (lrc: String?, tlyric: String?, romalrc: String?)
+        let raw: (lrc: String?, tlyric: String?, romalrc: String?, yrc: String?)
         do {
             raw = try fetchLyricsRaw(songId: songId)
         } catch {
@@ -572,50 +637,70 @@ class NeteaseLyricsRepository: LyricsRepository {
             throw LyricsError.noSuchSong
         }
 
-            let parsed = parseLrc(lrc)
-
             var lines: [LyricsLineDto]
             var timeSynced = true
-            if parsed.isEmpty {
-                // 网易部分歌只有静态歌词（无 [mm:ss] 时间戳、没做滚动歌词）：
-                // 按行拆分、过滤制作信息行与空行，作为非同步歌词收录传给上游。
-                // 先剥掉行首残留时间戳（如 [00:00.00-1]，parseLrc 解析不出），
-                // 否则「作曲 : xxx」这类制作信息会被误当成歌词收录。
-                var fallbackLines: [LyricsLineDto] = []
-                for rawLine in lrc.components(separatedBy: .newlines) {
-                    let content = rawLine.trimmingCharacters(in: .whitespaces)
-                    guard !content.isEmpty else { continue }
-                    let stripped = content.replacingOccurrences(
-                        of: "^\\s*\\[[^\\]]*\\]\\s*",
-                        with: "",
-                        options: .regularExpression
-                    ).trimmingCharacters(in: .whitespaces)
-                    guard !stripped.isEmpty, !isCreditLine(stripped) else { continue }
-                    // 合并式制作信息（如「作词/作曲 : xxx」）isCreditLine 匹配不到，单独兜住：
-                    // 以制作关键词开头且后面带冒号，视为制作信息，不收录。
-                    let creditKeywords = ["作词", "作曲", "编曲", "混音", "混音师", "母带",
-                                          "录音", "录音师", "制作", "出品", "发行", "监制",
-                                          "和声", "配唱", "统筹", "企划", "推广", "文案",
-                                          "摄影", "封面", "导演", "经纪人"]
-                    if creditKeywords.contains(where: { stripped.hasPrefix($0) }),
-                       stripped.contains(":") || stripped.contains("：") {
-                        continue
-                    }
-                    fallbackLines.append(LyricsLineDto(content: content, offsetMs: nil))
-                }
-                guard !fallbackLines.isEmpty else {
-                    writeDebugLog("[NetEase] No usable lyrics")
-                    throw LyricsError.noSuchSong
-                }
-                lines = fallbackLines
-                timeSynced = false
-                writeDebugLog("[NetEase] Unsynced lyrics fallback (\(lines.count) line(s))")
-            } else {
-                lines = parsed.map {
+
+            // 逐字歌词：开关开启且网易下发 yrc 时，优先用词级（逐字）时间轴；
+            // yrc 缺失/解析为空时回退到 lrc 行级时间轴（下面原逻辑不变）。
+            let preferWordByWord = NgzhwmSettingsViewModel.isWordByWordLyricsEnabled
+            let yrcParsed: [(offsetMs: Int, content: String, words: [LyricsWordDto])] =
+                preferWordByWord ? (raw.yrc.map { parseYrc($0) } ?? []) : []
+
+            if !yrcParsed.isEmpty {
+                writeDebugLog("[NetEase] Word-by-word (yrc) lyrics — \(yrcParsed.count) line(s)")
+                lines = yrcParsed.map {
                     LyricsLineDto(
                         content: cleanedInterludeSymbol($0.content.lyricsNoteIfEmpty),
-                        offsetMs: $0.offsetMs
+                        offsetMs: $0.offsetMs,
+                        words: $0.words
                     )
+                }
+            } else {
+                if preferWordByWord {
+                    writeDebugLog("[NetEase] yrc unavailable — falling back to line-synced (lrc)")
+                }
+                let parsed = parseLrc(lrc)
+                if parsed.isEmpty {
+                    // 网易部分歌只有静态歌词（无 [mm:ss] 时间戳、没做滚动歌词）：
+                    // 按行拆分、过滤制作信息行与空行，作为非同步歌词收录传给上游。
+                    // 先剥掉行首残留时间戳（如 [00:00.00-1]，parseLrc 解析不出），
+                    // 否则「作曲 : xxx」这类制作信息会被误当成歌词收录。
+                    var fallbackLines: [LyricsLineDto] = []
+                    for rawLine in lrc.components(separatedBy: .newlines) {
+                        let content = rawLine.trimmingCharacters(in: .whitespaces)
+                        guard !content.isEmpty else { continue }
+                        let stripped = content.replacingOccurrences(
+                            of: "^\\s*\\[[^\\]]*\\]\\s*",
+                            with: "",
+                            options: .regularExpression
+                        ).trimmingCharacters(in: .whitespaces)
+                        guard !stripped.isEmpty, !isCreditLine(stripped) else { continue }
+                        // 合并式制作信息（如「作词/作曲 : xxx」）isCreditLine 匹配不到，单独兜住：
+                        // 以制作关键词开头且后面带冒号，视为制作信息，不收录。
+                        let creditKeywords = ["作词", "作曲", "编曲", "混音", "混音师", "母带",
+                                              "录音", "录音师", "制作", "出品", "发行", "监制",
+                                              "和声", "配唱", "统筹", "企划", "推广", "文案",
+                                              "摄影", "封面", "导演", "经纪人"]
+                        if creditKeywords.contains(where: { stripped.hasPrefix($0) }),
+                           stripped.contains(":") || stripped.contains("：") {
+                            continue
+                        }
+                        fallbackLines.append(LyricsLineDto(content: content, offsetMs: nil))
+                    }
+                    guard !fallbackLines.isEmpty else {
+                        writeDebugLog("[NetEase] No usable lyrics")
+                        throw LyricsError.noSuchSong
+                    }
+                    lines = fallbackLines
+                    timeSynced = false
+                    writeDebugLog("[NetEase] Unsynced lyrics fallback (\(lines.count) line(s))")
+                } else {
+                    lines = parsed.map {
+                        LyricsLineDto(
+                            content: cleanedInterludeSymbol($0.content.lyricsNoteIfEmpty),
+                            offsetMs: $0.offsetMs
+                        )
+                    }
                 }
             }
 
