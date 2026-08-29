@@ -519,3 +519,11 @@ Additional notes:
 - Experimental: Implemented the UI for the “Enable Word-by-Word Lyrics” option.
 
 </details>
+
+<details>
+<summary><b>v5.0.0-alpha.2</b></summary>
+
+- Experimental: Implemented the code for word-by-word lyrics.
+
+</details>
+
