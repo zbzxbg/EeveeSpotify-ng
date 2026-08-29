@@ -505,3 +505,10 @@ Additional notes:
 - Improved translations in the EeveeSpotify menu.
 
 </details>
+
+<details>
+<summary><b>v4.1.0</b></summary>
+
+- Improved translations in the EeveeSpotify menu.
+
+</details>
