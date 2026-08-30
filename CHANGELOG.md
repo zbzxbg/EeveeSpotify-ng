@@ -619,3 +619,10 @@ Additional notes:
 - Experimental: Tested the availability of word-by-word lyrics.
 
 </details>
+
+<details>
+<summary><b>v5.0.0-beta.11</b></summary>
+
+- Added support for the latest version of SpicyLyrics (6.3.12).
+
+</details>
