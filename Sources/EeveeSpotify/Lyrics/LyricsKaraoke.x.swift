@@ -232,7 +232,8 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        topFadeView.frame = CGRect(x: 0, y: 0, width: bounds.width, height: topFadeHeight)
+        // 渐隐层贴在安全区顶部：全屏时让开状态栏；内嵌模块 safe top = 0，行为不变。
+        topFadeView.frame = CGRect(x: 0, y: safeAreaInsets.top, width: bounds.width, height: topFadeHeight)
         topFadeLayer.frame = topFadeView.bounds
     }
 
@@ -259,8 +260,8 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
         addSubview(topFadeView)
 
         NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: topAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: bottomAnchor),
+            scrollView.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor),
             scrollView.leadingAnchor.constraint(equalTo: leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: trailingAnchor),
             stackView.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor, constant: lyricsTopPadding),
@@ -561,8 +562,11 @@ final class KaraokeHost {
 
     func attach(to controller: UIViewController) {
         guard renderEnabled else { return }
-        guard !isAttached else { return }
         guard let view = controller.view else { return }
+
+        // 已挂在同一视图上则跳过；换视图（内嵌 ↔ 全屏切换）时先卸载旧的再挂新的。
+        if isAttached, hostView === view { return }
+        detach()
 
         let overlayView = LyricsKaraokeOverlayView(frame: view.bounds)
         overlayView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -615,6 +619,49 @@ class LyricsKaraokeModernHostHook: ClassHook<UIViewController> {
 class LyricsKaraokeLegacyHostHook: ClassHook<UIViewController> {
     typealias Group = LegacyLyricsGroup
     static let targetName = "Lyrics_CoreImpl.LyricsOnlyViewController"
+
+    func viewDidAppear(_ animated: Bool) {
+        orig.viewDidAppear(animated)
+        let vc = target
+        DispatchQueue.main.async {
+            KaraokeHost.shared.attach(to: vc)
+        }
+    }
+
+    func viewWillDisappear(_ animated: Bool) {
+        orig.viewWillDisappear(animated)
+        KaraokeHost.shared.detach()
+    }
+}
+
+// MARK: - 全屏歌词挂载 hook（点击歌词框架展开后铺满的页面）
+
+class LyricsKaraokeFullscreenModernHostHook: ClassHook<UIViewController> {
+    typealias Group = ModernLyricsGroup
+    static let targetName = "Lyrics_FullscreenElementPageImpl.FullscreenElementViewController"
+
+    func viewDidAppear(_ animated: Bool) {
+        orig.viewDidAppear(animated)
+        let vc = target
+        DispatchQueue.main.async {
+            KaraokeHost.shared.attach(to: vc)
+        }
+    }
+
+    func viewWillDisappear(_ animated: Bool) {
+        orig.viewWillDisappear(animated)
+        KaraokeHost.shared.detach()
+    }
+}
+
+class LyricsKaraokeFullscreenLegacyHostHook: ClassHook<UIViewController> {
+    typealias Group = LegacyLyricsGroup
+    static var targetName: String {
+        switch EeveeSpotify.hookTarget {
+        case .lastAvailableiOS14: return "Lyrics_CoreImpl.FullscreenViewController"
+        default: return "Lyrics_FullscreenPageImpl.FullscreenViewController"
+        }
+    }
 
     func viewDidAppear(_ animated: Bool) {
         orig.viewDidAppear(animated)
