@@ -246,8 +246,12 @@ class SpicyLyricsRepository: LyricsRepository {
                         // 逐字：每个非空白音节单独作为一个词（含自己的起止时间）；
                         // 空格 token（" " / "　"）跳过，不参与高亮。
                         if !syllableText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            // 英文词间空格：IsPartOfWord=false 表示「新词」。
+                            // 非首个词时前面补一个空格，和上面 line text 的拼接规则保持一致；
+                            // 日文按词素返回、IsPartOfWord=true（续接），不会触发，保持原样。
+                            let wordText = (!isPartOfWord && !collected.isEmpty) ? " " + syllableText : syllableText
                             collected.append(
-                                LyricsWordDto(text: syllableText, startMs: start ?? 0, endMs: end)
+                                LyricsWordDto(text: wordText, startMs: start ?? 0, endMs: end)
                             )
                         }
                     }
