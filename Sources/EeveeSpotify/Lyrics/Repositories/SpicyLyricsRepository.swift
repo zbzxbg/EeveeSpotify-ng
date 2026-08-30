@@ -233,9 +233,6 @@ class SpicyLyricsRepository: LyricsRepository {
                 // ignored this entirely, producing "Doyourecall,notlongago?".
                 var text = ""
                 var collected: [LyricsWordDto] = []
-                var currentText = ""
-                var currentStart: Int? = nil
-                var currentEnd: Int? = nil
                 for syllable in syllables {
                     guard let syllableText = syllable["Text"]?.stringValue else { continue }
                     let isPartOfWord = syllable["IsPartOfWord"]?.boolValue ?? false
@@ -246,23 +243,14 @@ class SpicyLyricsRepository: LyricsRepository {
                     }
                     text += syllableText
                     if preserveWords {
-                        if isPartOfWord {
-                            currentText += syllableText
-                            if currentStart == nil { currentStart = start }
-                        } else {
-                            if !currentText.isEmpty {
-                                collected.append(
-                                    LyricsWordDto(text: currentText, startMs: currentStart ?? 0, endMs: currentEnd)
-                                )
-                            }
-                            currentText = syllableText
-                            currentStart = start
+                        // 逐字：每个非空白音节单独作为一个词（含自己的起止时间）；
+                        // 空格 token（" " / "　"）跳过，不参与高亮。
+                        if !syllableText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            collected.append(
+                                LyricsWordDto(text: syllableText, startMs: start ?? 0, endMs: end)
+                            )
                         }
-                        currentEnd = end
                     }
-                }
-                if preserveWords, !currentText.isEmpty {
-                    collected.append(LyricsWordDto(text: currentText, startMs: currentStart ?? 0, endMs: currentEnd))
                 }
                 lineText = text
                 words = preserveWords ? collected : nil
