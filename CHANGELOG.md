@@ -605,3 +605,10 @@ Additional notes:
 - Fixed an issue where scrollable white text remnants could appear above the lyrics module when word-by-word lyrics were unavailable.
 
 </details>
+
+<details>
+<summary><b>v5.0.0-beta.9</b></summary>
+
+- Experimental: Tested the availability of word-by-word lyrics.
+
+</details>
