@@ -12,6 +12,7 @@ Verified environment: iPhone 11 + iOS 26.6.1 + certificate-signed build + LCSign
 
 * Multi-level lyrics fallback.
 * Independent controls for romanization of Chinese, Japanese, and Korean lyrics.
+* You can now experience word-by-word lyrics in Spotify! (Experimental Feature)
 * And other modifications and improvements.
 
 ## ⚠️ Disclaimer
