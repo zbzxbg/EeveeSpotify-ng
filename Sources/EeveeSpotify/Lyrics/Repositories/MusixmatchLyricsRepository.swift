@@ -326,28 +326,45 @@ class MusixmatchLyricsRepository: LyricsRepository {
             // 时词贴不上，自然回退行级，不会把整首歌时间带歪。
             var richSyncWordsByTimeMs: [Int: [LyricsWordDto]] = [:]
             if NgzhwmSettingsViewModel.isWordByWordLyricsEnabled {
-                if let (trackId, hasRichSync) = try? getTrackId(query) {
-                    if hasRichSync {
-                        if let richSync = try? getRichSync(trackId: trackId) {
-                            for richLine in richSync {
-                                richSyncWordsByTimeMs[Int(richLine.ts * 1000)] = richLine.l.map {
-                                    LyricsWordDto(
-                                        text: $0.c,
-                                        startMs: Int((richLine.ts + $0.o) * 1000)
-                                    )
-                                }
+                // 优先用宏内嵌的 matcher.track.get（与 subtitle 同源、时间轴一致），
+                // 避免单独 matcher.track.get 按标题模糊匹配解析到不同版本（如 Die For You 偏 20s）。
+                var richSyncTrackId: Int?
+                var richSyncHasFlag = false
+                if let matcherCall = macroCalls["matcher.track.get"] as? [String: Any],
+                    let matcherMessage = matcherCall["message"] as? [String: Any],
+                    let matcherBody = matcherMessage["body"] as? [String: Any],
+                    let track = matcherBody["track"] as? [String: Any],
+                    let tid = intValue(track, "track_id")
+                {
+                    richSyncTrackId = tid
+                    richSyncHasFlag = (intValue(track, "has_richsync") ?? 0) == 1
+                    writeDebugLog("[Musixmatch] using macro matcher track_id=\(tid), has_richsync=\(richSyncHasFlag ? 1 : 0)")
+                } else {
+                    // 兜底：宏里没有时退回单独 matcher.track.get
+                    if let (tid, hrs) = try? getTrackId(query) {
+                        richSyncTrackId = tid
+                        richSyncHasFlag = hrs
+                    }
+                }
+
+                if let trackId = richSyncTrackId, richSyncHasFlag {
+                    if let richSync = try? getRichSync(trackId: trackId) {
+                        for richLine in richSync {
+                            richSyncWordsByTimeMs[Int(richLine.ts * 1000)] = richLine.l.map {
+                                LyricsWordDto(
+                                    text: $0.c,
+                                    startMs: Int((richLine.ts + $0.o) * 1000)
+                                )
                             }
-                            let richFirst = richSync.prefix(5).map { String(format: "%.2f", $0.ts) }.joined(separator: ",")
-                            let subFirst = subtitles.prefix(5).map { String(format: "%.2f", Double($0.time.total)) }.joined(separator: ",")
-                            writeDebugLog("[Musixmatch] Word-by-word (richsync) — \(richSync.count) line(s); richsync ts(first5)=[\(richFirst)] subtitle(first5)=[\(subFirst)]")
-                        } else {
-                            writeDebugLog("[Musixmatch] richsync unavailable — falling back to line-synced lyrics")
                         }
+                        let richFirst = richSync.prefix(5).map { String(format: "%.2f", $0.ts) }.joined(separator: ",")
+                        let subFirst = subtitles.prefix(5).map { String(format: "%.2f", Double($0.time.total)) }.joined(separator: ",")
+                        writeDebugLog("[Musixmatch] Word-by-word (richsync) — \(richSync.count) line(s); richsync ts(first5)=[\(richFirst)] subtitle(first5)=[\(subFirst)]")
                     } else {
-                        writeDebugLog("[Musixmatch] no richsync (has_richsync=0) — falling back to line-synced lyrics")
+                        writeDebugLog("[Musixmatch] richsync unavailable — falling back to line-synced lyrics")
                     }
                 } else {
-                    writeDebugLog("[Musixmatch] matcher.track.get failed — falling back to line-synced lyrics")
+                    writeDebugLog("[Musixmatch] no richsync — falling back to line-synced lyrics")
                 }
             }
 

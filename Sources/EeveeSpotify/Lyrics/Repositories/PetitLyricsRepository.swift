@@ -114,8 +114,16 @@ class PetitLyricsRepository: LyricsRepository {
                 }
             }
             
-            // Petit 的 starttime/endtime 单位不稳定（厘秒/毫秒），按词间距中位数判定后统一换算成毫秒。
-            let unitMultiplier = Self.timeUnitMultiplier(for: lyrics.lines)
+            // Petit 的 starttime/endtime 单位不稳定：行起始时间永远是毫秒（首词 starttime 即绝对 ms），
+            // 但词时间在「厘秒格式」下是「相对行首的厘秒差」（存的整数值 = 行首 + 厘秒差，未 ×10）。
+            let centi = Self.isCentiseconds(lyrics.lines)
+
+            // 诊断：首末行时间跨度（行起始 = 毫秒，不乘任何系数）
+            if let firstLine = lyrics.lines.first?.words.first?.starttime,
+                let lastLine = lyrics.lines.last?.words.first?.starttime
+            {
+                writeDebugLog("[Petit] line span: first=\(firstLine)ms last=\(lastLine)ms (\(lyrics.lines.count) lines)")
+            }
 
             let preserveWords = NgzhwmSettingsViewModel.isWordByWordLyricsEnabled
             writeDebugLog("[Petit] Words-synced lyrics — \(lyrics.lines.count) line(s)\(preserveWords ? " (word-by-word preserved)" : "")")
@@ -123,8 +131,8 @@ class PetitLyricsRepository: LyricsRepository {
                 lines: lyrics.lines.map {
                     LyricsLineDto(
                         content: $0.linestring,
-                        offsetMs: ($0.words.first?.starttime).map { $0 * unitMultiplier },
-                        words: preserveWords ? Self.wordDto(for: $0, multiplier: unitMultiplier) : nil
+                        offsetMs: $0.words.first?.starttime,
+                        words: preserveWords ? Self.wordDto(for: $0, isCentiseconds: centi) : nil
                     )
                 },
                 timeSynced: true,
@@ -153,8 +161,8 @@ class PetitLyricsRepository: LyricsRepository {
 
     /// 检测 Petit 词级时间轴的单位：部分歌是厘秒(1/100s)，部分歌是毫秒。
     /// 依据：词起始时间差的中位数。毫秒解释下中位数 < 50ms（相当于 >20 字/秒，人声不可能），
-    /// 说明实为厘秒，需 ×10。
-    private static func timeUnitMultiplier(for lines: [PetitLyricsLine]) -> Int {
+    /// 说明实为厘秒。
+    private static func isCentiseconds(_ lines: [PetitLyricsLine]) -> Bool {
         var gaps: [Int] = []
         for line in lines {
             let starts = line.words.map { $0.starttime }
@@ -163,28 +171,36 @@ class PetitLyricsRepository: LyricsRepository {
                 if gap > 0 { gaps.append(gap) }
             }
         }
-        guard !gaps.isEmpty else { return 1 }
+        guard !gaps.isEmpty else { return false }
         let sorted = gaps.sorted()
         let median = sorted[sorted.count / 2]
-        let isCentiseconds = median < 50
-        writeDebugLog("[Petit] time unit: \(isCentiseconds ? "centiseconds (×10)" : "milliseconds (×1)") — median word gap \(median)")
-        return isCentiseconds ? 10 : 1
+        let centi = median < 50
+        writeDebugLog("[Petit] time unit: \(centi ? "centiseconds" : "milliseconds") — median word gap \(median)")
+        return centi
     }
 
     /// Petit 的 wordsSynced 词元素通常只带 starttime、不带词文本，
     /// 词文本需从 linestring 推导：先按空白切分；日语无空格时按逐字符切分对齐词数。
-    private static func wordDto(for line: PetitLyricsLine, multiplier: Int) -> [LyricsWordDto]? {
+    private static func wordDto(for line: PetitLyricsLine, isCentiseconds: Bool) -> [LyricsWordDto]? {
         let words = line.words
         guard !words.isEmpty else { return nil }
 
+        // 行起始 = 首词 starttime（毫秒，绝对时间）
+        let lineOffsetMs = words[0].starttime
+
         // 退化检测：所有词 starttime 相同 = 该行无逐字时间轴（Petit 对某些歌返回伪 wordsSynced）
-        let firstStart = words[0].starttime
-        if words.allSatisfy({ $0.starttime == firstStart }) {
+        if words.allSatisfy({ $0.starttime == lineOffsetMs }) {
             if !Self.didLogDegenerate {
                 Self.didLogDegenerate = true
-                writeDebugLog("[Petit] degenerate wordsSynced (all words same starttime \(firstStart)) — fall back to line-level")
+                writeDebugLog("[Petit] degenerate wordsSynced (all words same starttime \(lineOffsetMs)) — fall back to line-level")
             }
             return nil
+        }
+
+        // 厘秒格式：词时间是「相对行首的厘秒差」（整数值 = 行首 + 厘秒差，未 ×10），换算成绝对毫秒；
+        // 毫秒格式：词时间本身就是绝对毫秒。
+        func convert(_ raw: Int) -> Int {
+            isCentiseconds ? lineOffsetMs + (raw - lineOffsetMs) * 10 : raw
         }
 
         // Petit 的 word 元素带 wordstring（词文本，含空格 token）+ starttime + endtime
@@ -192,8 +208,8 @@ class PetitLyricsRepository: LyricsRepository {
             return words.map {
                 LyricsWordDto(
                     text: $0.wordstring ?? "",
-                    startMs: $0.starttime * multiplier,
-                    endMs: $0.endtime.map { $0 * multiplier }
+                    startMs: convert($0.starttime),
+                    endMs: $0.endtime.map { convert($0) }
                 )
             }
         }
@@ -201,7 +217,7 @@ class PetitLyricsRepository: LyricsRepository {
         // 兜底：wordstring 缺失时按逐字符切分对齐词数
         let chars = line.linestring.filter { !$0.isWhitespace }.map(String.init)
         if chars.count == words.count {
-            return zip(chars, words).map { LyricsWordDto(text: $0, startMs: $1.starttime * multiplier) }
+            return zip(chars, words).map { LyricsWordDto(text: $0, startMs: convert($1.starttime)) }
         }
 
         writeDebugLog("[Petit] wordstring unavailable — chars \(chars.count) vs words \(words.count): \"\(line.linestring.prefix(60))\"")
