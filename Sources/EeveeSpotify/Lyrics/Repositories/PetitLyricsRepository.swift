@@ -153,24 +153,20 @@ class PetitLyricsRepository: LyricsRepository {
         let words = line.words
         guard !words.isEmpty else { return nil }
 
-        // 优先用词自带文本（若上游下发了 <text>）
-        if words.allSatisfy({ !($0.text ?? "").isEmpty }) {
-            return words.map { LyricsWordDto(text: $0.text ?? "", startMs: $0.starttime) }
+        // Petit 的 word 元素带 wordstring（词文本，含空格 token）+ starttime + endtime
+        if words.allSatisfy({ $0.wordstring != nil }) {
+            return words.map {
+                LyricsWordDto(text: $0.wordstring ?? "", startMs: $0.starttime, endMs: $0.endtime)
+            }
         }
 
-        // 按空白切分
-        let tokens = line.linestring.split(whereSeparator: { $0.isWhitespace }).map(String.init)
-        if tokens.count == words.count {
-            return zip(tokens, words).map { LyricsWordDto(text: $0, startMs: $1.starttime) }
-        }
-
-        // 日语等无空格连续文本：按逐字符切分对齐词数（Petit 的日语词粒度≈单个假名/汉字）
+        // 兜底：wordstring 缺失时按逐字符切分对齐词数
         let chars = line.linestring.filter { !$0.isWhitespace }.map(String.init)
         if chars.count == words.count {
             return zip(chars, words).map { LyricsWordDto(text: $0, startMs: $1.starttime) }
         }
 
-        writeDebugLog("[Petit] word text unavailable — tokens \(tokens.count)/chars \(chars.count) vs words \(words.count): \"\(line.linestring.prefix(60))\"")
+        writeDebugLog("[Petit] wordstring unavailable — chars \(chars.count) vs words \(words.count): \"\(line.linestring.prefix(60))\"")
         return nil
     }
 }
