@@ -33,13 +33,10 @@ class SpicyLyricsRepository: LyricsRepository {
 
     private static let apiUrl        = "https://api.spicylyrics.org"
     private static let authHeaderKey = "SpicyLyrics-WebAuth"
-    // Confirmed via github.com/Spikerko/spicy-lyrics/releases/latest (6.1.1,
-    // released 14 Jun) that this is genuinely the current shipped version —
-    // the version-mismatch theory was a dead end, not the cause of the
-    // Static-vs-Syllable discrepancy. Leaving this accurate for future-proofing
-    // (the server may still reject very stale versions eventually) but it is
-    // NOT the explanation for the current bug.
-    private static let clientVersion = "6.1.1"
+    // 当前 SpicyLyrics 最新版本（2026-08 确认 6.3.12）。API 会拒绝过旧版本并返回
+    // 「请更新 sl / 重启 Spotify 完成更新」提示（被解析成 2 行 Static 歌词），
+    // 版本号必须保持最新。
+    private static let clientVersion = "6.3.12"
 
     // MARK: - Token wait
     //
