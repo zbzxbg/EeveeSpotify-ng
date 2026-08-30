@@ -578,3 +578,9 @@ Additional notes:
 
 </details>
 
+<details>
+<summary><b>v5.0.0-beta.5</b></summary>
+
+- Experimental: Tested the availability of word-by-word lyrics.
+
+</details>
