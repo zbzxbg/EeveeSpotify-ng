@@ -661,3 +661,10 @@ Additional notes:
 - Experimental: Improved the display of the word-by-word lyrics UI.
 
 </details>
+
+<details>
+<summary><b>v5.0.0-beta.17</b></summary>
+
+- Experimental: Improved the word-by-word lyrics UI.
+
+</details>
