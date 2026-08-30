@@ -271,5 +271,8 @@ func getLyricsDataForCurrentTrack(_ originalPath: String, originalLyrics: Lyrics
         }
     }
 
+    // 记录最终生效的歌词背景色（原始色或定制色），供逐字 overlay 复用，保证与原生模块同色
+    currentLyricsBackgroundColorARGB = lyrics.colors.backgroundColor
+
     return try lyrics.serializedBytes()
 }

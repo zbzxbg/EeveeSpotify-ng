@@ -18,6 +18,8 @@ import SwiftUI
 
 var currentLyricsDto: LyricsDto?
 var currentLyricsVersion: Int = 0
+/// 最终生效的歌词背景色（ARGB），CustomLyrics 算完 colors 后写入，供 overlay 与原生模块同色。
+var currentLyricsBackgroundColorARGB: UInt32 = 0
 
 // MARK: - 位置解析
 
@@ -200,6 +202,10 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
     private let unsungWordOpacity: CGFloat = 0.45
     /// 背景色缓存：每次 rebuild（换歌/换数据）后按「定制」选项重新计算一次。
     private var resolvedBackgroundColor: UIColor?
+    /// 顶部渐变层：让歌词内容区与上方模块头平滑过渡。
+    private let topGradientLayer = CAGradientLayer()
+    private let topGradientHeight: CGFloat = 48
+    private let topGradientDarkening: CGFloat = 0.2
 
     /// 手动滚动时暂停自动跟随，直到该时间点
     private var autoScrollPauseUntil: Date = .distantPast
@@ -224,8 +230,18 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
         setupView()
     }
 
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        topGradientLayer.frame = CGRect(x: 0, y: 0, width: bounds.width, height: topGradientHeight)
+    }
+
     private func setupView() {
         backgroundColor = .clear
+
+        topGradientLayer.startPoint = CGPoint(x: 0.5, y: 0)
+        topGradientLayer.endPoint = CGPoint(x: 0.5, y: 1)
+        topGradientLayer.isHidden = true
+        layer.addSublayer(topGradientLayer)
 
         scrollView.delegate = self
         scrollView.showsVerticalScrollIndicator = true
@@ -266,6 +282,7 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
               dto.lines.contains(where: { $0.words?.isEmpty == false }) else {
             backgroundColor = .clear
             stackView.isHidden = true
+            topGradientLayer.isHidden = true
             return
         }
 
@@ -273,6 +290,11 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
         resolvedBackgroundColor = targetBackground
         if backgroundColor != targetBackground {
             backgroundColor = targetBackground
+            topGradientLayer.colors = [
+                targetBackground.darker(by: topGradientDarkening).cgColor,
+                UIColor.clear.cgColor
+            ]
+            topGradientLayer.isHidden = false
             stackView.isHidden = false
         }
 
@@ -430,6 +452,19 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
     /// 显示原始颜色 → 正在播放背景色；静态色 → 用户所选；
     /// 否则专辑提取色/播放背景色按归一化因子调整；都没有 → 灰。
     private func overlayBackgroundColor() -> UIColor {
+        // 优先用 CustomLyrics 最终写回的原生歌词背景色（与模块头同色，保证两者一致）；
+        // 尚未就绪（== 0）时回退到旧的取色链路。
+        if currentLyricsBackgroundColorARGB != 0 {
+            let argb = currentLyricsBackgroundColorARGB
+            let alphaByte = (argb >> 24) & 0xFF
+            return UIColor(
+                red: CGFloat((argb >> 16) & 0xFF) / 255,
+                green: CGFloat((argb >> 8) & 0xFF) / 255,
+                blue: CGFloat(argb & 0xFF) / 255,
+                alpha: alphaByte == 0 ? 1 : CGFloat(alphaByte) / 255
+            )
+        }
+
         let settings = UserDefaults.lyricsColors
 
         if settings.displayOriginalColors,
