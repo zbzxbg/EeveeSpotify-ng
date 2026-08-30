@@ -253,6 +253,16 @@ class MusixmatchLyricsRepository: LyricsRepository {
         return lines
     }
 
+    /// 按行起始时间（±10ms 容差）在 richsync 词表里查找对应的词数组。
+    private func wordsAtTime(_ ms: Int, in wordsByTime: [Int: [LyricsWordDto]]) -> [LyricsWordDto]? {
+        if let words = wordsByTime[ms] { return words }
+        for delta in 1...10 {
+            if let words = wordsByTime[ms + delta] { return words }
+            if let words = wordsByTime[ms - delta] { return words }
+        }
+        return nil
+    }
+
     //
 
     func getLyrics(_ query: LyricsSearchQuery, options: LyricsOptions) throws -> LyricsDto {
@@ -300,27 +310,26 @@ class MusixmatchLyricsRepository: LyricsRepository {
 
             let romanizationLanguage = "r\(subtitleLanguage.prefix(1))"
 
-            // 逐字歌词：开关开启时先 matcher 解析 commontrack id，再取 richsync 词级时间轴；
-            // richsync 自包含（x=行文本, ts=行起始, l=词时间），拿到时直接用它的行构建 DTO，
-            // 不再与 subtitle（行级）按序号对齐（两者行数不一致会错位）。
-            var richSyncLyricsLines: [LyricsLineDto]? = nil
+            // 逐字歌词：开关开启时先 matcher 解析 commontrack id，再取 richsync 词级时间轴。
+            // 行仍用 subtitle（行级，时间可靠），richsync 词按「行起始时间」对齐贴回：
+            // 既避免行数不一致按序号错位；个别歌 richsync 时间轴整体偏移（如 Die For You）
+            // 时词贴不上，自然回退行级，不会把整首歌时间带歪。
+            var richSyncWordsByTimeMs: [Int: [LyricsWordDto]] = [:]
             if NgzhwmSettingsViewModel.isWordByWordLyricsEnabled {
                 if let (trackId, hasRichSync) = try? getTrackId(query) {
                     if hasRichSync {
                         if let richSync = try? getRichSync(trackId: trackId) {
-                            richSyncLyricsLines = richSync.map { richLine in
-                                LyricsLineDto(
-                                    content: richLine.x.lyricsNoteIfEmpty,
-                                    offsetMs: Int(richLine.ts * 1000),
-                                    words: richLine.l.map {
-                                        LyricsWordDto(
-                                            text: $0.c,
-                                            startMs: Int((richLine.ts + $0.o) * 1000)
-                                        )
-                                    }
-                                )
+                            for richLine in richSync {
+                                richSyncWordsByTimeMs[Int(richLine.ts * 1000)] = richLine.l.map {
+                                    LyricsWordDto(
+                                        text: $0.c,
+                                        startMs: Int((richLine.ts + $0.o) * 1000)
+                                    )
+                                }
                             }
-                            writeDebugLog("[Musixmatch] Word-by-word (richsync) — using \(richSync.count) line(s)")
+                            let richFirst = richSync.prefix(5).map { String(format: "%.2f", $0.ts) }.joined(separator: ",")
+                            let subFirst = subtitles.prefix(5).map { String(format: "%.2f", Double($0.time.total)) }.joined(separator: ",")
+                            writeDebugLog("[Musixmatch] Word-by-word (richsync) — \(richSync.count) line(s); richsync ts(first5)=[\(richFirst)] subtitle(first5)=[\(subFirst)]")
                         } else {
                             writeDebugLog("[Musixmatch] richsync unavailable — falling back to line-synced lyrics")
                         }
@@ -332,25 +341,25 @@ class MusixmatchLyricsRepository: LyricsRepository {
                 }
             }
 
-            // 行来源：richsync（逐字，自包含）优先，否则用 subtitle（行级回退）。
-            let useRichSync = (richSyncLyricsLines?.isEmpty == false)
-            var lyricsLines: [LyricsLineDto]
-            if useRichSync, let richSyncLyricsLines {
-                lyricsLines = richSyncLyricsLines
-            } else {
-                lyricsLines = subtitles.dropLast().map { subtitle in
-                    LyricsLineDto(
-                        content: subtitle.text.lyricsNoteIfEmpty,
-                        offsetMs: Int(subtitle.time.total * 1000)
-                    )
-                }
-                lyricsLines.append(
-                    LyricsLineDto(
-                        content: "",
-                        offsetMs: Int(subtitles.last!.time.total * 1000)
-                    )
+            var lyricsLines = subtitles.dropLast().map { subtitle in
+                let offsetMs = Int(subtitle.time.total * 1000)
+                return LyricsLineDto(
+                    content: subtitle.text.lyricsNoteIfEmpty,
+                    offsetMs: offsetMs,
+                    words: wordsAtTime(offsetMs, in: richSyncWordsByTimeMs)
                 )
             }
+
+            lyricsLines.append(
+                LyricsLineDto(
+                    content: "",
+                    offsetMs: Int(subtitles.last!.time.total * 1000)
+                )
+            )
+
+            // 诊断：多少行实际贴上了 richsync 词（0 行 = 时间轴整体偏移，自然回退行级）
+            let matchedWordLines = lyricsLines.filter { $0.words?.isEmpty == false }.count
+            writeDebugLog("[Musixmatch] richsync words attached to \(matchedWordLines)/\(lyricsLines.count) line(s)")
 
             // 用于验证是否实际发生了替换
             var didReplaceAnyLine = false

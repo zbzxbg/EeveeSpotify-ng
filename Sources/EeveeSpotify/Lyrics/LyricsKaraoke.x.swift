@@ -200,6 +200,8 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
 
     /// 手动滚动时暂停自动跟随，直到该时间点
     private var autoScrollPauseUntil: Date = .distantPast
+    /// 诊断：节流打印当前高亮状态
+    private var lastDiagnosticLog: Date = .distantPast
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -247,10 +249,10 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
             rebuild()
         }
 
-        guard let dto, dto.timeSynced else { return }
-        let hasWords = dto.lines.contains { $0.words?.isEmpty == false }
-        guard hasWords else {
-            // 无词级数据：无条件透明 + 隐藏标签，不遮挡 Spotify 原生逐行歌词
+        // 只有「有词级数据 且 时间同步」才显示逐字；
+        // 否则（无逐字 / 静态歌词 / 还没加载到 dto）一律透明 + 隐藏标签，回退 Spotify 原生。
+        guard let dto, dto.timeSynced,
+              dto.lines.contains(where: { $0.words?.isEmpty == false }) else {
             backgroundColor = .clear
             stackView.isHidden = true
             return
@@ -271,6 +273,24 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
                     bestWord = j
                 }
             }
+        }
+
+        // 诊断：节流打印当前高亮状态（每 1s 一次），用于对比数据时间轴与实际渲染
+        if Date().timeIntervalSince(lastDiagnosticLog) > 1.0 {
+            lastDiagnosticLog = Date()
+            var wordInfo = "no-line"
+            if bestLine >= 0, bestLine < dto.lines.count {
+                if let words = dto.lines[bestLine].words, !words.isEmpty {
+                    if bestWord >= 0, bestWord < words.count {
+                        wordInfo = "w\(bestWord)=\"\(words[bestWord].text)\"@\(words[bestWord].startMs)ms"
+                    } else {
+                        wordInfo = "w=none-yet"
+                    }
+                } else {
+                    wordInfo = "words=nil"
+                }
+            }
+            writeDebugLog("[Karaoke] t=\(Int(ms))ms line=\(bestLine) \(wordInfo)")
         }
 
         if bestLine == activeLineIndex && bestWord == activeWordIndex { return }
