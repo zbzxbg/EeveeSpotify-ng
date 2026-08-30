@@ -1,6 +1,7 @@
 import Orion
 import UIKit
 import ObjectiveC
+import SwiftUI
 
 // MARK: - 逐字歌词渲染模块（MVP）
 //
@@ -193,10 +194,12 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
     private var activeLineIndex = -1
     private var activeWordIndex = -1
 
-    private let backgroundColorValue = UIColor(white: 0.04, alpha: 0.97)
-    private let lineColor = UIColor(white: 0.72, alpha: 1)
+    private let lineColor = UIColor.black
     private let activeLineColorValue = UIColor.white
-    private let activeWordColorValue = UIColor.systemYellow
+    /// 当前行内「未唱」词的透明度（已唱/正在唱为全白）。
+    private let unsungWordOpacity: CGFloat = 0.45
+    /// 背景色缓存：每次 rebuild（换歌/换数据）后按「定制」选项重新计算一次。
+    private var resolvedBackgroundColor: UIColor?
 
     /// 手动滚动时暂停自动跟随，直到该时间点
     private var autoScrollPauseUntil: Date = .distantPast
@@ -266,8 +269,10 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
             return
         }
 
-        if backgroundColor != backgroundColorValue {
-            backgroundColor = backgroundColorValue
+        let targetBackground = resolvedBackgroundColor ?? overlayBackgroundColor()
+        resolvedBackgroundColor = targetBackground
+        if backgroundColor != targetBackground {
+            backgroundColor = targetBackground
             stackView.isHidden = false
         }
 
@@ -303,8 +308,12 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
 
         if bestLine == activeLineIndex && bestWord == activeWordIndex { return }
 
-        applyPlain(to: activeLineIndex)
-        activeLineIndex = bestLine
+        if bestLine != activeLineIndex {
+            // 行切换：整列表重涂 —— 已唱过/当前行白、未到行黑（Spotify 原生样式）。
+            // 当前行的加粗/词高亮随后由 applyHighlight 叠加。
+            repaintAllLines(upTo: bestLine)
+            activeLineIndex = bestLine
+        }
         activeWordIndex = bestWord
         if bestLine >= 0 {
             applyHighlight(to: bestLine, wordIndex: bestWord)
@@ -323,6 +332,7 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
         wordIndices = []
         activeLineIndex = -1
         activeWordIndex = -1
+        resolvedBackgroundColor = nil
 
         guard let dto else { return }
 
@@ -363,36 +373,94 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
         return (text, ranges, indices)
     }
 
-    private func applyPlain(to lineIndex: Int) {
-        guard lineIndex >= 0, lineIndex < lineLabels.count else { return }
-        let label = lineLabels[lineIndex]
-        label.attributedText = nil
-        label.text = displayTexts[lineIndex]
-        label.textColor = lineColor
+    /// 行切换时整列表重涂：已唱过/当前行白、未到行黑（Spotify 原生样式）。
+    private func repaintAllLines(upTo activeIndex: Int) {
+        for (index, label) in lineLabels.enumerated() {
+            label.attributedText = nil
+            label.text = displayTexts[index]
+            label.textColor = index <= activeIndex ? activeLineColorValue : lineColor
+        }
     }
 
+    /// 当前行内部按「已唱/正在唱/未唱」上色（Apple Music 式行内点亮）：
+    /// 已唱全白（普通）、正在唱全白加粗、未唱降透明度。
     private func applyHighlight(to lineIndex: Int, wordIndex: Int) {
         guard lineIndex >= 0, lineIndex < lineLabels.count else { return }
         let label = lineLabels[lineIndex]
         let text = displayTexts[lineIndex]
 
+        let regularFont = UIFont.systemFont(ofSize: lyricsFontSize, weight: .regular)
+        let boldFont = UIFont.systemFont(ofSize: lyricsFontSize, weight: .bold)
+
+        // 整行默认全白（没有词级数据的行也保持全白）
         let highlighted = NSMutableAttributedString(string: text, attributes: [
             .foregroundColor: activeLineColorValue,
-            .font: UIFont.systemFont(ofSize: lyricsFontSize, weight: .semibold),
+            .font: regularFont,
         ])
 
         let ranges = wordRanges[lineIndex]
         let indices = wordIndices[lineIndex]
-        if wordIndex >= 0, let pos = indices.firstIndex(of: wordIndex), pos < ranges.count {
-            let range = ranges[pos]
-            let nsRange = NSRange(range, in: text)
-            highlighted.addAttributes([
-                .foregroundColor: activeWordColorValue,
-                .font: UIFont.systemFont(ofSize: lyricsFontSize, weight: .bold),
-            ], range: nsRange)
+        let activePos = wordIndex >= 0 ? indices.firstIndex(of: wordIndex) : nil
+
+        for (pos, _) in indices.enumerated() {
+            guard pos < ranges.count else { continue }
+            let nsRange = NSRange(ranges[pos], in: text)
+
+            let isSung = activePos.map { pos < $0 } ?? false
+            if pos == activePos {
+                // 正在唱：全白 + 加粗
+                highlighted.addAttributes([
+                    .font: boldFont,
+                ], range: nsRange)
+            } else if !isSung {
+                // 未唱（activePos == nil 时整行都算未唱）：白 + 降透明度
+                highlighted.addAttributes([
+                    .foregroundColor: activeLineColorValue.withAlphaComponent(unsungWordOpacity),
+                ], range: nsRange)
+            }
+            // 已唱（pos < activePos）：保持整行默认的全白
         }
 
         label.attributedText = highlighted
+    }
+
+    // MARK: 背景取色（跟随「定制」选项）
+
+    /// 与 CustomLyrics 里原生日志歌词的取色逻辑一致：
+    /// 显示原始颜色 → 正在播放背景色；静态色 → 用户所选；
+    /// 否则专辑提取色/播放背景色按归一化因子调整；都没有 → 灰。
+    private func overlayBackgroundColor() -> UIColor {
+        let settings = UserDefaults.lyricsColors
+
+        if settings.displayOriginalColors,
+           let original = backgroundViewModel?.color() {
+            return original.withAlphaComponent(1)
+        }
+
+        if settings.useStaticColor, !settings.staticColor.isEmpty {
+            return UIColor(Color(hex: settings.staticColor))
+        }
+
+        if let hex = currentTrackExtractedColorHex() {
+            return UIColor(Color(hex: hex).normalized(settings.normalizationFactor))
+        }
+
+        if let background = backgroundViewModel?.color() {
+            return UIColor(Color(background).normalized(settings.normalizationFactor))
+                .withAlphaComponent(1)
+        }
+
+        return .gray
+    }
+
+    private func currentTrackExtractedColorHex() -> String? {
+        let track = statefulPlayer?.currentTrack() ?? nowPlayingScrollViewController?.loadedTrack
+        switch EeveeSpotify.hookTarget {
+        case .lastAvailableiOS14:
+            return track?.extractedColorHex()
+        default:
+            return track?.metadata()["extracted_color"]
+        }
     }
 
     // MARK: 手动滚动打断自动跟随
