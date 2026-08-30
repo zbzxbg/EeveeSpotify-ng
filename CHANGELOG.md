@@ -563,3 +563,11 @@ Additional notes:
 - Experimental: Implemented word-by-word lyrics.
 
 </details>
+
+<details>
+<summary><b>v5.0.0-beta.3</b></summary>
+
+- Experimental: Implemented word-by-word lyrics.
+
+</details>
+
