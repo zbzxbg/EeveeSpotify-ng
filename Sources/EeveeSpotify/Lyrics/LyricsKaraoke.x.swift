@@ -202,8 +202,12 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
     private var autoScrollPauseUntil: Date = .distantPast
     /// 诊断：节流打印当前高亮状态
     private var lastDiagnosticLog: Date = .distantPast
-    /// 当前行在视口中的目标位置（距顶部比例）：0.30 = 视口上方约 1/3 处。
-    private let activeLineViewportFraction: CGFloat = 0.30
+    /// 当前行在视口中的目标位置（距顶部比例）：0.40 = 视口上方约 40% 处。
+    private let activeLineViewportFraction: CGFloat = 0.40
+    /// 歌词行字号（对照 Spotify 原生歌词放大）。
+    private let lyricsFontSize: CGFloat = 22
+    /// 歌词行左右内边距（对照「歌词」标题的左缩进）。
+    private let lyricsSideInset: CGFloat = 16
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -237,9 +241,9 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
             scrollView.trailingAnchor.constraint(equalTo: trailingAnchor),
             stackView.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor, constant: 60),
             stackView.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -60),
-            stackView.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor, constant: 24),
-            stackView.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor, constant: -24),
-            stackView.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor, constant: -48),
+            stackView.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor, constant: lyricsSideInset),
+            stackView.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor, constant: -lyricsSideInset),
+            stackView.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor, constant: -(2 * lyricsSideInset)),
         ])
     }
 
@@ -323,7 +327,7 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
             label.lineIndex = index
             label.numberOfLines = 0
             label.textAlignment = .left
-            label.font = .systemFont(ofSize: 18, weight: .regular)
+            label.font = .systemFont(ofSize: lyricsFontSize, weight: .regular)
             label.text = text
             label.textColor = lineColor
             label.isUserInteractionEnabled = true
@@ -369,7 +373,7 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
 
         let highlighted = NSMutableAttributedString(string: text, attributes: [
             .foregroundColor: activeLineColorValue,
-            .font: UIFont.systemFont(ofSize: 18, weight: .semibold),
+            .font: UIFont.systemFont(ofSize: lyricsFontSize, weight: .semibold),
         ])
 
         let ranges = wordRanges[lineIndex]
@@ -379,7 +383,7 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
             let nsRange = NSRange(range, in: text)
             highlighted.addAttributes([
                 .foregroundColor: activeWordColorValue,
-                .font: UIFont.systemFont(ofSize: 18, weight: .bold),
+                .font: UIFont.systemFont(ofSize: lyricsFontSize, weight: .bold),
             ], range: nsRange)
         }
 
