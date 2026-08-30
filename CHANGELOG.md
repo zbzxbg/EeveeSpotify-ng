@@ -553,21 +553,21 @@ Additional notes:
 <details>
 <summary><b>v5.0.0-beta.1</b></summary>
 
-- Experimental: Implemented word-by-word lyrics.(doesn't work)
+- Experimental: Tested the availability of word-by-word lyrics.(doesn't work)
 
 </details>
 
 <details>
 <summary><b>v5.0.0-beta.2</b></summary>
 
-- Experimental: Implemented word-by-word lyrics.
+- Experimental: Tested the availability of word-by-word lyrics.
 
 </details>
 
 <details>
 <summary><b>v5.0.0-beta.3</b></summary>
 
-- Experimental: Implemented word-by-word lyrics.
+- Experimental: Tested the availability of word-by-word lyrics.
 
 </details>
 
