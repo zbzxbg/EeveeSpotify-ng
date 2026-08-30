@@ -301,21 +301,26 @@ class MusixmatchLyricsRepository: LyricsRepository {
             let romanizationLanguage = "r\(subtitleLanguage.prefix(1))"
 
             // 逐字歌词：开关开启时先 matcher 解析 commontrack id，再取 richsync 词级时间轴；
-            // 任一环节失败/无 richsync 时静默回退到行级时间轴。
-            var richSyncWordsByLineIndex: [Int: [LyricsWordDto]] = [:]
+            // richsync 自包含（x=行文本, ts=行起始, l=词时间），拿到时直接用它的行构建 DTO，
+            // 不再与 subtitle（行级）按序号对齐（两者行数不一致会错位）。
+            var richSyncLyricsLines: [LyricsLineDto]? = nil
             if NgzhwmSettingsViewModel.isWordByWordLyricsEnabled {
                 if let (trackId, hasRichSync) = try? getTrackId(query) {
                     if hasRichSync {
                         if let richSync = try? getRichSync(trackId: trackId) {
-                            for (index, richLine) in richSync.enumerated() {
-                                richSyncWordsByLineIndex[index] = richLine.l.map {
-                                    LyricsWordDto(
-                                        text: $0.c,
-                                        startMs: Int((richLine.ts + $0.o) * 1000)
-                                    )
-                                }
+                            richSyncLyricsLines = richSync.map { richLine in
+                                LyricsLineDto(
+                                    content: richLine.x.lyricsNoteIfEmpty,
+                                    offsetMs: Int(richLine.ts * 1000),
+                                    words: richLine.l.map {
+                                        LyricsWordDto(
+                                            text: $0.c,
+                                            startMs: Int((richLine.ts + $0.o) * 1000)
+                                        )
+                                    }
+                                )
                             }
-                            writeDebugLog("[Musixmatch] Word-by-word (richsync) attached to \(richSync.count) line(s)")
+                            writeDebugLog("[Musixmatch] Word-by-word (richsync) — using \(richSync.count) line(s)")
                         } else {
                             writeDebugLog("[Musixmatch] richsync unavailable — falling back to line-synced lyrics")
                         }
@@ -327,55 +332,69 @@ class MusixmatchLyricsRepository: LyricsRepository {
                 }
             }
 
-            var lyricsLines = subtitles.dropLast().enumerated().map { (index, subtitle) in
-                LyricsLineDto(
-                    content: subtitle.text.lyricsNoteIfEmpty,
-                    offsetMs: Int(subtitle.time.total * 1000),
-                    words: richSyncWordsByLineIndex[index]
+            // 行来源：richsync（逐字，自包含）优先，否则用 subtitle（行级回退）。
+            let useRichSync = (richSyncLyricsLines?.isEmpty == false)
+            var lyricsLines: [LyricsLineDto]
+            if useRichSync, let richSyncLyricsLines {
+                lyricsLines = richSyncLyricsLines
+            } else {
+                lyricsLines = subtitles.dropLast().map { subtitle in
+                    LyricsLineDto(
+                        content: subtitle.text.lyricsNoteIfEmpty,
+                        offsetMs: Int(subtitle.time.total * 1000)
+                    )
+                }
+                lyricsLines.append(
+                    LyricsLineDto(
+                        content: "",
+                        offsetMs: Int(subtitles.last!.time.total * 1000)
+                    )
                 )
             }
-
-            lyricsLines.append(
-                LyricsLineDto(
-                    content: "",
-                    offsetMs: Int(subtitles.last!.time.total * 1000)
-                )
-            )
 
             // 用于验证是否实际发生了替换
             var didReplaceAnyLine = false
 
-            // subtitle_translated：MxM 返回的目标语言字幕（罗马音或真实翻译）
+            // subtitle_translated：MxM 返回的目标语言字幕（罗马音或真实翻译）。
+            // 按「行起始 offset」对齐到 lyricsLines（richsync/subtitle 行都带 offsetMs 且同源同时间；
+            // richsync 与 subtitle 行数不一致时也能对上，多余行自然无翻译）。
             if let subtitleTranslated = subtitle["subtitle_translated"] as? [String: Any],
                 let subtitleTranslatedBody = subtitleTranslated["subtitle_body"] as? String,
                 let subtitlesTranslated = try? JSONDecoder().decode(
                     [MusixmatchSubtitle].self, from: subtitleTranslatedBody.data(using: .utf8)!
                 )
             {
+                var translatedByOffset: [Int: String] = [:]
+                for st in subtitlesTranslated {
+                    let key = Int(st.time.total * 1000)
+                    if translatedByOffset[key] == nil { translatedByOffset[key] = st.text }
+                }
+
                 if requestedLanguage == romanizationLanguage {
-                    // 用户直接选择了罗马音语言：用 MxM 罗马音替换歌词行
-                    for (index, subtitleTranslated) in subtitlesTranslated.enumerated() {
-                        if !subtitleTranslated.text.isEmpty {
-                            lyricsLines[index].content = subtitleTranslated.text
-                            didReplaceAnyLine = true
-                        }
+                    // 用户直接选择了罗马音语言：用 MxM 罗马音替换歌词行（按 offset 对齐）
+                    for i in 0..<lyricsLines.count {
+                        guard let offset = lyricsLines[i].offsetMs,
+                              let roma = translatedByOffset[offset], !roma.isEmpty else { continue }
+                        lyricsLines[i].content = roma
+                        didReplaceAnyLine = true
                     }
                 } else if !requestedLanguage.isEmpty {
-                    // 用户选择了真实翻译语言：附加为翻译层（显示翻译按钮），
-                    // 行内容保持原文，交给 toSpotifyLyricsData 做本地罗马化，
-                    // 这样主歌词是本地转换的罗马字，翻译层是 MxM 返回的翻译。
+                    // 用户选择了真实翻译语言：按 offset 对齐附加为翻译层（显示翻译按钮），
+                    // 行内容保持原文，交给 toSpotifyLyricsData 做本地罗马化。
                     translation = LyricsTranslationDto(
                         languageCode: requestedLanguage,
-                        lines: subtitlesTranslated.map {
-                            (shouldRemoveMxmInterludeSymbol
-                                && $0.text.trimmingCharacters(in: .whitespaces) == "♪")
-                                ? "" : $0.text
+                        lines: lyricsLines.map { line -> String in
+                            guard let offset = line.offsetMs,
+                                  let t = translatedByOffset[offset] else { return "" }
+                            return (shouldRemoveMxmInterludeSymbol
+                                && t.trimmingCharacters(in: .whitespaces) == "♪")
+                                ? "" : t
                         }
                     )
                 }
             }
             // 次优先：未选择任何目标语言时，全局罗马化开关开启，
-            // 尝试通过翻译接口拿 MxM 罗马音替换歌词行。
+            // 尝试通过翻译接口拿 MxM 罗马音替换歌词行（按 content 匹配，兼容 richsync x 与 subtitle text）。
             // 已选择真实翻译语言时不走这里，避免 MxM 罗马音顶掉本地转换。
             else if isNgzhwmRomanizationEnabled(for: romanizationLanguage),
                 requestedLanguage.isEmpty {
