@@ -179,7 +179,7 @@ private final class LineLabel: UILabel {
     var lineIndex = -1
 }
 
-final class LyricsKaraokeOverlayView: UIView {
+final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
 
     private let scrollView = UIScrollView()
     private let stackView = UIStackView()
@@ -198,6 +198,9 @@ final class LyricsKaraokeOverlayView: UIView {
     private let activeLineColorValue = UIColor.white
     private let activeWordColorValue = UIColor.systemYellow
 
+    /// 手动滚动时暂停自动跟随，直到该时间点
+    private var autoScrollPauseUntil: Date = .distantPast
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         setupView()
@@ -211,6 +214,7 @@ final class LyricsKaraokeOverlayView: UIView {
     private func setupView() {
         backgroundColor = .clear
 
+        scrollView.delegate = self
         scrollView.showsVerticalScrollIndicator = true
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         stackView.axis = .vertical
@@ -246,11 +250,9 @@ final class LyricsKaraokeOverlayView: UIView {
         guard let dto, dto.timeSynced else { return }
         let hasWords = dto.lines.contains { $0.words?.isEmpty == false }
         guard hasWords else {
-            // 无词级数据：保持透明，不遮挡 Spotify 原生逐行歌词
-            if backgroundColor != .clear {
-                backgroundColor = .clear
-                stackView.isHidden = true
-            }
+            // 无词级数据：无条件透明 + 隐藏标签，不遮挡 Spotify 原生逐行歌词
+            backgroundColor = .clear
+            stackView.isHidden = true
             return
         }
 
@@ -362,7 +364,23 @@ final class LyricsKaraokeOverlayView: UIView {
         label.attributedText = highlighted
     }
 
+    // MARK: 手动滚动打断自动跟随
+
+    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        autoScrollPauseUntil = Date().addingTimeInterval(3)
+    }
+
+    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+        autoScrollPauseUntil = Date().addingTimeInterval(2)
+    }
+
+    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+        autoScrollPauseUntil = Date().addingTimeInterval(2)
+    }
+
     private func scrollToLine(_ lineIndex: Int) {
+        // 手动滚动暂停期内不自动拉回
+        guard Date() >= autoScrollPauseUntil else { return }
         guard lineIndex >= 0, lineIndex < lineLabels.count else { return }
         let label = lineLabels[lineIndex]
         let rect = label.convert(label.bounds, to: scrollView)
