@@ -214,7 +214,7 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
     /// 当前行在视口中的目标位置（距顶部比例）：0.40 = 视口上方约 40% 处。
     private let activeLineViewportFraction: CGFloat = 0.40
     /// 歌词行字号（对照 Spotify 原生歌词放大）。
-    private let lyricsFontSize: CGFloat = 22
+    private let lyricsFontSize: CGFloat = 28
     /// 歌词行左右内边距（对照「歌词」标题的左缩进）。
     private let lyricsSideInset: CGFloat = 16
     /// 歌词块顶部留白（未滚动时第一行的起始高度）。
@@ -298,8 +298,8 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
                 targetBackground.cgColor,
                 targetBackground.withAlphaComponent(0).cgColor
             ]
-            topFadeView.isHidden = false
             stackView.isHidden = false
+            updateTopFadeVisibility()
         }
 
         var bestLine = -1
@@ -508,6 +508,17 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
         autoScrollPauseUntil = Date().addingTimeInterval(3)
     }
 
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        // 歌词滚离顶部时渐隐层才生效
+        updateTopFadeVisibility()
+    }
+
+    /// 歌词还在顶部（未滚动）时隐藏顶部渐隐层，保证第一行不被遮挡。
+    private func updateTopFadeVisibility() {
+        let atTop = scrollView.contentOffset.y <= 1
+        topFadeView.isHidden = stackView.isHidden || atTop
+    }
+
     func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
         autoScrollPauseUntil = Date().addingTimeInterval(2)
     }
@@ -562,10 +573,12 @@ final class KaraokeHost {
 
     /// contentView: overlay 挂到哪个视图（默认 VC 的 view；全屏歌词挂到内容子视图）。
     /// keepAboveView: 需要保留在 overlay 之上的原生控件（全屏歌词的分享/更多按钮），必须是 contentView 的直接子视图。
+    /// frame: overlay 初始 frame；nil 时填满 contentView，否则固定（全屏歌词只盖歌词区域用）。
     func attach(
         to controller: UIViewController,
         contentView: UIView? = nil,
-        keepAboveView: UIView? = nil
+        keepAboveView: UIView? = nil,
+        frame: CGRect? = nil
     ) {
         guard renderEnabled else { return }
         let view = contentView ?? controller.view
@@ -575,8 +588,8 @@ final class KaraokeHost {
         if isAttached, hostView === view { return }
         detach()
 
-        let overlayView = LyricsKaraokeOverlayView(frame: view.bounds)
-        overlayView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        let overlayView = LyricsKaraokeOverlayView(frame: frame ?? view.bounds)
+        overlayView.autoresizingMask = frame == nil ? [.flexibleWidth, .flexibleHeight] : []
         view.addSubview(overlayView)
         if let keepAboveView, keepAboveView.superview === view {
             // 保留原生控件栏在 overlay 之上（按钮仍可见可点）
@@ -656,18 +669,30 @@ class LyricsKaraokeFullscreenModernHostHook: ClassHook<UIViewController> {
         orig.viewDidAppear(animated)
         let vc = target
         DispatchQueue.main.async {
-            // 只覆盖「歌词内容」子模块 LyricsView（已由层级 dump 确认，frame=0,104 414x570）；
-            // 页面其余部分（标题 HeaderView、按钮 ControlsView、进度条 FooterView）保持原生
-            let contentView: UIView = WindowHelper.shared.findFirstSubview(
+            // 覆盖区域 = LyricsView（frame=0,104 414x570），但挂到 FullscreenView 上：
+            // LyricsView 可能禁用了交互，挂在其子级会导致滑动歌词无效。
+            // 页面其余部分（标题/按钮/进度条）在覆盖区之外，保持原生。
+            guard let fullscreenView = WindowHelper.shared.findFirstSubview(
+                "Lyrics_FullscreenElementPageImpl.FullscreenView", in: vc.view
+            ) else {
+                KaraokeHost.shared.attach(to: vc)
+                return
+            }
+            let lyricsFrame: CGRect = WindowHelper.shared.findFirstSubview(
                 "Lyrics_FullscreenElementPageImpl.LyricsView", in: vc.view
-            ) ?? vc.view
-            KaraokeHost.shared.attach(to: vc, contentView: contentView)
+            ).map { $0.convert($0.bounds, to: fullscreenView) } ?? fullscreenView.bounds
+            KaraokeHost.shared.attach(to: vc, contentView: fullscreenView, frame: lyricsFrame)
         }
     }
 
     func viewWillDisappear(_ animated: Bool) {
         orig.viewWillDisappear(animated)
         KaraokeHost.shared.detach()
+        // 全屏以 sheet 形式盖在内嵌之上，关闭时内嵌 VC 不会重新 viewDidAppear；
+        // 这里主动把 overlay 挂回内嵌歌词 VC，保证切回后仍有逐字。
+        if let inlineVC = findInlineLyricsViewController() {
+            KaraokeHost.shared.attach(to: inlineVC)
+        }
     }
 }
 
@@ -694,5 +719,38 @@ class LyricsKaraokeFullscreenLegacyHostHook: ClassHook<UIViewController> {
     func viewWillDisappear(_ animated: Bool) {
         orig.viewWillDisappear(animated)
         KaraokeHost.shared.detach()
+        // 同 modern hook：关闭全屏时把 overlay 挂回内嵌歌词 VC
+        if let inlineVC = findInlineLyricsViewController() {
+            KaraokeHost.shared.attach(to: inlineVC)
+        }
     }
+}
+
+// MARK: - 内嵌歌词 VC 查找
+
+/// 遍历所有窗口的 VC 树，查找内嵌歌词 VC（LyricsOnlyViewController）。
+private func findInlineLyricsViewController() -> UIViewController? {
+    for scene in UIApplication.shared.connectedScenes {
+        guard let windowScene = scene as? UIWindowScene else { continue }
+        for window in windowScene.windows {
+            guard let root = window.rootViewController else { continue }
+            var result: UIViewController?
+            func walk(_ controller: UIViewController) {
+                guard result == nil else { return }
+                if NSStringFromClass(type(of: controller)).contains("LyricsOnlyViewController") {
+                    result = controller
+                    return
+                }
+                for child in controller.children {
+                    walk(child)
+                }
+                if let presented = controller.presentedViewController {
+                    walk(presented)
+                }
+            }
+            walk(root)
+            if let result { return result }
+        }
+    }
+    return nil
 }
