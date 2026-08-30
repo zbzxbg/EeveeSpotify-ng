@@ -209,7 +209,7 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
     /// 歌词行左右内边距（对照「歌词」标题的左缩进）。
     private let lyricsSideInset: CGFloat = 16
     /// 歌词块顶部留白（未滚动时第一行的起始高度）。
-    private let lyricsTopPadding: CGFloat = 25
+    private let lyricsTopPadding: CGFloat = 18
 
     override init(frame: CGRect) {
         super.init(frame: frame)
