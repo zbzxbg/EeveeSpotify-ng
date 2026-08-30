@@ -298,6 +298,16 @@ class MusixmatchLyricsRepository: LyricsRepository {
 
         let macroCalls = try getMacroCalls(data)
 
+        // 诊断：宏响应里有哪些子调用，以及是否内嵌了 matcher.track.get（同源 track_id）
+        writeDebugLog("[Musixmatch] macro_calls keys: \(macroCalls.keys.sorted().joined(separator: ","))")
+        if let matcherCall = macroCalls["matcher.track.get"] as? [String: Any],
+            let matcherMessage = matcherCall["message"] as? [String: Any],
+            let matcherBody = matcherMessage["body"] as? [String: Any],
+            let track = matcherBody["track"] as? [String: Any]
+        {
+            writeDebugLog("[Musixmatch] macro matcher.track.get — track_id=\(intValue(track, "track_id") ?? -1), has_richsync=\(intValue(track, "has_richsync") ?? 0)")
+        }
+
         if let trackSubtitlesGet = macroCalls["track.subtitles.get"] as? [String: Any],
             let subtitlesMessage = trackSubtitlesGet["message"] as? [String: Any],
             let subtitle = try? getFirstSubtitle(subtitlesMessage),
@@ -357,9 +367,16 @@ class MusixmatchLyricsRepository: LyricsRepository {
                 )
             )
 
-            // 诊断：多少行实际贴上了 richsync 词（0 行 = 时间轴整体偏移，自然回退行级）
+            // 对齐校验：richsync 词只贴到极少行（如 Die For You 只 1/60），
+            // 说明 richsync 与 subtitle 时间轴整体偏移（matcher 解析到错误版本等），
+            // 词级数据不可用 —— 全部丢弃，回退纯行级，让 Spotify 原生歌词框架接管。
             let matchedWordLines = lyricsLines.filter { $0.words?.isEmpty == false }.count
-            writeDebugLog("[Musixmatch] richsync words attached to \(matchedWordLines)/\(lyricsLines.count) line(s)")
+            if matchedWordLines * 10 < lyricsLines.count * 3 {
+                writeDebugLog("[Musixmatch] richsync misaligned — words matched \(matchedWordLines)/\(lyricsLines.count) (<30%), dropping to line-synced")
+                for i in lyricsLines.indices { lyricsLines[i].words = nil }
+            } else {
+                writeDebugLog("[Musixmatch] richsync words attached to \(matchedWordLines)/\(lyricsLines.count) line(s)")
+            }
 
             // 用于验证是否实际发生了替换
             var didReplaceAnyLine = false
