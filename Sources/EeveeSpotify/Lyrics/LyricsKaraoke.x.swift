@@ -560,9 +560,16 @@ final class KaraokeHost {
         UserDefaults.standard.bool(forKey: NgzhwmSettingsViewModel.wordByWordLyricsKey)
     }
 
-    func attach(to controller: UIViewController) {
+    /// contentView: overlay 挂到哪个视图（默认 VC 的 view；全屏歌词挂到内容子视图）。
+    /// keepAboveView: 需要保留在 overlay 之上的原生控件（全屏歌词的分享/更多按钮），必须是 contentView 的直接子视图。
+    func attach(
+        to controller: UIViewController,
+        contentView: UIView? = nil,
+        keepAboveView: UIView? = nil
+    ) {
         guard renderEnabled else { return }
-        guard let view = controller.view else { return }
+        let view = contentView ?? controller.view
+        guard let view else { return }
 
         // 已挂在同一视图上则跳过；换视图（内嵌 ↔ 全屏切换）时先卸载旧的再挂新的。
         if isAttached, hostView === view { return }
@@ -571,7 +578,12 @@ final class KaraokeHost {
         let overlayView = LyricsKaraokeOverlayView(frame: view.bounds)
         overlayView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(overlayView)
-        view.bringSubviewToFront(overlayView)
+        if let keepAboveView, keepAboveView.superview === view {
+            // 保留原生控件栏在 overlay 之上（按钮仍可见可点）
+            view.bringSubviewToFront(keepAboveView)
+        } else {
+            view.bringSubviewToFront(overlayView)
+        }
 
         overlay = overlayView
         hostView = view
@@ -644,7 +656,14 @@ class LyricsKaraokeFullscreenModernHostHook: ClassHook<UIViewController> {
         orig.viewDidAppear(animated)
         let vc = target
         DispatchQueue.main.async {
-            KaraokeHost.shared.attach(to: vc)
+            // 挂到内容子视图，并把控件栏保留在 overlay 之上（分享/更多按钮仍可点）
+            let contentView = WindowHelper.shared.findFirstSubview(
+                "Lyrics_FullscreenElementPageImpl.FullscreenView", in: vc.view
+            ) ?? vc.view
+            let controls = contentView !== vc.view
+                ? Ivars<UIView>(contentView).controlsView
+                : nil
+            KaraokeHost.shared.attach(to: vc, contentView: contentView, keepAboveView: controls)
         }
     }
 
@@ -667,7 +686,9 @@ class LyricsKaraokeFullscreenLegacyHostHook: ClassHook<UIViewController> {
         orig.viewDidAppear(animated)
         let vc = target
         DispatchQueue.main.async {
-            KaraokeHost.shared.attach(to: vc)
+            // 把原生 headerView（分享/举报按钮）保留在 overlay 之上
+            let header = Ivars<UIView>(vc.view).headerView
+            KaraokeHost.shared.attach(to: vc, keepAboveView: header)
         }
     }
 
