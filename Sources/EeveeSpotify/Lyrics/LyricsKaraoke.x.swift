@@ -202,8 +202,9 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
     private let unsungWordOpacity: CGFloat = 0.45
     /// 背景色缓存：每次 rebuild（换歌/换数据）后按「定制」选项重新计算一次。
     private var resolvedBackgroundColor: UIColor?
-    /// 顶部渐隐遮罩：歌词上滚进入过渡区时，上半部分渐变为透明（渐变退出）。
-    private let topFadeMask = CAGradientLayer()
+    /// 顶部渐隐层（scrim）：背景色 → 透明，让上滚的歌词在顶部渐隐退出。
+    private let topFadeView = UIView()
+    private let topFadeLayer = CAGradientLayer()
     private let topFadeHeight: CGFloat = 48
 
     /// 手动滚动时暂停自动跟随，直到该时间点
@@ -231,23 +232,18 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        // 顶部 topFadeHeight 内：透明 → 不透明；其余区域不透明。
-        let fraction = min(topFadeHeight / max(bounds.height, 1), 1)
-        topFadeMask.frame = scrollView.bounds
-        topFadeMask.locations = [0, NSNumber(value: Double(fraction)), 1]
-        topFadeMask.colors = [
-            UIColor.clear.cgColor,
-            UIColor.white.cgColor,
-            UIColor.white.cgColor
-        ]
+        topFadeView.frame = CGRect(x: 0, y: 0, width: bounds.width, height: topFadeHeight)
+        topFadeLayer.frame = topFadeView.bounds
     }
 
     private func setupView() {
         backgroundColor = .clear
 
-        topFadeMask.startPoint = CGPoint(x: 0.5, y: 0)
-        topFadeMask.endPoint = CGPoint(x: 0.5, y: 1)
-        scrollView.layer.mask = topFadeMask
+        topFadeLayer.startPoint = CGPoint(x: 0.5, y: 0)
+        topFadeLayer.endPoint = CGPoint(x: 0.5, y: 1)
+        topFadeView.layer.addSublayer(topFadeLayer)
+        topFadeView.isUserInteractionEnabled = false
+        topFadeView.isHidden = true
 
         scrollView.delegate = self
         scrollView.showsVerticalScrollIndicator = true
@@ -260,6 +256,7 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
 
         addSubview(scrollView)
         scrollView.addSubview(stackView)
+        addSubview(topFadeView)
 
         NSLayoutConstraint.activate([
             scrollView.topAnchor.constraint(equalTo: topAnchor),
@@ -288,6 +285,7 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
               dto.lines.contains(where: { $0.words?.isEmpty == false }) else {
             backgroundColor = .clear
             stackView.isHidden = true
+            topFadeView.isHidden = true
             return
         }
 
@@ -295,6 +293,11 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
         resolvedBackgroundColor = targetBackground
         if backgroundColor != targetBackground {
             backgroundColor = targetBackground
+            topFadeLayer.colors = [
+                targetBackground.cgColor,
+                targetBackground.withAlphaComponent(0).cgColor
+            ]
+            topFadeView.isHidden = false
             stackView.isHidden = false
         }
 
