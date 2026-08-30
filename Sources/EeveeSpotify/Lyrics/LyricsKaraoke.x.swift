@@ -661,7 +661,7 @@ class LyricsKaraokeFullscreenModernHostHook: ClassHook<UIViewController> {
         }
         DispatchQueue.main.async {
             // 挂到内容子视图，并把控件栏保留在 overlay 之上（分享/更多按钮仍可点）
-            let contentView = WindowHelper.shared.findFirstSubview(
+            let contentView: UIView = WindowHelper.shared.findFirstSubview(
                 "Lyrics_FullscreenElementPageImpl.FullscreenView", in: vc.view
             ) ?? vc.view
             let controls = contentView !== vc.view
