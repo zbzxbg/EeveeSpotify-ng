@@ -146,12 +146,23 @@ class PetitLyricsRepository: LyricsRepository {
     }
 
     private static var didDumpRawXml = false
+    private static var didLogDegenerate = false
 
     /// Petit 的 wordsSynced 词元素通常只带 starttime、不带词文本，
     /// 词文本需从 linestring 推导：先按空白切分；日语无空格时按逐字符切分对齐词数。
     private static func wordDto(for line: PetitLyricsLine) -> [LyricsWordDto]? {
         let words = line.words
         guard !words.isEmpty else { return nil }
+
+        // 退化检测：所有词 starttime 相同 = 该行无逐字时间轴（Petit 对某些歌返回伪 wordsSynced）
+        let firstStart = words[0].starttime
+        if words.allSatisfy({ $0.starttime == firstStart }) {
+            if !Self.didLogDegenerate {
+                Self.didLogDegenerate = true
+                writeDebugLog("[Petit] degenerate wordsSynced (all words same starttime \(firstStart)) — fall back to line-level")
+            }
+            return nil
+        }
 
         // Petit 的 word 元素带 wordstring（词文本，含空格 token）+ starttime + endtime
         if words.allSatisfy({ $0.wordstring != nil }) {
