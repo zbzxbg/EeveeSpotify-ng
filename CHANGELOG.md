@@ -571,3 +571,10 @@ Additional notes:
 
 </details>
 
+<details>
+<summary><b>v5.0.0-beta.4</b></summary>
+
+- Experimental: Attempted to implement logic for fetching word-by-word lyrics from PetitLyrics.
+
+</details>
+
