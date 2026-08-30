@@ -23,6 +23,8 @@ var currentLyricsVersion: Int = 0
 @objc protocol KaraokePositionDoubleGetter { func playbackPosition() -> Double }
 @objc protocol KaraokeCurrentPlaybackTimeDoubleGetter { func currentPlaybackTime() -> Double }
 @objc protocol KaraokeCurrentTrackTimeSecsGetter { func currentTrackTimeSecs() -> Int64 }
+@objc protocol KaraokePlayerPositionGetter { func position() -> Double }
+@objc protocol KaraokeSeekProtocol { func seekTo(_ seconds: Double) }
 
 final class KaraokePositionResolver {
     static let shared = KaraokePositionResolver()
@@ -35,6 +37,15 @@ final class KaraokePositionResolver {
     /// 逐策略探测：先试方法（responds 检查后 Dynamic.convert 调用），再试 ivar（class_getInstanceVariable 检查后读取）。
     /// 任一环节检查不通过就跳过，保证永不因猜错签名崩溃。
     func resolve() {
+        // 首选：statefulPlayer.position() —— 已由 runtime dump 确认（d16@0:8 = double 无参，秒）
+        if let p = statefulPlayer as? NSObject, p.responds(to: Selector("position")) {
+            let g = Dynamic.convert(p, to: KaraokePlayerPositionGetter.self)
+            getter = { g.position() }
+            sourceLabel = "statefulPlayer.position() -> Double"
+            writeDebugLog("[Karaoke] position source: \(sourceLabel)")
+            return
+        }
+
         var candidates: [(String, NSObject)] = []
         if let p = statefulPlayer as? NSObject { candidates.append(("statefulPlayer", p)) }
         if let vc = nowPlayingScrollViewController as? NSObject {
@@ -115,6 +126,20 @@ final class KaraokePositionResolver {
     }
 }
 
+// MARK: - 点行跳转
+
+final class KaraokeSeeker {
+    static func seek(toMs ms: Int) {
+        guard let player = statefulPlayer as? NSObject, player.responds(to: Selector("seekTo:")) else {
+            writeDebugLog("[Karaoke] seekTo: unavailable on statefulPlayer")
+            return
+        }
+        let g = Dynamic.convert(player, to: KaraokeSeekProtocol.self)
+        g.seekTo(Double(ms) / 1000)
+        writeDebugLog("[Karaoke] seek to \(ms)ms")
+    }
+}
+
 // MARK: - 播放时钟
 
 final class KaraokePlaybackClock {
@@ -149,6 +174,10 @@ final class KaraokePlaybackClock {
 }
 
 // MARK: - 叠加视图
+
+private final class LineLabel: UILabel {
+    var lineIndex = -1
+}
 
 final class LyricsKaraokeOverlayView: UIView {
 
@@ -264,14 +293,17 @@ final class LyricsKaraokeOverlayView: UIView {
 
         guard let dto else { return }
 
-        for line in dto.lines {
+        for (index, line) in dto.lines.enumerated() {
             let (text, ranges, indices) = buildDisplayText(for: line)
-            let label = UILabel()
+            let label = LineLabel()
+            label.lineIndex = index
             label.numberOfLines = 0
             label.textAlignment = .center
             label.font = .systemFont(ofSize: 18, weight: .regular)
             label.text = text
             label.textColor = lineColor
+            label.isUserInteractionEnabled = true
+            label.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(handleLineTap(_:))))
             stackView.addArrangedSubview(label)
             lineLabels.append(label)
             displayTexts.append(text)
@@ -335,6 +367,13 @@ final class LyricsKaraokeOverlayView: UIView {
         let label = lineLabels[lineIndex]
         let rect = label.convert(label.bounds, to: scrollView)
         scrollView.scrollRectToVisible(rect, animated: true)
+    }
+
+    @objc private func handleLineTap(_ recognizer: UITapGestureRecognizer) {
+        guard let label = recognizer.view as? LineLabel,
+              let dto = dto, label.lineIndex >= 0, label.lineIndex < dto.lines.count,
+              let offset = dto.lines[label.lineIndex].offsetMs else { return }
+        KaraokeSeeker.seek(toMs: offset)
     }
 }
 
