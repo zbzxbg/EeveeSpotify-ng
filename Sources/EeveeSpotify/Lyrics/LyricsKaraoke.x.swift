@@ -202,10 +202,9 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
     private let unsungWordOpacity: CGFloat = 0.45
     /// 背景色缓存：每次 rebuild（换歌/换数据）后按「定制」选项重新计算一次。
     private var resolvedBackgroundColor: UIColor?
-    /// 顶部渐变层：让歌词内容区与上方模块头平滑过渡。
-    private let topGradientLayer = CAGradientLayer()
-    private let topGradientHeight: CGFloat = 48
-    private let topGradientDarkening: CGFloat = 0.2
+    /// 顶部渐隐遮罩：歌词上滚进入过渡区时，上半部分渐变为透明（渐变退出）。
+    private let topFadeMask = CAGradientLayer()
+    private let topFadeHeight: CGFloat = 48
 
     /// 手动滚动时暂停自动跟随，直到该时间点
     private var autoScrollPauseUntil: Date = .distantPast
@@ -232,16 +231,23 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        topGradientLayer.frame = CGRect(x: 0, y: 0, width: bounds.width, height: topGradientHeight)
+        // 顶部 topFadeHeight 内：透明 → 不透明；其余区域不透明。
+        let fraction = min(topFadeHeight / max(bounds.height, 1), 1)
+        topFadeMask.frame = scrollView.bounds
+        topFadeMask.locations = [0, NSNumber(value: Double(fraction)), 1]
+        topFadeMask.colors = [
+            UIColor.clear.cgColor,
+            UIColor.white.cgColor,
+            UIColor.white.cgColor
+        ]
     }
 
     private func setupView() {
         backgroundColor = .clear
 
-        topGradientLayer.startPoint = CGPoint(x: 0.5, y: 0)
-        topGradientLayer.endPoint = CGPoint(x: 0.5, y: 1)
-        topGradientLayer.isHidden = true
-        layer.addSublayer(topGradientLayer)
+        topFadeMask.startPoint = CGPoint(x: 0.5, y: 0)
+        topFadeMask.endPoint = CGPoint(x: 0.5, y: 1)
+        scrollView.layer.mask = topFadeMask
 
         scrollView.delegate = self
         scrollView.showsVerticalScrollIndicator = true
@@ -282,7 +288,6 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
               dto.lines.contains(where: { $0.words?.isEmpty == false }) else {
             backgroundColor = .clear
             stackView.isHidden = true
-            topGradientLayer.isHidden = true
             return
         }
 
@@ -290,11 +295,6 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
         resolvedBackgroundColor = targetBackground
         if backgroundColor != targetBackground {
             backgroundColor = targetBackground
-            topGradientLayer.colors = [
-                targetBackground.darker(by: topGradientDarkening).cgColor,
-                UIColor.clear.cgColor
-            ]
-            topGradientLayer.isHidden = false
             stackView.isHidden = false
         }
 
