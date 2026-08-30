@@ -592,3 +592,10 @@ Additional notes:
 
 </details>
 
+<details>
+<summary><b>v5.0.0-beta.7</b></summary>
+
+- Fixed an issue where scrollable white text remnants could appear above the lyrics module when word-by-word lyrics were unavailable.
+- Fixed an issue where manually scrolling the lyrics while word-by-word lyrics were playing would be forcibly snapped back to the current lyric line.
+
+</details>
