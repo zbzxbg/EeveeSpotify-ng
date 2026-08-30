@@ -202,6 +202,8 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
     private var autoScrollPauseUntil: Date = .distantPast
     /// 诊断：节流打印当前高亮状态
     private var lastDiagnosticLog: Date = .distantPast
+    /// 当前行在视口中的目标位置（距顶部比例）：0.30 = 视口上方约 1/3 处。
+    private let activeLineViewportFraction: CGFloat = 0.30
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -320,7 +322,7 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
             let label = LineLabel()
             label.lineIndex = index
             label.numberOfLines = 0
-            label.textAlignment = .center
+            label.textAlignment = .left
             label.font = .systemFont(ofSize: 18, weight: .regular)
             label.text = text
             label.textColor = lineColor
@@ -404,7 +406,13 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
         guard lineIndex >= 0, lineIndex < lineLabels.count else { return }
         let label = lineLabels[lineIndex]
         let rect = label.convert(label.bounds, to: scrollView)
-        scrollView.scrollRectToVisible(rect, animated: true)
+        // 当前行定位到视口上方约 1/3 处，而不是 scrollRectToVisible 那样贴到最底部。
+        let targetY = rect.minY - scrollView.bounds.height * activeLineViewportFraction
+        let maxY = max(0, scrollView.contentSize.height - scrollView.bounds.height)
+        scrollView.setContentOffset(
+            CGPoint(x: 0, y: min(max(0, targetY), maxY)),
+            animated: true
+        )
     }
 
     @objc private func handleLineTap(_ recognizer: UITapGestureRecognizer) {
