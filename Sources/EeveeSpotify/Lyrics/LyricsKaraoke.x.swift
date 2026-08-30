@@ -655,6 +655,10 @@ class LyricsKaraokeFullscreenModernHostHook: ClassHook<UIViewController> {
     func viewDidAppear(_ animated: Bool) {
         orig.viewDidAppear(animated)
         let vc = target
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            // 诊断：dump 视图层级，定位歌词内容子模块（SwiftUI 可能延迟建子视图）
+            dumpFullscreenHierarchy(vc.view)
+        }
         DispatchQueue.main.async {
             // 挂到内容子视图，并把控件栏保留在 overlay 之上（分享/更多按钮仍可点）
             let contentView = WindowHelper.shared.findFirstSubview(
@@ -685,6 +689,10 @@ class LyricsKaraokeFullscreenLegacyHostHook: ClassHook<UIViewController> {
     func viewDidAppear(_ animated: Bool) {
         orig.viewDidAppear(animated)
         let vc = target
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            // 诊断：dump 视图层级，定位歌词内容子模块
+            dumpFullscreenHierarchy(vc.view)
+        }
         DispatchQueue.main.async {
             // 把原生 headerView（分享/举报按钮）保留在 overlay 之上
             let header = Ivars<UIView>(vc.view).headerView
@@ -696,4 +704,36 @@ class LyricsKaraokeFullscreenLegacyHostHook: ClassHook<UIViewController> {
         orig.viewWillDisappear(animated)
         KaraokeHost.shared.detach()
     }
+}
+
+// MARK: - 全屏歌词视图层级诊断
+
+/// 递归打印视图层级（类名 + frame + 关键属性），用于定位全屏歌词里的“歌词内容”子模块。
+private func dumpFullscreenHierarchy(_ view: UIView) {
+    writeDebugLog("[FullscreenDump] === begin \(NSStringFromClass(type(of: view))) ===")
+
+    func walk(_ subview: UIView, _ depth: Int) {
+        guard depth < 12 else { return }
+        var line = String(repeating: "  ", count: depth)
+        line += NSStringFromClass(type(of: subview))
+        let f = subview.frame
+        line += " frame=(\(Int(f.origin.x)),\(Int(f.origin.y)) \(Int(f.size.width))x\(Int(f.size.height)))"
+        if subview.isHidden { line += " hidden" }
+        if subview.alpha < 1 { line += " a=\(subview.alpha)" }
+        if let scroll = subview as? UIScrollView {
+            let c = scroll.contentSize
+            line += " content=(\(Int(c.width))x\(Int(c.height)))"
+        }
+        if let label = subview as? UILabel {
+            let t = String(label.text?.prefix(40) ?? "")
+            if !t.isEmpty { line += " text=\"\(t)\"" }
+        }
+        writeDebugLog("[FullscreenDump] \(line)")
+        for child in subview.subviews {
+            walk(child, depth + 1)
+        }
+    }
+
+    walk(view, 0)
+    writeDebugLog("[FullscreenDump] === end ===")
 }
