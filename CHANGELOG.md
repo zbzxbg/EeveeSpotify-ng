@@ -626,3 +626,10 @@ Additional notes:
 - Added support for the latest version of SpicyLyrics (6.3.12).
 
 </details>
+
+<details>
+<summary><b>v5.0.0-beta.12</b></summary>
+
+- Experimental: Tested the availability of word-by-word lyrics.
+
+</details>
