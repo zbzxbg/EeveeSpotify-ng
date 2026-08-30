@@ -208,6 +208,8 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
     private let lyricsFontSize: CGFloat = 22
     /// 歌词行左右内边距（对照「歌词」标题的左缩进）。
     private let lyricsSideInset: CGFloat = 16
+    /// 歌词块顶部留白（未滚动时第一行的起始高度）。
+    private let lyricsTopPadding: CGFloat = 40
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -239,7 +241,7 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
             scrollView.bottomAnchor.constraint(equalTo: bottomAnchor),
             scrollView.leadingAnchor.constraint(equalTo: leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            stackView.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor, constant: 60),
+            stackView.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor, constant: lyricsTopPadding),
             stackView.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -60),
             stackView.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor, constant: lyricsSideInset),
             stackView.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor, constant: -lyricsSideInset),
@@ -307,6 +309,9 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
         if bestLine >= 0 {
             applyHighlight(to: bestLine, wordIndex: bestWord)
             scrollToLine(bestLine)
+        } else {
+            // 回到歌曲开头（当前时间早于第一行）时滚回顶部，避免歌词停在中间。
+            scrollToTop()
         }
     }
 
@@ -415,6 +420,14 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
         let maxY = max(0, scrollView.contentSize.height - scrollView.bounds.height)
         scrollView.setContentOffset(
             CGPoint(x: 0, y: min(max(0, targetY), maxY)),
+            animated: true
+        )
+    }
+
+    /// 滚回歌词顶部（含安全区内边距修正）。
+    private func scrollToTop() {
+        scrollView.setContentOffset(
+            CGPoint(x: 0, y: -scrollView.adjustedContentInset.top),
             animated: true
         )
     }
