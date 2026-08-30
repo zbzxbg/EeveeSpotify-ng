@@ -214,6 +214,8 @@ class SpicyLyricsRepository: LyricsRepository {
     private func parseSyllableLyrics(_ root: SLObjPackValue) -> LyricsDto {
         guard let content = root["Content"]?.arrayValue else { return emptyDto() }
 
+        let preserveWords = NgzhwmSettingsViewModel.isWordByWordLyricsEnabled
+
         var lines        = [LyricsLineDto]()
         var hasRomanized = root["HasTransliterations"]?.boolValue ?? false
 
@@ -222,6 +224,7 @@ class SpicyLyricsRepository: LyricsRepository {
                   let lead = entry["Lead"] else { continue }
 
             let lineText: String
+            var words: [LyricsWordDto]? = nil
             if let syllables = lead["Syllables"]?.arrayValue, !syllables.isEmpty {
                 // Real client rule (Syllable.ts): a syllable with IsPartOfWord=true
                 // attaches directly to the previous syllable (continues the same
@@ -229,15 +232,40 @@ class SpicyLyricsRepository: LyricsRepository {
                 // word and needs a preceding space. Plain .joined() (no separator)
                 // ignored this entirely, producing "Doyourecall,notlongago?".
                 var text = ""
+                var collected: [LyricsWordDto] = []
+                var currentText = ""
+                var currentStart: Int? = nil
+                var currentEnd: Int? = nil
                 for syllable in syllables {
                     guard let syllableText = syllable["Text"]?.stringValue else { continue }
                     let isPartOfWord = syllable["IsPartOfWord"]?.boolValue ?? false
+                    let start = syllable["StartTime"]?.doubleValue.map { Int($0 * 1000) }
+                    let end = syllable["EndTime"]?.doubleValue.map { Int($0 * 1000) }
                     if !text.isEmpty && !isPartOfWord {
                         text += " "
                     }
                     text += syllableText
+                    if preserveWords {
+                        if isPartOfWord {
+                            currentText += syllableText
+                            if currentStart == nil { currentStart = start }
+                        } else {
+                            if !currentText.isEmpty {
+                                collected.append(
+                                    LyricsWordDto(text: currentText, startMs: currentStart ?? 0, endMs: currentEnd)
+                                )
+                            }
+                            currentText = syllableText
+                            currentStart = start
+                        }
+                        currentEnd = end
+                    }
+                }
+                if preserveWords, !currentText.isEmpty {
+                    collected.append(LyricsWordDto(text: currentText, startMs: currentStart ?? 0, endMs: currentEnd))
                 }
                 lineText = text
+                words = preserveWords ? collected : nil
                 if syllables.contains(where: { ($0["TransliteratedText"]?.stringValue ?? "").isEmpty == false }) {
                     hasRomanized = true
                 }
@@ -250,7 +278,7 @@ class SpicyLyricsRepository: LyricsRepository {
             if (lead["TransliteratedText"]?.stringValue ?? "").isEmpty == false { hasRomanized = true }
 
             let offsetMs = lead["StartTime"]?.doubleValue.map { Int($0 * 1000) }
-            lines.append(LyricsLineDto(content: lineText.lyricsNoteIfEmpty, offsetMs: offsetMs))
+            lines.append(LyricsLineDto(content: lineText.lyricsNoteIfEmpty, offsetMs: offsetMs, words: words))
         }
 
         let romanization: LyricsRomanizationStatus = hasRomanized
