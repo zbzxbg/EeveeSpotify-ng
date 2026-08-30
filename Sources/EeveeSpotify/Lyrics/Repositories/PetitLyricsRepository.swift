@@ -114,9 +114,7 @@ class PetitLyricsRepository: LyricsRepository {
                     LyricsLineDto(
                         content: $0.linestring,
                         offsetMs: $0.words.first?.starttime,
-                        words: preserveWords
-                            ? $0.words.map { LyricsWordDto(text: $0.text ?? "", startMs: $0.starttime) }
-                            : nil
+                        words: preserveWords ? Self.wordDto(for: $0) : nil
                     )
                 },
                 timeSynced: true,
@@ -138,5 +136,24 @@ class PetitLyricsRepository: LyricsRepository {
         default:
             throw LyricsError.decodingError
         }
+    }
+
+    /// Petit 的 wordsSynced 词元素通常只带 starttime、不带词文本，
+    /// 词文本需按空白切分 linestring 后按序对齐词数。
+    private static func wordDto(for line: PetitLyricsLine) -> [LyricsWordDto]? {
+        let words = line.words
+        guard !words.isEmpty else { return nil }
+
+        // 优先用词自带文本（若上游下发了 <text>）
+        if words.allSatisfy({ !($0.text ?? "").isEmpty }) {
+            return words.map { LyricsWordDto(text: $0.text ?? "", startMs: $0.starttime) }
+        }
+
+        let tokens = line.linestring.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        guard tokens.count == words.count else {
+            writeDebugLog("[Petit] word text unavailable — tokens \(tokens.count) vs words \(words.count): \"\(line.linestring.prefix(60))\"")
+            return nil
+        }
+        return zip(tokens, words).map { LyricsWordDto(text: $0, startMs: $1.starttime) }
     }
 }
