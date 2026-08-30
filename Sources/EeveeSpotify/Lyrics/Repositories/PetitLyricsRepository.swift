@@ -106,6 +106,13 @@ class PetitLyricsRepository: LyricsRepository {
             else {
                 throw LyricsError.decodingError
             }
+
+            if !Self.didDumpRawXml {
+                Self.didDumpRawXml = true
+                if let xml = String(data: lyricsData, encoding: .utf8) {
+                    writeDebugLog("[Petit] raw XML head: \(xml.prefix(1000))")
+                }
+            }
             
             let preserveWords = NgzhwmSettingsViewModel.isWordByWordLyricsEnabled
             writeDebugLog("[Petit] Words-synced lyrics — \(lyrics.lines.count) line(s)\(preserveWords ? " (word-by-word preserved)" : "")")
@@ -138,8 +145,10 @@ class PetitLyricsRepository: LyricsRepository {
         }
     }
 
+    private static var didDumpRawXml = false
+
     /// Petit 的 wordsSynced 词元素通常只带 starttime、不带词文本，
-    /// 词文本需按空白切分 linestring 后按序对齐词数。
+    /// 词文本需从 linestring 推导：先按空白切分；日语无空格时按逐字符切分对齐词数。
     private static func wordDto(for line: PetitLyricsLine) -> [LyricsWordDto]? {
         let words = line.words
         guard !words.isEmpty else { return nil }
@@ -149,11 +158,19 @@ class PetitLyricsRepository: LyricsRepository {
             return words.map { LyricsWordDto(text: $0.text ?? "", startMs: $0.starttime) }
         }
 
+        // 按空白切分
         let tokens = line.linestring.split(whereSeparator: { $0.isWhitespace }).map(String.init)
-        guard tokens.count == words.count else {
-            writeDebugLog("[Petit] word text unavailable — tokens \(tokens.count) vs words \(words.count): \"\(line.linestring.prefix(60))\"")
-            return nil
+        if tokens.count == words.count {
+            return zip(tokens, words).map { LyricsWordDto(text: $0, startMs: $1.starttime) }
         }
-        return zip(tokens, words).map { LyricsWordDto(text: $0, startMs: $1.starttime) }
+
+        // 日语等无空格连续文本：按逐字符切分对齐词数（Petit 的日语词粒度≈单个假名/汉字）
+        let chars = line.linestring.filter { !$0.isWhitespace }.map(String.init)
+        if chars.count == words.count {
+            return zip(chars, words).map { LyricsWordDto(text: $0, startMs: $1.starttime) }
+        }
+
+        writeDebugLog("[Petit] word text unavailable — tokens \(tokens.count)/chars \(chars.count) vs words \(words.count): \"\(line.linestring.prefix(60))\"")
+        return nil
     }
 }
