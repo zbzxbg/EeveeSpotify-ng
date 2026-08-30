@@ -44,7 +44,7 @@ LRCLIB: The most open service, offering time-synced lyrics. However, it lacks ly
 Musixmatch: The service Spotify uses. Provides time-synced lyrics for many songs, but you'll need a user token to use this source.";
 lyrics_additional_info = "If the tweak is unable to find a song or process the lyrics, you'll see a \"Couldn't load the lyrics for this song\" message. When using Genius or NetEase, some songs may have incorrect lyrics or display errors because their search method differs from other lyrics providers.";
 petitlyrics_description = "PetitLyrics: Offers plenty of Japanese lyrics.";
-spicylyrics_description = "SpicyLyrics: A lyrics provider serving the desktop Spotify client. It features word-by-word highlighted lyrics (currently unavailable on mobile) and lyrics for some songs that other providers do not have. Visit spicylyrics.org for more details.";
+spicylyrics_description = "SpicyLyrics: A lyrics provider serving the desktop Spotify client. It features word-by-word highlighted lyrics and lyrics for some songs that other providers do not have. Visit spicylyrics.org for more details.";
 netease_description = "NetEase: A lyrics provider mainly serving mainland China. Lyrics for some songs may be updated faster than Genius, and most lyrics come with timestamps. However, support for users outside mainland China is weaker, and lyrics may be incorrect or timestamps may be misaligned.";
 
 musixmatch_user_token = "Musixmatch User Token";
