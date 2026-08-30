@@ -220,17 +220,11 @@ class SpicyLyricsRepository: LyricsRepository {
         var lines        = [LyricsLineDto]()
         var hasRomanized = root["HasTransliterations"]?.boolValue ?? false
 
-        let preserveWords = NgzhwmSettingsViewModel.isWordByWordLyricsEnabled
-        if preserveWords {
-            writeDebugLog("[SpicyLyrics] Word-by-word enabled — preserving syllable timings")
-        }
-
         for entry in content {
             guard entry["Type"]?.stringValue == "Vocal",
                   let lead = entry["Lead"] else { continue }
 
             let lineText: String
-            var words: [LyricsWordDto]? = nil
             if let syllables = lead["Syllables"]?.arrayValue, !syllables.isEmpty {
                 // Real client rule (Syllable.ts): a syllable with IsPartOfWord=true
                 // attaches directly to the previous syllable (continues the same
@@ -238,40 +232,15 @@ class SpicyLyricsRepository: LyricsRepository {
                 // word and needs a preceding space. Plain .joined() (no separator)
                 // ignored this entirely, producing "Doyourecall,notlongago?".
                 var text = ""
-                var collected: [LyricsWordDto] = []
-                var currentText = ""
-                var currentStart: Int? = nil
-                var currentEnd: Int? = nil
                 for syllable in syllables {
                     guard let syllableText = syllable["Text"]?.stringValue else { continue }
                     let isPartOfWord = syllable["IsPartOfWord"]?.boolValue ?? false
-                    let start = syllable["StartTime"]?.doubleValue.map { Int($0 * 1000) }
-                    let end = syllable["EndTime"]?.doubleValue.map { Int($0 * 1000) }
                     if !text.isEmpty && !isPartOfWord {
                         text += " "
                     }
                     text += syllableText
-                    if preserveWords {
-                        if isPartOfWord {
-                            currentText += syllableText
-                            if currentStart == nil { currentStart = start }
-                        } else {
-                            if !currentText.isEmpty {
-                                collected.append(
-                                    LyricsWordDto(text: currentText, startMs: currentStart ?? 0, endMs: currentEnd)
-                                )
-                            }
-                            currentText = syllableText
-                            currentStart = start
-                        }
-                        currentEnd = end
-                    }
-                }
-                if preserveWords, !currentText.isEmpty {
-                    collected.append(LyricsWordDto(text: currentText, startMs: currentStart ?? 0, endMs: currentEnd))
                 }
                 lineText = text
-                words = preserveWords ? collected : nil
                 if syllables.contains(where: { ($0["TransliteratedText"]?.stringValue ?? "").isEmpty == false }) {
                     hasRomanized = true
                 }
@@ -284,22 +253,14 @@ class SpicyLyricsRepository: LyricsRepository {
             if (lead["TransliteratedText"]?.stringValue ?? "").isEmpty == false { hasRomanized = true }
 
             let offsetMs = lead["StartTime"]?.doubleValue.map { Int($0 * 1000) }
-            lines.append(LyricsLineDto(content: lineText.lyricsNoteIfEmpty, offsetMs: offsetMs, words: words))
+            lines.append(LyricsLineDto(content: lineText.lyricsNoteIfEmpty, offsetMs: offsetMs))
         }
-
-        // 删除歌曲术语标识（与 Genius 一致）
-        lines = lines.filter { !GeniusLyricsRepository.isNonLyricLine($0.content) }
 
         let romanization: LyricsRomanizationStatus = hasRomanized
             ? .romanized
             : (lines.map(\.content).canBeRomanized ? .canBeRomanized : .original)
 
-        return LyricsDto(
-            lines: lines,
-            timeSynced: true,
-            romanization: romanization,
-            languageCode: lines.map(\.content).romanizationLanguageCode
-        )
+        return LyricsDto(lines: lines, timeSynced: true, romanization: romanization)
     }
 
     // MARK: Line lyrics
@@ -317,38 +278,24 @@ class SpicyLyricsRepository: LyricsRepository {
             lines.append(LyricsLineDto(content: text.lyricsNoteIfEmpty, offsetMs: startTime.map { Int($0 * 1000) }))
         }
 
-        // 删除歌曲术语标识（与 Genius 一致）
-        lines = lines.filter { !GeniusLyricsRepository.isNonLyricLine($0.content) }
-
         let romanization: LyricsRomanizationStatus = hasRomanized
             ? .romanized
             : (lines.map(\.content).canBeRomanized ? .canBeRomanized : .original)
 
-        return LyricsDto(
-            lines: lines,
-            timeSynced: true,
-            romanization: romanization,
-            languageCode: lines.map(\.content).romanizationLanguageCode
-        )
+        return LyricsDto(lines: lines, timeSynced: true, romanization: romanization)
     }
 
     // MARK: Static lyrics
 
     private func parseStaticLyrics(_ root: SLObjPackValue) -> LyricsDto {
         let rawLines = root["Lines"]?.arrayValue ?? []
-        let texts = rawLines.compactMap { $0["Text"]?.stringValue }
-        // 删除歌曲术语标识（与 Genius 一致，含首尾空行处理）
-        let lines = GeniusLyricsRepository.mapLyricsLines(texts).map {
-            LyricsLineDto(content: $0.lyricsNoteIfEmpty, offsetMs: nil)
+        let lines = rawLines.compactMap { entry -> LyricsLineDto? in
+            guard let text = entry["Text"]?.stringValue else { return nil }
+            return LyricsLineDto(content: text.lyricsNoteIfEmpty, offsetMs: nil)
         }
         let romanization: LyricsRomanizationStatus = lines.map(\.content).canBeRomanized
             ? .canBeRomanized : .original
-        return LyricsDto(
-            lines: lines,
-            timeSynced: false,
-            romanization: romanization,
-            languageCode: lines.map(\.content).romanizationLanguageCode
-        )
+        return LyricsDto(lines: lines, timeSynced: false, romanization: romanization)
     }
 
     private func emptyDto() -> LyricsDto {
