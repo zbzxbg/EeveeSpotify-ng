@@ -49,6 +49,6 @@ See the complete license in the [LICENSE](LICENSE) file.
 Thanks to [whoeevee⁠](https://github.com/whoeevee) for the original EeveeSpotify project.
 
 Thanks to [SideloadLabs](https://github.com/SideloadLabs/EeveeSpotifyReincarnated) for creating the SpicyLyrics lyrics provider, as well as the logging and export functionality. The relevant code has been modified to fit this project.
-————————————
+
 
 - [Changelog](CHANGELOG.md)
