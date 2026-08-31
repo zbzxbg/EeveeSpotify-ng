@@ -27,7 +27,7 @@ Verified environment: iPhone 11 + iOS 26.6.1 + certificate-signed build + LCSign
 
 This project is licensed under the GNU General Public License v3.0.
 
-Latest public release: `v4.1.0`
+Latest public release: `v5.0.0`
 
 Current development version: `v5.0.0-beta.19`
 
