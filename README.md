@@ -2,6 +2,12 @@
 
 Based on [EeveeSpotify](https://github.com/whoeevee/EeveeSpotifyReborn).
 
+Latest public release: `v5.0.0`
+
+Current development version: `N/A`
+
+Development version last updated: 2026-08-31
+
 ## 📌 Overview
 
 The original repository was taken down under a [DMCA notice](https://github.com/github/dmca/blob/master/2025/08/2025-08-14-spotify.md). This fork is independently maintained by me and is not affiliated with the original author, whoeevee.
@@ -28,12 +34,6 @@ The modified features in this fork have been verified to work in this environmen
 ## 📄 License
 
 This project is licensed under the GNU General Public License v3.0.
-
-Latest public release: `v5.0.0`
-
-Current development version: `N/A`
-
-Development version last updated: 2026-08-31
 
 See the complete license in the [LICENSE](LICENSE) file.
 
