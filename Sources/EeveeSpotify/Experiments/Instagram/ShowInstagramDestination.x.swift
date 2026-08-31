@@ -9,6 +9,7 @@ class SPTSharingSDKHook: ClassHook<NSObject> {
     
     func canHandleShareDestination(_ destination: SPTSharingSDKDestination) -> Bool {
         if destination.destinationID().contains("instagram") {
+            writeDebugLog("[Instagram] Forcing Instagram share destination")
             return true
         }
         

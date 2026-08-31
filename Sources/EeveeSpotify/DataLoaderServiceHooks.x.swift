@@ -182,7 +182,8 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
                 // 允许系统继续接收数据（真实错误数据会被我们在 didReceiveData 中忽略）
                 orig.URLSession(session, dataTask: task, didReceiveResponse: okResponse, completionHandler: handler)
                 return
-            } catch {
+            } catch let caughtError {
+                writeErrorLog("[DL] Custom lyrics failed in didReceiveResponse: \(caughtError)")
                 // 自定义歌词失败时透传原始响应，让官方错误流程处理，不再伪造空歌词。
                 orig.URLSession(session, dataTask: task, didReceiveResponse: response, completionHandler: handler)
                 return
@@ -277,7 +278,8 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
                 do {
                     let data = try getLyricsDataForCurrentTrack(url.path)
                     sendDataAndComplete(data, task: task, session: session, error: nil)
-                } catch {
+                } catch let caughtError {
+                    writeErrorLog("[DL] Custom lyrics failed (non-200 fallback): \(caughtError)")
                     orig.URLSession(session, task: task, didCompleteWithError: error)
                 }
             }
@@ -353,7 +355,8 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
                     // 理论上不会发生，回退原始数据
                     sendDataAndComplete(buffer, task: task, session: session, error: nil)
                 }
-            } catch {
+            } catch let caughtError {
+                writeErrorLog("[DL] Buffered lyrics replacement failed: \(caughtError)")
                 if url.isLyrics, let pendingResponse {
                     // 自定义歌词失败时返回 HTTP 错误响应。此时 Spotify 尚未收到
                     // 原始 2xx 响应，才能进入原有的黑色“无歌词”错误界面。

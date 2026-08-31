@@ -2,6 +2,7 @@ import Orion
 import UIKit
 
 private func showHighQualityPopUp() {
+    writeDebugLog("[PREMIUM] Showing high-audio-quality popup")
     PopUpHelper.showPopUp(
         message: "high_audio_quality_popup".localized,
         buttonText: "OK".uiKitLocalized
@@ -9,6 +10,7 @@ private func showHighQualityPopUp() {
 }
 
 private func showPlaylistDownloadingPopUp(_ isPlaylist: Bool, onSecondaryClick: (() -> Void)?) {
+    writeDebugLog("[PREMIUM] Showing playlist downloading popup (isPlaylist=\(isPlaylist))")
     PopUpHelper.showPopUp(
         message: "playlist_downloading_popup".localized,
         buttonText: "OK".uiKitLocalized,

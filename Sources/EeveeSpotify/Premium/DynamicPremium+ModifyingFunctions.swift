@@ -2,10 +2,12 @@ import Foundation
 import UIKit
 
 func modifyRemoteConfiguration(_ configuration: inout UcsResponse) {
+    writeDebugLog("[PREMIUM] Modifying remote configuration")
     modifyAttributes(&configuration.attributes.accountAttributes)
     
     if UserDefaults.overwriteConfiguration {
         configuration.resolve.configuration = try! BundleHelper.shared.resolveConfiguration()
+        writeDebugLog("[PREMIUM] Overwriting remote configuration with bundled one")
     }
     else {
         modifyAssignedValues(&configuration.assignedValues)

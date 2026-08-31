@@ -11,14 +11,7 @@ private let eeveeLogger = Logger(
     category: "debug"
 )
 
-func writeDebugLog(_ message: String) {
-    // 受设置开关控制：关闭时既不写统一日志，也不写导出文件。
-    guard UserDefaults.enableLogRecording else { return }
-
-    // Console：真正的 debug 级别。
-    eeveeLogger.debug("\(message, privacy: .public)")
-
-    // 导出文件：沿用追加到临时文件的既有行为。
+private func appendLogFile(_ message: String) {
     let logPath = NSTemporaryDirectory() + "eeveespotify_debug.log"
     let timestamp = Date().description
     let logMessage = "[\(timestamp)] \(message)\n"
@@ -34,6 +27,27 @@ func writeDebugLog(_ message: String) {
     } else {
         try? logMessage.write(toFile: logPath, atomically: true, encoding: .utf8)
     }
+}
+
+func writeDebugLog(_ message: String) {
+    // 受设置开关控制：关闭时既不写统一日志，也不写导出文件。
+    guard UserDefaults.enableLogRecording else { return }
+
+    // Console：真正的 debug 级别。
+    eeveeLogger.debug("\(message, privacy: .public)")
+
+    // 导出文件：沿用追加到临时文件的既有行为。
+    appendLogFile(message)
+}
+
+/// 错误级日志：统一日志走 .error 级（可在 Console 按 error/fault 过滤），
+/// 导出文件加 [ERROR] 前缀。仍受「启用日志记录」开关控制。
+func writeErrorLog(_ message: String) {
+    guard UserDefaults.enableLogRecording else { return }
+
+    eeveeLogger.error("\(message, privacy: .public)")
+
+    appendLogFile("[ERROR] \(message)")
 }
 
 func exitApplication() {

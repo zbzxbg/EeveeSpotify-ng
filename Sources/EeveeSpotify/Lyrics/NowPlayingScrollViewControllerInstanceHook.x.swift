@@ -14,6 +14,7 @@ class LegacyNowPlayingPlatformSwiftServiceImplementationHook: ClassHook<NSObject
     
     func provideStatefulPlayer() -> StatefulPlayerImplementation {
         statefulPlayer = orig.provideStatefulPlayer()
+        writeDebugLog("[Lyrics] statefulPlayer resolved (legacy)")
         return statefulPlayer!
     }
 }
@@ -24,6 +25,7 @@ class NowPlayingPlatformSwiftServiceImplementationHook: ClassHook<NSObject> {
     
     func provideStatefulPlayerWithFeatureIdentifier(_ identifier: NSString) -> StatefulPlayerImplementation {
         statefulPlayer = orig.provideStatefulPlayerWithFeatureIdentifier(identifier)
+        writeDebugLog("[Lyrics] statefulPlayer resolved (feature: \(identifier))")
         return statefulPlayer!
     }
 }
@@ -40,6 +42,7 @@ class NowPlayingScrollPrivateServiceImplementationHook: ClassHook<NSObject> {
                 scrollViewController,
                 to: NowPlayingScrollViewController.self
             )
+            writeDebugLog("[Lyrics] Captured NowPlayingScrollViewController")
         }
         else {
             scrollDataSource = Ivars<NowPlayingScrollDataSourceImplementation>(target)
@@ -48,6 +51,7 @@ class NowPlayingScrollPrivateServiceImplementationHook: ClassHook<NSObject> {
                 scrollViewController,
                 to: NPVScrollViewController.self
             )
+            writeDebugLog("[Lyrics] Captured NPVScrollViewController + scrollDataSource")
         }
         
         backgroundViewModel = Ivars<SPTNowPlayingBackgroundViewModel>(dependencies)

@@ -40,6 +40,7 @@ class SPTEncorePopUpContainerHook: ClassHook<UIViewController> {
     
     func viewDidAppear(_ animated: Bool) {
         orig.viewDidAppear(animated)
+        writeDebugLog("[DarkPopUps] Styled popup container background")
         containedView().uiView().backgroundColor = UIColor(Color(hex: "#242424"))
     }
 }

@@ -14,6 +14,7 @@ class INMediaItemHook: ClassHook<INMediaItem> {
                 
             if let feedbackDetails = json["feedback_details"] as? [String: Any],
                feedbackDetails["restriction"] as? String == "play-as-radio" {
+                writeDebugLog("[PREMIUM] Rewrote Siri play-as-radio command (removed :station)")
                 var context = json["context"] as! [String: Any]
                 
                 let urlString = context["url"] as! String

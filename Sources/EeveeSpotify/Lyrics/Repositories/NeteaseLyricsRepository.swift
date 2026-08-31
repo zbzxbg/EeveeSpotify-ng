@@ -251,7 +251,8 @@ class NeteaseLyricsRepository: LyricsRepository {
                 throw LyricsError.decodingError
             }
             bodyText = text
-        } catch {
+        } catch let encodingError {
+            writeErrorLog("[NetEase] weapi JSONSerialization failure: \(encodingError)")
             throw LyricsError.decodingError
         }
 

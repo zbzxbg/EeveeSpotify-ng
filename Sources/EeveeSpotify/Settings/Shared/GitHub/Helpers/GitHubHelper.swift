@@ -12,8 +12,9 @@ struct GitHubHelper {
     
     private func perform(_ path: String) async throws -> Data {
         let url = URL(string: "\(apiUrl)\(path)")!
+        writeDebugLog("[GitHub] GET \(path)")
         let (data, _) = try await URLSession.shared.data(from: url)
-        
+        writeDebugLog("[GitHub] \(path) -> \(data.count) bytes")
         return data
     }
     

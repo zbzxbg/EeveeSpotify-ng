@@ -18,6 +18,8 @@ class ErrorViewControllerHook: ClassHook<UIViewController> {
             return
         }
 
+        writeDebugLog("[Lyrics] Hide on error — removing lyrics provider")
+
         if let controller = nowPlayingScrollViewController {
             controller.dataSource.activeProviders.removeAll {
                 NSStringFromClass(type(of: $0)) == HookTargetNameHelper.lyricsScrollProvider

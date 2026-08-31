@@ -33,6 +33,10 @@ class URLSessionHelper {
     }
     
     func obtainData(for url: URL) -> Data? {
-        return requestsMap.removeValue(forKey: url)
+        let data = requestsMap.removeValue(forKey: url)
+        if data == nil {
+            writeDebugLog("[URLSession] Cache miss for \(url.absoluteString)")
+        }
+        return data
     }
 }

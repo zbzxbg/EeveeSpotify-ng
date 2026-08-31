@@ -129,7 +129,8 @@ struct EeveeSettingsVersionView: View {
                 throw VersionCheckError.invalidVersion
             }
             latestVersion = version.normalized
-        } catch {
+        } catch let versionCheckError {
+            writeDebugLog("[VersionCheck] Failed to fetch latest release: \(versionCheckError)")
             latestVersion = EeveeSpotify.version
         }
     }

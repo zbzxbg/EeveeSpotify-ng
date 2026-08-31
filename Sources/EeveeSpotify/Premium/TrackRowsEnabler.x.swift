@@ -11,6 +11,7 @@ class SPTFreeTierArtistHubRemoteURLResolverHook: ClassHook<NSObject> {
         trackRowsEnabled: Bool,
         productState: NSObject
     ) -> Target {
+        writeDebugLog("[PREMIUM] Enabling track rows (forced trackRowsEnabled=true)")
         return orig.initWithViewURI(
             uri,
             onDemandSet: onDemandSet,

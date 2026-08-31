@@ -10,6 +10,7 @@ class UITableViewHook: ClassHook<UITableView> {
         animated: Bool
     ) {
         if target.numberOfRows(inSection: indexPath.section) == 0 {
+            writeDebugLog("[Lyrics] Skip scrollToRow (empty section) — crash fix")
             return
         }
         

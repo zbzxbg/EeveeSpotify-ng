@@ -99,7 +99,8 @@ class LrclibLyricsRepository: LyricsRepository {
 
         do {
             song = try getSong(trackName: query.title, artistName: query.primaryArtist)
-        } catch {
+        } catch let firstError {
+            writeDebugLog("[LRCLIB] Initial fetch failed (retrying stripped title): \(firstError)")
             let strippedTitle = query.title.strippedTrackTitle
             do {
                 song = try getSong(trackName: strippedTitle, artistName: query.primaryArtist)

@@ -23,7 +23,8 @@ class SPTPlayerTrackHook: ClassHook<NSObject> {
               absoluteString.isLocalTrackIdentifier else {
             return uri
         }
-        
+
+        writeDebugLog("[Lyrics] Overriding local track URI → spotify:track:")
         return NSURL(string: "spotify:track:")!
     }
 }
@@ -43,6 +44,7 @@ class NPVScrollViewControllerHook: ClassHook<NSObject> {
 
     func viewWillAppear(_ animated: Bool) {
         shouldOverrideLocalTrackURI = true
+        writeDebugLog("[Lyrics] NPV scroll — enabling local track URI override")
         orig.viewWillAppear(animated)
     }
     

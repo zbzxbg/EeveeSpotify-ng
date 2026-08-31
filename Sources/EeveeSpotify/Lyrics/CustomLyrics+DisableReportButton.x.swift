@@ -22,6 +22,8 @@ class LyricsFullscreenViewControllerHook: ClassHook<UIViewController> {
             return
         }
         
+        writeDebugLog("[Lyrics] Disabling lyrics report button")
+
         if EeveeSpotify.hookTarget == .latest {
             guard let fullscreenView = WindowHelper.shared.findFirstSubview(
                 "Lyrics_FullscreenElementPageImpl.FullscreenView",
