@@ -221,8 +221,10 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
     private var lastDiagnosticLog: Date = .distantPast
     /// 当前行在视口中的目标位置（距顶部比例）：0.40 = 视口上方约 40% 处。
     private let activeLineViewportFraction: CGFloat = 0.40
+    /// 自动滚动动画时长（秒），越小越「干脆」。
+    private let scrollAnimationDuration: TimeInterval = 0.15
     /// 歌词行字号（对照 Spotify 原生歌词放大）。
-    private let lyricsFontSize: CGFloat = 28
+    private let lyricsFontSize: CGFloat = 24
     /// 歌词行左右内边距（对照「歌词」标题的左缩进）；全屏歌词可单独调大。
     private var lyricsSideInset: CGFloat = 16
     /// 歌词块顶部留白（未滚动时第一行的起始高度）。
@@ -383,17 +385,19 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
 
         if bestLine != activeLineIndex {
             // 行切换：整列表重涂 —— 已唱过/当前行白、未到行黑（Spotify 原生样式）。
-            // 当前行的加粗/词高亮随后由 applyHighlight 叠加。
             repaintAllLines(upTo: bestLine)
             activeLineIndex = bestLine
+            // 只在行切换时滚动；词切换不重复滚动，避免动画被反复打断产生卡顿
+            if bestLine >= 0 {
+                scrollToLine(bestLine)
+            } else {
+                // 回到歌曲开头（当前时间早于第一行）时滚回顶部
+                scrollToTop()
+            }
         }
         activeWordIndex = bestWord
         if bestLine >= 0 {
             applyHighlight(to: bestLine, wordIndex: bestWord)
-            scrollToLine(bestLine)
-        } else {
-            // 回到歌曲开头（当前时间早于第一行）时滚回顶部，避免歌词停在中间。
-            scrollToTop()
         }
     }
 
@@ -601,9 +605,15 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
         // 当前行定位到视口上方约 1/3 处，而不是 scrollRectToVisible 那样贴到最底部。
         let targetY = rect.minY - scrollView.bounds.height * activeLineViewportFraction
         let maxY = max(0, scrollView.contentSize.height - scrollView.bounds.height)
-        scrollView.setContentOffset(
-            CGPoint(x: 0, y: min(max(0, targetY), maxY)),
-            animated: true
+        let target = CGPoint(x: 0, y: min(max(0, targetY), maxY))
+        // 自定义更短的动画时长，让自动滚动更干脆（贴近 Spotify 手感）
+        UIView.animate(
+            withDuration: scrollAnimationDuration,
+            delay: 0,
+            options: [.curveEaseOut],
+            animations: { [weak self] in
+                self?.scrollView.setContentOffset(target, animated: false)
+            }
         )
     }
 
