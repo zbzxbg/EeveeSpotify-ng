@@ -678,3 +678,10 @@ Additional notes:
 - Improved translations in the EeveeSpotify menu.
 
 </details>
+
+<details>
+<summary><b>v5.0.0-beta.19</b></summary>
+
+- Improved translations in the EeveeSpotify menu.
+
+</details>
