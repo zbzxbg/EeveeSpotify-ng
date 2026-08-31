@@ -383,10 +383,22 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
 
         if bestLine == activeLineIndex && bestWord == activeWordIndex { return }
 
-        if bestLine != activeLineIndex {
-            // 行切换：整列表重涂 —— 已唱过/当前行白、未到行黑（Spotify 原生样式）。
-            repaintAllLines(upTo: bestLine)
+        let lineChanged = bestLine != activeLineIndex
+
+        if lineChanged {
+            let oldIndex = activeLineIndex
             activeLineIndex = bestLine
+
+            if bestLine == oldIndex + 1 {
+                // 正常前进：只更新旧/新两行，crossfade 平滑黑白切换，消除闪烁
+                if oldIndex >= 0, oldIndex < lineLabels.count {
+                    crossfade(lineLabels[oldIndex]) { self.applyPlain(to: oldIndex) }
+                }
+            } else {
+                // 跳转/回退：整列表重涂 —— 已唱过/当前行白、未到行黑
+                repaintAllLines(upTo: bestLine)
+            }
+
             // 只在行切换时滚动；词切换不重复滚动，避免动画被反复打断产生卡顿
             if bestLine >= 0 {
                 scrollToLine(bestLine)
@@ -395,9 +407,14 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
                 scrollToTop()
             }
         }
+
         activeWordIndex = bestWord
         if bestLine >= 0 {
-            applyHighlight(to: bestLine, wordIndex: bestWord)
+            if lineChanged {
+                crossfade(lineLabels[bestLine]) { self.applyHighlight(to: bestLine, wordIndex: bestWord) }
+            } else {
+                applyHighlight(to: bestLine, wordIndex: bestWord)
+            }
         }
     }
 
@@ -471,6 +488,20 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
             label.text = displayTexts[index]
             label.textColor = index <= activeIndex ? activeLineColorValue : lineColor
         }
+    }
+
+    /// 把某一行重置为纯白（已唱状态）。
+    private func applyPlain(to lineIndex: Int) {
+        guard lineIndex >= 0, lineIndex < lineLabels.count else { return }
+        let label = lineLabels[lineIndex]
+        label.attributedText = nil
+        label.text = displayTexts[lineIndex]
+        label.textColor = activeLineColorValue
+    }
+
+    /// 用 crossfade 平滑某个 label 的外观切换（消除行切换时的整行闪烁）。
+    private func crossfade(_ label: UILabel, _ update: @escaping () -> Void) {
+        UIView.transition(with: label, duration: 0.15, options: [.transitionCrossDissolve], animations: update)
     }
 
     /// 当前行内部按「已唱/正在唱/未唱」上色（Apple Music 式行内点亮）：
