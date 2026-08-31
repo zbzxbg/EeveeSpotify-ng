@@ -18,16 +18,21 @@ The modified features in this fork have been verified to work in this environmen
 
 ## 🔧 Modifications
 
-* Multi-level lyrics fallback.
-* Independent controls for romanization of Chinese, Japanese, and Korean lyrics.
-* You can now experience word-by-word lyrics in EeveeSpotify! 
-* And other modifications and improvements.
+Added two additional lyrics providers (NetEase and SpicyLyrics)
+
+Independent controls for romanization of Chinese, Japanese, and Korean lyrics.
+
+Implemented karaoke-style lyrics.
+
+And other modifications and improvements.
 
 ## ⚠️ Disclaimer
 
-* Tested with Spotify 9.1.0 only. Compatibility with other Spotify versions is unknown.
-* No IPA package is provided.
-* Localization currently includes English and Simplified Chinese only. Localization files for other languages have been removed from this repository for maintenance purposes.
+Tested with Spotify 9.1.0 only. Compatibility with other Spotify versions is unknown.
+
+No IPA package is provided.
+
+Localization currently includes English and Simplified Chinese only. Localization files for other languages have been removed from this repository for maintenance purposes.
 
 
 
@@ -43,8 +48,7 @@ See the complete license in the [LICENSE](LICENSE) file.
 
 Thanks to [whoeevee⁠](https://github.com/whoeevee) for the original EeveeSpotify project.
 
-Thanks to [SideloadLabs](https://github.com/SideloadLabs/EeveeSpotifyReincarnated) for the SpicyLyrics provider implementation and parts of the logging/export functionality. The relevant code has been modified to fit this project.
-
+Thanks to [SideloadLabs](https://github.com/SideloadLabs/EeveeSpotifyReincarnated) for creating the SpicyLyrics lyrics provider, as well as the logging and export functionality. The relevant code has been modified to fit this project.
 ————————————
 
 - [Changelog](CHANGELOG.md)
