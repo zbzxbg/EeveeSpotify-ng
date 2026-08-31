@@ -4,7 +4,7 @@ Based on [EeveeSpotify](https://github.com/whoeevee/EeveeSpotifyReborn).
 
 ## 📌 Overview
 
-The original repository was taken down under a [DMCA notice](https://github.com/github/dmca/blob/master/2025/08/2025-08-14-spotify.md). This fork is maintained independently and is not affiliated with the original author, whoeevee.
+The original repository was taken down under a [DMCA notice](https://github.com/github/dmca/blob/master/2025/08/2025-08-14-spotify.md). This fork is independently maintained by me and is not affiliated with the original author, whoeevee.
 
 Verified environment: iPhone 11 + iOS 26.6.1 + certificate-signed build + LCSign + rootless DEB. 
 
