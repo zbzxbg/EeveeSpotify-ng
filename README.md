@@ -26,7 +26,7 @@ Implemented karaoke-style lyrics.
 
 And other modifications and improvements.
 
-## ⚠️ Disclaimer
+## ⚠️ Notice
 
 Tested with Spotify 9.1.0 only. Compatibility with other Spotify versions is unknown.
 
