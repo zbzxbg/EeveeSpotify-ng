@@ -685,3 +685,10 @@ Additional notes:
 - Improved translations in the EeveeSpotify menu.
 
 </details>
+
+<details>
+<summary><b>v5.0.0</b></summary>
+
+- Karaoke lyrics are now available on EeveeSpotify! (Preview)
+
+</details>
