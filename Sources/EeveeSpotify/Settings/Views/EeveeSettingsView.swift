@@ -144,6 +144,12 @@ struct EeveeSettingsView: View {
                 
                 Button {
                     let logPath = NSTemporaryDirectory() + "eeveespotify_debug.log"
+                    guard FileManager.default.fileExists(atPath: logPath),
+                          let logData = FileManager.default.contents(atPath: logPath),
+                          logData.count > 0 else {
+                        PopUpHelper.showPopUp(message: "no_log_to_clear".localized, buttonText: "no_log_to_clear_ok".localized)
+                        return
+                    }
                     try? "".write(toFile: logPath, atomically: true, encoding: .utf8)
                     writeDebugLog("Log cleared by user")
                     PopUpHelper.showPopUp(message: "debug_log_cleared".localized, buttonText: "debug_log_cleared_ok".localized)

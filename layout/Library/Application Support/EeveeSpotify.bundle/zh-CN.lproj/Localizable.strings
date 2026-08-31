@@ -160,3 +160,5 @@ debug_log_cleared = "调试日志已清除。";
 debug_log_cleared_ok = "确定";
 no_debug_log_found = "未找到调试日志。";
 no_debug_log_found_ok = "确定";
+no_log_to_clear = "无任何日志需要清除。";
+no_log_to_clear_ok = "确定";
