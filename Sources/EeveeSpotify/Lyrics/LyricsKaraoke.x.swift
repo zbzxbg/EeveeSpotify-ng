@@ -193,6 +193,8 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
     private var wordRanges: [[Range<String.Index>]] = []
     private var wordIndices: [[Int]] = []
     private var providerLabel: UILabel?
+    /// 是否在底部显示「歌词提供者」（全屏显示，内嵌不显示）。
+    var showsProviderFooter = false
 
     private var dto: LyricsDto?
     private var dtoVersion = -1
@@ -208,6 +210,9 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
     /// 顶部渐隐层（scrim）：背景色 → 透明，让上滚的歌词在顶部渐隐退出。
     private let topFadeView = UIView()
     private let topFadeLayer = CAGradientLayer()
+    /// 底部渐隐层（scrim）：透明 → 背景色，让从底部进入的歌词渐隐进入。
+    private let bottomFadeView = UIView()
+    private let bottomFadeLayer = CAGradientLayer()
     private let topFadeHeight: CGFloat = 48
 
     /// 手动滚动时暂停自动跟随，直到该时间点
@@ -239,9 +244,16 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        // 渐隐层贴在安全区顶部：全屏时让开状态栏；内嵌模块 safe top = 0，行为不变。
+        // 顶部渐隐贴安全区顶部，底部渐隐贴安全区底部。
         topFadeView.frame = CGRect(x: 0, y: safeAreaInsets.top, width: bounds.width, height: topFadeHeight)
         topFadeLayer.frame = topFadeView.bounds
+        bottomFadeView.frame = CGRect(
+            x: 0,
+            y: bounds.height - safeAreaInsets.bottom - topFadeHeight,
+            width: bounds.width,
+            height: topFadeHeight
+        )
+        bottomFadeLayer.frame = bottomFadeView.bounds
     }
 
     /// 调整歌词行左右边距（全屏用到更大的左边距时调用）。
@@ -261,6 +273,12 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
         topFadeView.isUserInteractionEnabled = false
         topFadeView.isHidden = true
 
+        bottomFadeLayer.startPoint = CGPoint(x: 0.5, y: 0)
+        bottomFadeLayer.endPoint = CGPoint(x: 0.5, y: 1)
+        bottomFadeView.layer.addSublayer(bottomFadeLayer)
+        bottomFadeView.isUserInteractionEnabled = false
+        bottomFadeView.isHidden = true
+
         scrollView.delegate = self
         scrollView.showsVerticalScrollIndicator = true
         scrollView.translatesAutoresizingMaskIntoConstraints = false
@@ -273,6 +291,7 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
         addSubview(scrollView)
         scrollView.addSubview(stackView)
         addSubview(topFadeView)
+        addSubview(bottomFadeView)
 
         NSLayoutConstraint.activate([
             scrollView.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor),
@@ -308,6 +327,7 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
             backgroundColor = .clear
             stackView.isHidden = true
             topFadeView.isHidden = true
+            bottomFadeView.isHidden = true
             isUserInteractionEnabled = false   // 回退原生时让触摸穿透，别挡住原生歌词滚动
             return
         }
@@ -320,9 +340,13 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
                 targetBackground.cgColor,
                 targetBackground.withAlphaComponent(0).cgColor
             ]
+            bottomFadeLayer.colors = [
+                targetBackground.withAlphaComponent(0).cgColor,
+                targetBackground.cgColor
+            ]
             stackView.isHidden = false
             isUserInteractionEnabled = true
-            updateTopFadeVisibility()
+            updateFadeVisibility()
         }
 
         var bestLine = -1
@@ -405,13 +429,13 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
             wordIndices.append(indices)
         }
 
-        // 底部：歌词提供者（原生歌词表格 footer 里的信息，overlay 覆盖后需要补出来）
-        if !currentLyricsProvider.isEmpty {
+        // 底部：歌词提供者（仅全屏显示；原生歌词表格 footer 里的信息，overlay 覆盖后补出来）
+        if showsProviderFooter, !currentLyricsProvider.isEmpty {
             let footer = UILabel()
             footer.numberOfLines = 0
             footer.textAlignment = .left
             footer.font = .systemFont(ofSize: 14, weight: .regular)
-            footer.textColor = activeLineColorValue.withAlphaComponent(unsungWordOpacity)
+            footer.textColor = lineColor
             footer.text = "歌词提供者：\(currentLyricsProvider)"
             stackView.addArrangedSubview(footer)
             providerLabel = footer
@@ -546,14 +570,18 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        // 歌词滚离顶部时渐隐层才生效
-        updateTopFadeVisibility()
+        // 歌词滚到顶部/底部时对应渐隐层才隐藏（保证首尾行不被遮挡）
+        updateFadeVisibility()
     }
 
-    /// 歌词还在顶部（未滚动）时隐藏顶部渐隐层，保证第一行不被遮挡。
-    private func updateTopFadeVisibility() {
+    /// 顶部渐隐在歌词未滚动（在顶部）时隐藏，保证第一行不被遮挡；
+    /// 底部渐隐在歌词滚到底部时隐藏，保证最后一行/提供者不被遮挡。
+    private func updateFadeVisibility() {
         let atTop = scrollView.contentOffset.y <= 1
+        let maxY = max(0, scrollView.contentSize.height - scrollView.bounds.height)
+        let atBottom = scrollView.contentOffset.y >= maxY - 1
         topFadeView.isHidden = stackView.isHidden || atTop
+        bottomFadeView.isHidden = stackView.isHidden || atBottom
     }
 
     func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
@@ -622,11 +650,13 @@ final class KaraokeHost {
     /// contentView: overlay 挂到哪个视图（默认 VC 的 view；全屏歌词挂到内容子视图）。
     /// keepAboveView: 需要保留在 overlay 之上的原生控件（全屏歌词的分享/更多按钮），必须是 contentView 的直接子视图。
     /// sideInset: 覆盖层歌词行的左右边距（全屏可用更大值，默认用 overlay 自己的）。
+    /// showsProviderFooter: 是否在底部显示「歌词提供者」（全屏显示，内嵌不显示）。
     func attach(
         to controller: UIViewController,
         contentView: UIView? = nil,
         keepAboveView: UIView? = nil,
-        sideInset: CGFloat? = nil
+        sideInset: CGFloat? = nil,
+        showsProviderFooter: Bool = false
     ) {
         guard renderEnabled else { return }
         let view = contentView ?? controller.view
@@ -638,6 +668,7 @@ final class KaraokeHost {
 
         let overlayView = LyricsKaraokeOverlayView(frame: view.bounds)
         overlayView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        overlayView.showsProviderFooter = showsProviderFooter
         if let sideInset { overlayView.setSideInset(sideInset) }
         view.addSubview(overlayView)
         if let keepAboveView, keepAboveView.superview === view {
@@ -726,7 +757,7 @@ class LyricsKaraokeFullscreenModernHostHook: ClassHook<UIViewController> {
                 "Lyrics_FullscreenElementPageImpl.LyricsView", in: vc.view
             ) ?? vc.view
             // 全屏左边距用 24（贴近 Spotify 原生歌词内容的 24pt 内缩），比内嵌的 16 更靠右
-            KaraokeHost.shared.attach(to: vc, contentView: contentView, sideInset: 24)
+            KaraokeHost.shared.attach(to: vc, contentView: contentView, sideInset: 24, showsProviderFooter: true)
         }
     }
 
@@ -755,7 +786,7 @@ class LyricsKaraokeFullscreenLegacyHostHook: ClassHook<UIViewController> {
             // 把原生 headerView（分享/举报按钮）保留在 overlay 之上；
             // iOS14/15 的歌词内容子模块等层级 dump 后再改为只覆盖内容区
             let header = Ivars<UIView>(vc.view).headerView
-            KaraokeHost.shared.attach(to: vc, keepAboveView: header, sideInset: 24)
+            KaraokeHost.shared.attach(to: vc, keepAboveView: header, sideInset: 24, showsProviderFooter: true)
         }
     }
 
