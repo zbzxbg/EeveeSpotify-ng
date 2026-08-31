@@ -34,7 +34,7 @@ lyrics_source = "歌词来源";
 lyrics_source_description = "可以自由选择自己喜欢的歌词来源。\n\nGenius：提供最多的歌曲和拥有最优质的歌词，歌词更新速度最快。但歌词不会有时间轴。\nLRCLIB：最开放的服务，提供带时间轴的歌词。但它缺少很多歌曲的歌词。\nMusixmatch：Spotify 本身所使用的服务，为很多歌曲提供带时间轴的歌词，但需要用户令牌才能使用。";
 lyrics_additional_info = "如果插件无法找到歌曲或处理歌词，将显示“无法加载这首歌的歌词”的提示。使用Genius或NetEase时，由于其搜索方式与其他歌词提供商有所不同，部分歌曲可能会出现歌词匹配或显示错误。";
 petitlyrics_description = "PetitLyrics：提供很多的日语歌词。";
-spicylyrics_description = "SpicyLyrics：面向桌面端Spotify的歌词提供商，提供逐词高亮歌词及部分其他提供商没有的歌词。具体介绍可前往spicylyrics.org查看。";
+spicylyrics_description = "SpicyLyrics：面向桌面端Spotify的歌词提供商，提供逐词歌词及部分其他提供商没有的歌词。具体介绍可前往spicylyrics.org查看。";
 netease_description = "NetEase：主要面向中国大陆的歌词提供商，部分歌曲的歌词更新速度可能比Genius更快，且歌词大部分带时间轴。但对非中国大陆用户的支持较差，且可能出现歌词内容错误或时间轴不对齐等情况。";
 
 musixmatch_user_token = "Musixmatch 用户令牌";
@@ -135,7 +135,7 @@ ngzhwm_title = "ngzhwm的专属功能";
 ngzhwm_disable_lyrics_feature = "禁用歌词功能";
 ngzhwm_disable_lyrics_feature_description = "和这个功能的名字一样，它会禁用有关于歌词的所有功能。开启此功能后EeveeSpotify还会阻止Spotify返回其自带的歌词。";
 ngzhwm_word_by_word_lyrics = "开启逐字歌词";
-ngzhwm_word_by_word_lyrics_description = "实验性功能。目前有Musixmatch,PetitLyrics,SpicyLyrics,NetEase提供逐字歌词服务(部分歌曲)。";
+ngzhwm_word_by_word_lyrics_description = "预览版功能。目前Musixmatch,PetitLyrics,NetEase同时提供逐字和逐词歌词服务,SpicyLyrics只提供逐字歌词服务。";
 ngzhwm_multi_level_fallback = "歌词多级回退";
 ngzhwm_multi_level_fallback_description = "当此选项开启时，歌词将按照Mxm-PL-LRC-Gen的方式多级回退查询(Mxm和PL最长等待5秒，LRCLIB和Genius最长等待3秒；如果某个来源在对应时间内仍未返回有效歌词，则查询下一个来源)。当此选项关闭时，歌词会按照whoeevee菜单内用户的设置进行查询。";
 ngzhwm_netease_romaji_local = "修改NetEase日语罗马字的展示方式";
