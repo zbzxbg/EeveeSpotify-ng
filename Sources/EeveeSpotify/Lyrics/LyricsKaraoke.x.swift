@@ -503,8 +503,9 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
                 highlighted.addAttributes([
                     .font: boldFont,
                 ], range: nsRange)
-            } else if !isSung {
-                // 未唱（activePos == nil 时整行都算未唱）：白 + 降透明度
+            } else if activePos != nil, !isSung {
+                // 未唱：仅当已有正在唱的词时才降透明度；
+                // 一行还没唱到第一个词时整行保持全白，避免「整行突然变灰」的闪烁
                 highlighted.addAttributes([
                     .foregroundColor: activeLineColorValue.withAlphaComponent(unsungWordOpacity),
                 ], range: nsRange)
