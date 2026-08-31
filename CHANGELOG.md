@@ -668,3 +668,13 @@ Additional notes:
 - Experimental: Improved the word-by-word lyrics UI.
 
 </details>
+
+### 08.81
+
+<details>
+<summary><b>v5.0.0-beta.18</b></summary>
+
+- Improved the word-by-word lyrics UI.
+- Improved translations in the EeveeSpotify menu.
+
+</details>
