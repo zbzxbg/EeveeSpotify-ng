@@ -206,8 +206,12 @@ class PetitLyricsRepository: LyricsRepository {
         // Petit 的 word 元素带 wordstring（词文本，含空格 token）+ starttime + endtime
         if words.allSatisfy({ $0.wordstring != nil }) {
             return words.map {
-                LyricsWordDto(
-                    text: $0.wordstring ?? "",
+                let raw = $0.wordstring ?? ""
+                // 空格 token 的 wordstring 是纯空白（可能被解码器 trim 成空串），恢复为空格，
+                // 否则英文词与词会挤在一起
+                let text = raw.isEmpty ? " " : raw
+                return LyricsWordDto(
+                    text: text,
                     startMs: convert($0.starttime),
                     endMs: $0.endtime.map { convert($0) }
                 )

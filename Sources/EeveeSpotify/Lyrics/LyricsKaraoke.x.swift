@@ -512,7 +512,6 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
         let text = displayTexts[lineIndex]
 
         let regularFont = UIFont.systemFont(ofSize: lyricsFontSize, weight: .regular)
-        let boldFont = UIFont.systemFont(ofSize: lyricsFontSize, weight: .bold)
 
         // 整行默认全白（没有词级数据的行也保持全白）
         let highlighted = NSMutableAttributedString(string: text, attributes: [
@@ -530,9 +529,11 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
 
             let isSung = activePos.map { pos < $0 } ?? false
             if pos == activePos {
-                // 正在唱：全白 + 加粗
+                // 正在唱：全白 + 描边"加粗"（负 strokeWidth 叠在填充上，不改变字形宽度，
+                // 避免日文逐字加粗导致换行重排的闪烁）
                 highlighted.addAttributes([
-                    .font: boldFont,
+                    .strokeWidth: -2.0,
+                    .strokeColor: activeLineColorValue,
                 ], range: nsRange)
             } else if activePos != nil, !isSung {
                 // 未唱：仅当已有正在唱的词时才降透明度；
