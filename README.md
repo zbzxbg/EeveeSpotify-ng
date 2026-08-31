@@ -19,7 +19,6 @@ Verified environment: iPhone 11 + iOS 26.6.1 + certificate-signed build + LCSign
 
 * Tested with Spotify 9.1.0 only. Compatibility with other Spotify versions is unknown.
 * No IPA package is provided.
-* This tweak includes multiple experimental features.
 * Alpha and beta versions are for internal testing and are not publicly distributed.
 * Localization currently includes English and Simplified Chinese only. Localization files for other languages have been removed from this repository for maintenance purposes.
 
