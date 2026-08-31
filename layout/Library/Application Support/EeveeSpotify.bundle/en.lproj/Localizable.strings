@@ -44,7 +44,7 @@ LRCLIB: The most open service, offering time-synced lyrics. However, it lacks ly
 Musixmatch: The service Spotify uses. Provides time-synced lyrics for many songs, but you'll need a user token to use this source.";
 lyrics_additional_info = "If the tweak is unable to find a song or process the lyrics, you'll see a \"Couldn't load the lyrics for this song\" message. When using Genius or NetEase, some songs may have incorrect lyrics or display errors because their search method differs from other lyrics providers.";
 petitlyrics_description = "PetitLyrics: Offers plenty of Japanese lyrics.";
-spicylyrics_description = "SpicyLyrics: A lyrics provider serving the desktop Spotify client. It features word-by-word highlighted lyrics and lyrics for some songs that other providers do not have. Visit spicylyrics.org for more details.";
+spicylyrics_description = "SpicyLyrics: A lyrics provider serving the desktop Spotify client. It features word-by-word lyrics and lyrics for some songs that other providers do not have. Visit spicylyrics.org for more details.";
 netease_description = "NetEase: A lyrics provider mainly serving mainland China. Lyrics for some songs may be updated faster than Genius, and most lyrics come with timestamps. However, support for users outside mainland China is weaker, and lyrics may be incorrect or timestamps may be misaligned.";
 
 musixmatch_user_token = "Musixmatch User Token";
@@ -147,7 +147,7 @@ ngzhwm_title = "ngzhwm Features";
 ngzhwm_disable_lyrics_feature = "Disable Lyrics Function";
 ngzhwm_disable_lyrics_feature_description = "As the name suggests, this disables all lyrics-related functions. When enabled, EeveeSpotify also prevents Spotify from returning its own lyrics.";
 ngzhwm_word_by_word_lyrics = "Enable Word-by-Word Lyrics";
-ngzhwm_word_by_word_lyrics_description = "Experimental feature. Currently Musixmatch, PetitLyrics, SpicyLyrics, and NetEase provide word-by-word lyrics services (for some songs).";
+ngzhwm_word_by_word_lyrics_description = "Preview feature. Currently Musixmatch, PetitLyrics, SpicyLyrics, and NetEase provide word-by-word lyrics services.";
 ngzhwm_multi_level_fallback = "Multi-level Lyrics Fallback";
 ngzhwm_multi_level_fallback_description = "When enabled, lyrics are searched through multiple providers in this order: Musixmatch → PetitLyrics → LRCLIB → Genius. Musixmatch and PetitLyrics are given up to 5 seconds each, while LRCLIB and Genius are given up to 3 seconds each; if a provider doesn't return valid lyrics within its time limit, the next provider is queried. When disabled, lyrics are queried according to the user's settings in the whoeevee menu.";
 ngzhwm_netease_romaji_local = "Modify NetEase Japanese Romaji Display";
