@@ -14,7 +14,7 @@ The modified features in this fork have been verified to work in this environmen
 
 * Multi-level lyrics fallback.
 * Independent controls for romanization of Chinese, Japanese, and Korean lyrics.
-* You can now experience word-by-word lyrics in Spotify! 
+* You can now experience word-by-word lyrics in EeveeSpotify! 
 * And other modifications and improvements.
 
 ## ⚠️ Disclaimer
