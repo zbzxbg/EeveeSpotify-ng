@@ -18,7 +18,7 @@ The modified features in this fork have been verified to work in this environmen
 
 ## 🔧 Modifications
 
-Added two additional lyrics providers (NetEase and SpicyLyrics)
+Added two additional lyrics sources (NetEase and SpicyLyrics).
 
 Independent controls for romanization of Chinese, Japanese, and Korean lyrics.
 
