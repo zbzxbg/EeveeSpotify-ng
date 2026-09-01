@@ -709,3 +709,10 @@ Additional notes:
 - Enabled word-by-word lyrics to display lyric translations and corresponding romanized lyrics.
 
 </details>
+
+<details>
+<summary><b>v5.1.0-beta.3</b></summary>
+
+- Fixed an issue where NetEase could not correctly display lyric translations when word-by-word lyrics were enabled.
+
+</details>
