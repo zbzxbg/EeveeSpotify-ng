@@ -37,15 +37,6 @@ No IPA package is provided.
 Localization currently includes English and Simplified Chinese only. Localization files for other languages have been removed from this repository for maintenance purposes.
 
 
-
-## 📄 License
-
-This project is licensed under the GNU General Public License v3.0.
-
-See the complete license in the [LICENSE](LICENSE) file.
-
-
-
 ## ❤️ Acknowledgements
 
 Thanks to [whoeevee⁠](https://github.com/whoeevee) for the original EeveeSpotify project.
