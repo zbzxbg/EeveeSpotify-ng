@@ -218,13 +218,36 @@ class PetitLyricsRepository: LyricsRepository {
             }
         }
 
-        // 兜底：wordstring 缺失时按逐字符切分对齐词数
-        let chars = line.linestring.filter { !$0.isWhitespace }.map(String.init)
-        if chars.count == words.count {
-            return zip(chars, words).map { LyricsWordDto(text: $0, startMs: convert($1.starttime)) }
+        // 兜底：wordstring 缺失时按切分对齐词数——
+        // 日文（无空格）按逐字符切，英文按空白切，避免英文被拆成单个字母
+        let tokens: [String]
+        if Self.containsCJK(line.linestring) {
+            tokens = line.linestring.filter { !$0.isWhitespace }.map(String.init)
+        } else {
+            tokens = line.linestring.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        }
+        if tokens.count == words.count {
+            return zip(tokens, words).map { LyricsWordDto(text: $0, startMs: convert($1.starttime)) }
         }
 
-        writeDebugLog("[Petit] wordstring unavailable — chars \(chars.count) vs words \(words.count): \"\(line.linestring.prefix(60))\"")
+        writeDebugLog("[Petit] wordstring unavailable — tokens \(tokens.count) vs words \(words.count): \"\(line.linestring.prefix(60))\"")
         return nil
+    }
+
+    /// 是否含 CJK 字符（假名/汉字/韩文）。
+    private static func containsCJK(_ text: String) -> Bool {
+        text.unicodeScalars.contains { scalar in
+            switch scalar.value {
+            case 0x3040...0x30FF,   // 平/片假名
+                 0x3400...0x4DBF,   // CJK 扩展 A
+                 0x4E00...0x9FFF,   // CJK 统一汉字
+                 0xAC00...0xD7AF,   // 韩文谚文
+                 0xF900...0xFAFF,   // CJK 兼容
+                 0xFF66...0xFF9D:   // 半角片假名
+                return true
+            default:
+                return false
+            }
+        }
     }
 }

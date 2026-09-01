@@ -436,6 +436,101 @@ extension String {
     }
 }
 
+// MARK: - 整行日文分词（供逐字对齐）
+
+/// 整行日文分词的一个 chunk（token 或标点间隙）。
+struct JapaneseRomajiChunk {
+    var original: String
+    var romaji: String
+    var range: CFRange
+    /// 在整行罗马字输出里，该 chunk 前面是否需要空格（与 toJapaneseRomaji 的规则一致）。
+    var leadingSpace: Bool
+}
+
+extension String {
+    /// 把整行日文按 CFStringTokenizer 分词，返回每个 token/间隙的（原文、罗马字、区间、前导空格）。
+    /// 与 toJapaneseRomaji 共用同一套分词与助词逻辑，但保留逐 token 数据，供逐字对齐。
+    func japaneseRomajiChunks() -> [JapaneseRomajiChunk] {
+        guard !isEmpty else { return [] }
+        let cfText = self as CFString
+        let length = CFStringGetLength(cfText)
+        let locale = NSLocale(localeIdentifier: "ja") as CFLocale
+        let options: CFOptionFlags = kCFStringTokenizerUnitWordBoundary
+            | kCFStringTokenizerAttributeLatinTranscription
+        let tokenizer = CFStringTokenizerCreate(
+            kCFAllocatorDefault, cfText, CFRangeMake(0, length), options, locale
+        )
+
+        func substring(_ range: CFRange) -> String {
+            guard range.length > 0,
+                  let cf = CFStringCreateWithSubstring(kCFAllocatorDefault, cfText, range)
+            else { return "" }
+            return cf as String
+        }
+
+        var chunks: [JapaneseRomajiChunk] = []
+        var cursor: CFIndex = 0
+        var pendingGeminate = false
+        var hasToken = false
+        var lastOutputChar: Character?
+
+        func addGap(_ range: CFRange) {
+            guard range.length > 0 else { return }
+            let gap = substring(range)
+            chunks.append(JapaneseRomajiChunk(original: gap, romaji: gap, range: range, leadingSpace: false))
+            lastOutputChar = gap.last
+        }
+
+        var tokenType = CFStringTokenizerAdvanceToNextToken(tokenizer)
+        while !tokenType.isEmpty {
+            let range = CFStringTokenizerGetCurrentTokenRange(tokenizer)
+
+            addGap(CFRangeMake(cursor, range.location - cursor))
+
+            let original = substring(range)
+
+            var romaji: String
+            if japaneseIsPureKana(original) {
+                romaji = japaneseKanaRomaji(original, pendingGeminate: &pendingGeminate)
+            } else {
+                pendingGeminate = false
+                if let transcription = CFStringTokenizerCopyCurrentTokenAttribute(
+                    tokenizer, kCFStringTokenizerAttributeLatinTranscription
+                ) as? String, !japaneseContainsPinyinMarker(transcription) {
+                    romaji = japaneseSanitizeTranscription(transcription, original: original)
+                } else {
+                    romaji = original
+                }
+            }
+            if japaneseParticles.contains(original) {
+                romaji = japaneseParticleOverrides[original] ?? romaji
+            }
+
+            var leadingSpace = false
+            if hasToken, let last = lastOutputChar,
+               !last.isWhitespace, !last.isNewline,
+               !japaneseSpaceSeparators.contains(last),
+               !japaneseInflectionSuffixes.contains(original) {
+                leadingSpace = true
+            }
+
+            if !romaji.isEmpty {
+                chunks.append(JapaneseRomajiChunk(
+                    original: original, romaji: romaji, range: range, leadingSpace: leadingSpace
+                ))
+                hasToken = true
+                lastOutputChar = romaji.last
+            }
+
+            cursor = range.location + range.length
+            tokenType = CFStringTokenizerAdvanceToNextToken(tokenizer)
+        }
+        addGap(CFRangeMake(cursor, length - cursor))
+
+        return chunks
+    }
+}
+
 // MARK: - Chinese & Korean Romanization
 
 extension String {
@@ -469,36 +564,139 @@ extension LyricsDto {
         guard let language else { return self }
 
         let romanize: (String) -> String
+        let isJapanese: Bool
         switch language {
         case .japanese:
             guard UserDefaults.standard.bool(forKey: "ngzhwm_japaneseRomanization") else { return self }
             romanize = { $0.toJapaneseRomaji() }
+            isJapanese = true
         case .simplifiedChinese, .traditionalChinese:
             guard UserDefaults.standard.bool(forKey: "ngzhwm_chineseRomanization") else { return self }
             romanize = { $0.toChinesePinyin() }
+            isJapanese = false
         case .korean:
             guard UserDefaults.standard.bool(forKey: "ngzhwm_koreanRomanization") else { return self }
             romanize = { $0.toKoreanRomaja() }
+            isJapanese = false
         default:
             return self
         }
 
         var result = self
         for i in result.lines.indices {
-            result.lines[i].content = romanize(result.lines[i].content)
+            let originalContent = result.lines[i].content
+            // 整行罗马化 + 首字母大写（与原生行级一致）
+            result.lines[i].content = romanize(originalContent)
+                .capitalizingFirstLetterIfAlphabetic()
 
             guard let words = result.lines[i].words else { continue }
-            var romanizedWords: [LyricsWordDto] = []
-            for word in words {
-                let trimmed = word.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else { continue }  // 丢弃空格 token，罗马化后统一补空格
-                var w = word
-                let rom = romanize(trimmed)
-                w.text = romanizedWords.isEmpty ? rom : " " + rom
-                romanizedWords.append(w)
+
+            // 日文：整行分词后对齐回计时词（上下文正确）；对齐失败回退逐词。
+            // 中/韩：直接逐词（无上下文歧义）。
+            var mapped: [LyricsWordDto]
+            if isJapanese {
+                mapped = Self.japaneseWordRomaji(lineContent: originalContent, words: words)
+                if mapped.isEmpty {
+                    mapped = Self.perWordRomaji(words: words, romanize: romanize)
+                }
+            } else {
+                mapped = Self.perWordRomaji(words: words, romanize: romanize)
             }
-            result.lines[i].words = romanizedWords.isEmpty ? nil : romanizedWords
+            guard !mapped.isEmpty else { continue }
+
+            // 词间空格：非首个词前补一个空格（罗马字词间需要空格）
+            result.lines[i].words = mapped.enumerated().map { index, word in
+                index == 0
+                    ? word
+                    : LyricsWordDto(text: " " + word.text, startMs: word.startMs, endMs: word.endMs)
+            }
         }
         return result
+    }
+
+    /// 日文：整行 tokenize 后，把每个计时词对齐回它覆盖的 chunk，拼出上下文正确的罗马字。
+    private static func japaneseWordRomaji(
+        lineContent: String,
+        words: [LyricsWordDto]
+    ) -> [LyricsWordDto] {
+        // 校验：词文本（含空格 token）拼接应等于行原文，否则放弃对齐
+        let joined = words.reduce(into: "") { $0 += $1.text }
+        guard joined == lineContent else { return [] }
+
+        let chunks = lineContent.japaneseRomajiChunks()
+        guard !chunks.isEmpty else { return [] }
+
+        var chunkIndex = 0
+        var position = 0
+        var mapped: [LyricsWordDto] = []
+        var isFirst = true
+
+        for word in words {
+            let wLength = (word.text as NSString).length
+            let wStart = position
+            let wEnd = position + wLength
+            position = wEnd
+
+            let trimmed = word.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }  // 丢弃空格 token
+
+            // 跳过已经结束的 chunk
+            while chunkIndex < chunks.count,
+                  chunks[chunkIndex].range.location + chunks[chunkIndex].range.length <= wStart {
+                chunkIndex += 1
+            }
+
+            // 拼接覆盖 [wStart, wEnd) 的 chunks
+            var romaji = ""
+            while chunkIndex < chunks.count, chunks[chunkIndex].range.location < wEnd {
+                let chunk = chunks[chunkIndex]
+                if !romaji.isEmpty, chunk.leadingSpace {
+                    romaji += " "
+                }
+                romaji += chunk.romaji
+                chunkIndex += 1
+            }
+
+            guard !romaji.isEmpty else { continue }
+            let text = isFirst ? romaji.capitalizingFirstLetterIfAlphabetic() : romaji
+            isFirst = false
+            mapped.append(LyricsWordDto(text: text, startMs: word.startMs, endMs: word.endMs))
+        }
+        return mapped
+    }
+
+    /// 中/韩：逐词罗马化（无上下文歧义）；英文/标点/数字保持原样，首个词首字母大写。
+    private static func perWordRomaji(
+        words: [LyricsWordDto],
+        romanize: (String) -> String
+    ) -> [LyricsWordDto] {
+        var mapped: [LyricsWordDto] = []
+        var isFirst = true
+        for word in words {
+            let trimmed = word.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            let rom = Self.containsCJKText(trimmed) ? romanize(trimmed) : trimmed
+            let text = isFirst ? rom.capitalizingFirstLetterIfAlphabetic() : rom
+            isFirst = false
+            mapped.append(LyricsWordDto(text: text, startMs: word.startMs, endMs: word.endMs))
+        }
+        return mapped
+    }
+
+    /// 是否含 CJK 文本（假名/汉字/韩文）；英文/标点/数字不含。
+    private static func containsCJKText(_ text: String) -> Bool {
+        text.unicodeScalars.contains { scalar in
+            switch scalar.value {
+            case 0x3040...0x30FF,   // 平/片假名
+                 0x3400...0x4DBF,   // CJK 扩展 A
+                 0x4E00...0x9FFF,   // CJK 统一汉字
+                 0xAC00...0xD7AF,   // 韩文谚文
+                 0xF900...0xFAFF,   // CJK 兼容
+                 0xFF66...0xFF9D:   // 半角片假名
+                return true
+            default:
+                return false
+            }
+        }
     }
 }
