@@ -2,6 +2,10 @@
 
 ### 09.01
 
+<details open>
+<summary><b>2026</b> </summary>
+
+</details>
 <details>
 <summary><b>v5.1.0-beta.3</b></summary>
 
@@ -708,7 +712,3 @@ Additional notes:
 
 </details>
 
-<details open>
-<summary><b>2026</b> </summary>
-
-</details>
