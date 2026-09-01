@@ -669,7 +669,7 @@ Additional notes:
 
 </details>
 
-### 08.81
+### 08.31
 
 <details>
 <summary><b>v5.0.0-beta.18</b></summary>
@@ -690,5 +690,15 @@ Additional notes:
 <summary><b>v5.0.0</b></summary>
 
 - Karaoke lyrics are now available on EeveeSpotify! (Preview)
+
+</details>
+
+## 09.01
+
+<details>
+<summary><b>v5.1.0-beta.1</b></summary>
+
+- Changed the UI display of “Clear Debug Logs”.
+- Added more logging.
 
 </details>
