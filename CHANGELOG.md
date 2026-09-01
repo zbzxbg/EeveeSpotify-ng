@@ -1,7 +1,7 @@
 # Changelog
 
 <details open>
-<summary><b>2026</b> 
+<summary><b>2026</b> </summary>
 
 ### 09.01
 
@@ -713,4 +713,3 @@ Additional notes:
 
 </details>
 
-</summary>
