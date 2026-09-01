@@ -629,7 +629,9 @@ extension LyricsDto {
         var chunkIndex = 0
         var position = 0
         var mapped: [LyricsWordDto] = []
-        var isFirst = true
+        // 行首大写：跳过纯装饰词（如「、・），直到遇到含字母的词才真正大写，
+        // 与非逐字 capitalizingFirstLetterIfAlphabetic 跳过装饰前缀的行为一致
+        var hasCapitalized = false
 
         for word in words {
             let wLength = (word.text as NSString).length
@@ -658,8 +660,14 @@ extension LyricsDto {
             }
 
             guard !romaji.isEmpty else { continue }
-            let text = isFirst ? romaji.capitalizingFirstLetterIfAlphabetic() : romaji
-            isFirst = false
+            let text: String
+            if !hasCapitalized {
+                let candidate = romaji.capitalizingFirstLetterIfAlphabetic()
+                hasCapitalized = candidate != romaji
+                text = candidate
+            } else {
+                text = romaji
+            }
             mapped.append(LyricsWordDto(text: text, startMs: word.startMs, endMs: word.endMs))
         }
         return mapped
@@ -671,13 +679,19 @@ extension LyricsDto {
         romanize: (String) -> String
     ) -> [LyricsWordDto] {
         var mapped: [LyricsWordDto] = []
-        var isFirst = true
+        var hasCapitalized = false
         for word in words {
             let trimmed = word.text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { continue }
             let rom = Self.containsCJKText(trimmed) ? romanize(trimmed) : trimmed
-            let text = isFirst ? rom.capitalizingFirstLetterIfAlphabetic() : rom
-            isFirst = false
+            let text: String
+            if !hasCapitalized {
+                let candidate = rom.capitalizingFirstLetterIfAlphabetic()
+                hasCapitalized = candidate != rom
+                text = candidate
+            } else {
+                text = rom
+            }
             mapped.append(LyricsWordDto(text: text, startMs: word.startMs, endMs: word.endMs))
         }
         return mapped
