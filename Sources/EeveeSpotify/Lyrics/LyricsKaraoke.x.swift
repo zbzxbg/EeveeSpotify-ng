@@ -205,8 +205,6 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
     private let activeLineColorValue = UIColor.white
     /// 当前行内「未唱」词的透明度（已唱/正在唱为全白）。
     private let unsungWordOpacity: CGFloat = 0.45
-    /// 当前行内「已唱」词的透明度（正在唱为全白，未唱更暗）。
-    private let sungWordOpacity: CGFloat = 0.7
     /// 背景色缓存：每次 rebuild（换歌/换数据）后按「定制」选项重新计算一次。
     private var resolvedBackgroundColor: UIColor?
     /// 顶部渐隐层（scrim）：背景色 → 透明，让上滚的歌词在顶部渐隐退出。
@@ -537,17 +535,14 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
                     .strokeWidth: -2.0,
                     .strokeColor: activeLineColorValue,
                 ], range: nsRange)
-            } else if activePos != nil, isSung {
-                // 已唱：白 sungWordOpacity（略暗于正在唱，突出当前词）
-                highlighted.addAttributes([
-                    .foregroundColor: activeLineColorValue.withAlphaComponent(sungWordOpacity),
-                ], range: nsRange)
             } else if activePos != nil, !isSung {
-                // 未唱：白 unsungWordOpacity（一行还没唱到第一个词时整行保持全白）
+                // 未唱：仅当已有正在唱的词时才降透明度；
+                // 一行还没唱到第一个词时整行保持全白，避免「整行突然变灰」的闪烁
                 highlighted.addAttributes([
                     .foregroundColor: activeLineColorValue.withAlphaComponent(unsungWordOpacity),
                 ], range: nsRange)
             }
+            // 已唱（pos < activePos）：保持整行默认的全白
         }
 
         label.attributedText = highlighted
