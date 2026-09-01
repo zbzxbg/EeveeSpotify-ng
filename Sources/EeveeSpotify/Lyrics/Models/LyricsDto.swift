@@ -455,3 +455,50 @@ extension String {
         return self.applyingTransform(.toLatin, reverse: false) ?? self
     }
 }
+
+// MARK: - 逐字 overlay 的罗马化
+
+extension LyricsDto {
+    /// 逐字歌词 + 对应语言罗马化开关都开启时，返回词/行文本罗马化的副本（供逐字 overlay 显示）。
+    /// 只改 overlay 读的这份；喂给原生 protobuf 的仍用原始 dto（toSpotifyLyricsData 自己会罗马化 content）。
+    func romanizedForWordByWordIfEnabled() -> LyricsDto {
+        guard NgzhwmSettingsViewModel.isWordByWordLyricsEnabled,
+              romanization == .canBeRomanized else { return self }
+
+        let language = lines.map(\.content).dominantCJKLanguageAbove(threshold: romajiLanguageThreshold)
+        guard let language else { return self }
+
+        let romanize: (String) -> String
+        switch language {
+        case .japanese:
+            guard UserDefaults.standard.bool(forKey: "ngzhwm_japaneseRomanization") else { return self }
+            romanize = { $0.toJapaneseRomaji() }
+        case .simplifiedChinese, .traditionalChinese:
+            guard UserDefaults.standard.bool(forKey: "ngzhwm_chineseRomanization") else { return self }
+            romanize = { $0.toChinesePinyin() }
+        case .korean:
+            guard UserDefaults.standard.bool(forKey: "ngzhwm_koreanRomanization") else { return self }
+            romanize = { $0.toKoreanRomaja() }
+        default:
+            return self
+        }
+
+        var result = self
+        for i in result.lines.indices {
+            result.lines[i].content = romanize(result.lines[i].content)
+
+            guard let words = result.lines[i].words else { continue }
+            var romanizedWords: [LyricsWordDto] = []
+            for word in words {
+                let trimmed = word.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { continue }  // 丢弃空格 token，罗马化后统一补空格
+                var w = word
+                let rom = romanize(trimmed)
+                w.text = romanizedWords.isEmpty ? rom : " " + rom
+                romanizedWords.append(w)
+            }
+            result.lines[i].words = romanizedWords.isEmpty ? nil : romanizedWords
+        }
+        return result
+    }
+}

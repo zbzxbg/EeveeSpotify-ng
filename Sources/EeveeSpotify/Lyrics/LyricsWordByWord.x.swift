@@ -6,10 +6,10 @@ import SwiftUI
 // MARK: - 逐字歌词渲染模块（MVP）
 //
 // 结构：
-//   KaraokePositionResolver — 安全多策略定位播放进度（运行时探测，responds/ivar 检查后再读，绝不裸调）
-//   KaraokePlaybackClock   — CADisplayLink 时钟，把进度喂给叠加视图
-//   LyricsKaraokeOverlayView — UIKit 叠加视图：逐行 UILabel + 当前词 NSAttributedString 高亮 + 自动滚动
-//   KaraokeHost            — 挂载/卸载 overlay（挂在 Spotify 全屏歌词 VC 上）
+//   WordByWordPositionResolver — 安全多策略定位播放进度（运行时探测，responds/ivar 检查后再读，绝不裸调）
+//   WordByWordPlaybackClock   — CADisplayLink 时钟，把进度喂给叠加视图
+//   LyricsWordByWordOverlayView — UIKit 叠加视图：逐行 UILabel + 当前词 NSAttributedString 高亮 + 自动滚动
+//   WordByWordHost            — 挂载/卸载 overlay（挂在 Spotify 全屏歌词 VC 上）
 //
 // 前提（来自 Spotify 二进制逆向）：
 //   进度候选：playbackPosition(Double)、currentPlaybackTime(Double)、currentTrackTimeSecs(Int64 秒)
@@ -25,14 +25,14 @@ var currentLyricsProvider: String = ""
 
 // MARK: - 位置解析
 
-@objc protocol KaraokePositionDoubleGetter { func playbackPosition() -> Double }
-@objc protocol KaraokeCurrentPlaybackTimeDoubleGetter { func currentPlaybackTime() -> Double }
-@objc protocol KaraokeCurrentTrackTimeSecsGetter { func currentTrackTimeSecs() -> Int64 }
-@objc protocol KaraokePlayerPositionGetter { func position() -> Double }
-@objc protocol KaraokeSeekProtocol { func seekTo(_ seconds: Double) }
+@objc protocol WordByWordPositionDoubleGetter { func playbackPosition() -> Double }
+@objc protocol WordByWordCurrentPlaybackTimeDoubleGetter { func currentPlaybackTime() -> Double }
+@objc protocol WordByWordCurrentTrackTimeSecsGetter { func currentTrackTimeSecs() -> Int64 }
+@objc protocol WordByWordPlayerPositionGetter { func position() -> Double }
+@objc protocol WordByWordSeekProtocol { func seekTo(_ seconds: Double) }
 
-final class KaraokePositionResolver {
-    static let shared = KaraokePositionResolver()
+final class WordByWordPositionResolver {
+    static let shared = WordByWordPositionResolver()
 
     private var getter: (() -> Double)?
     private(set) var sourceLabel: String = "unresolved"
@@ -44,10 +44,10 @@ final class KaraokePositionResolver {
     func resolve() {
         // 首选：statefulPlayer.position() —— 已由 runtime dump 确认（d16@0:8 = double 无参，秒）
         if let p = statefulPlayer as? NSObject, p.responds(to: Selector("position")) {
-            let g = Dynamic.convert(p, to: KaraokePlayerPositionGetter.self)
+            let g = Dynamic.convert(p, to: WordByWordPlayerPositionGetter.self)
             getter = { g.position() }
             sourceLabel = "statefulPlayer.position() -> Double"
-            writeDebugLog("[Karaoke] position source: \(sourceLabel)")
+            writeDebugLog("[WordByWord] position source: \(sourceLabel)")
             return
         }
 
@@ -62,19 +62,19 @@ final class KaraokePositionResolver {
 
         for (label, obj) in candidates {
             if obj.responds(to: Selector("playbackPosition")) {
-                let g = Dynamic.convert(obj, to: KaraokePositionDoubleGetter.self)
+                let g = Dynamic.convert(obj, to: WordByWordPositionDoubleGetter.self)
                 getter = { g.playbackPosition() }
                 sourceLabel = "\(label).playbackPosition() -> Double"
-                writeDebugLog("[Karaoke] position source: \(sourceLabel)")
+                writeDebugLog("[WordByWord] position source: \(sourceLabel)")
                 return
             }
         }
         for (label, obj) in candidates {
             if obj.responds(to: Selector("currentPlaybackTime")) {
-                let g = Dynamic.convert(obj, to: KaraokeCurrentPlaybackTimeDoubleGetter.self)
+                let g = Dynamic.convert(obj, to: WordByWordCurrentPlaybackTimeDoubleGetter.self)
                 getter = { g.currentPlaybackTime() }
                 sourceLabel = "\(label).currentPlaybackTime() -> Double"
-                writeDebugLog("[Karaoke] position source: \(sourceLabel)")
+                writeDebugLog("[WordByWord] position source: \(sourceLabel)")
                 return
             }
         }
@@ -82,19 +82,19 @@ final class KaraokePositionResolver {
             if let value = ivarInt64(obj, "currentTrackTimeSecs") {
                 getter = { Double(value) }
                 sourceLabel = "\(label).currentTrackTimeSecs -> Int64(秒)"
-                writeDebugLog("[Karaoke] position source: \(sourceLabel)")
+                writeDebugLog("[WordByWord] position source: \(sourceLabel)")
                 return
             }
             if let value = ivarDouble(obj, "playbackPosition") {
                 getter = { value }
                 sourceLabel = "\(label).playbackPosition ivar -> Double"
-                writeDebugLog("[Karaoke] position source: \(sourceLabel)")
+                writeDebugLog("[WordByWord] position source: \(sourceLabel)")
                 return
             }
         }
         if !didLogUnresolved {
             didLogUnresolved = true
-            writeDebugLog("[Karaoke] no position source resolved — will retry on next tick")
+            writeDebugLog("[WordByWord] no position source resolved — will retry on next tick")
         }
     }
 
@@ -107,7 +107,7 @@ final class KaraokePositionResolver {
         let raw = getter()
         if sampleCount < 5 {
             sampleCount += 1
-            writeDebugLog("[Karaoke] pos sample \(sampleCount): \(raw)")
+            writeDebugLog("[WordByWord] pos sample \(sampleCount): \(raw)")
         }
         return raw
     }
@@ -133,22 +133,22 @@ final class KaraokePositionResolver {
 
 // MARK: - 点行跳转
 
-final class KaraokeSeeker {
+final class WordByWordSeeker {
     static func seek(toMs ms: Int) {
         guard let player = statefulPlayer as? NSObject, player.responds(to: Selector("seekTo:")) else {
-            writeDebugLog("[Karaoke] seekTo: unavailable on statefulPlayer")
+            writeDebugLog("[WordByWord] seekTo: unavailable on statefulPlayer")
             return
         }
-        let g = Dynamic.convert(player, to: KaraokeSeekProtocol.self)
+        let g = Dynamic.convert(player, to: WordByWordSeekProtocol.self)
         g.seekTo(Double(ms) / 1000)
-        writeDebugLog("[Karaoke] seek to \(ms)ms")
+        writeDebugLog("[WordByWord] seek to \(ms)ms")
     }
 }
 
 // MARK: - 播放时钟
 
-final class KaraokePlaybackClock {
-    static let shared = KaraokePlaybackClock()
+final class WordByWordPlaybackClock {
+    static let shared = WordByWordPlaybackClock()
 
     private var displayLink: CADisplayLink?
     private(set) var currentMs: Double = 0
@@ -168,7 +168,7 @@ final class KaraokePlaybackClock {
 
     @objc private func tick() {
         let ms: Double
-        if let seconds = KaraokePositionResolver.shared.currentPositionSeconds() {
+        if let seconds = WordByWordPositionResolver.shared.currentPositionSeconds() {
             ms = seconds * 1000
         } else {
             ms = currentMs
@@ -184,7 +184,7 @@ private final class LineLabel: UILabel {
     var lineIndex = -1
 }
 
-final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
+final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
 
     private let scrollView = UIScrollView()
     private let stackView = UIStackView()
@@ -195,6 +195,8 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
     private var providerLabel: UILabel?
     /// 是否在底部显示「歌词提供者」（全屏显示，内嵌不显示）。
     var showsProviderFooter = false
+    /// 行级译文标签（每行原文下面一行小字），用于 rebuild 清理。
+    private var translationLabels: [UILabel] = []
 
     private var dto: LyricsDto?
     private var dtoVersion = -1
@@ -203,6 +205,10 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
 
     private let lineColor = UIColor.black
     private let activeLineColorValue = UIColor.white
+    /// 行级译文字号（比歌词小）。
+    private let translationFontSize: CGFloat = 16
+    /// 行级译文颜色（半透明白）。
+    private let translationColor = UIColor.white.withAlphaComponent(0.5)
     /// 当前行内「未唱」词的透明度（已唱/正在唱为全白）。
     private let unsungWordOpacity: CGFloat = 0.45
     /// 背景色缓存：每次 rebuild（换歌/换数据）后按「定制」选项重新计算一次。
@@ -378,7 +384,7 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
                     wordInfo = "words=nil"
                 }
             }
-            writeDebugLog("[Karaoke] t=\(Int(ms))ms line=\(bestLine) \(wordInfo)")
+            writeDebugLog("[WordByWord] t=\(Int(ms))ms line=\(bestLine) \(wordInfo)")
         }
 
         if bestLine == activeLineIndex && bestWord == activeWordIndex { return }
@@ -421,6 +427,8 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
     private func rebuild() {
         for label in lineLabels { label.removeFromSuperview() }
         lineLabels = []
+        for label in translationLabels { label.removeFromSuperview() }
+        translationLabels = []
         providerLabel?.removeFromSuperview()
         providerLabel = nil
         displayTexts = []
@@ -443,7 +451,29 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
             label.textColor = lineColor
             label.isUserInteractionEnabled = true
             label.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(handleLineTap(_:))))
-            stackView.addArrangedSubview(label)
+
+            // 每行用竖排 stack 包住：原文行 + 可选译文行
+            let lineStack = UIStackView()
+            lineStack.axis = .vertical
+            lineStack.spacing = 4
+            lineStack.addArrangedSubview(label)
+
+            if let translation = dto.translation, index < translation.lines.count {
+                let t = translation.lines[index]
+                if !t.isEmpty {
+                    let translationLabel = UILabel()
+                    translationLabel.numberOfLines = 0
+                    translationLabel.textAlignment = .left
+                    translationLabel.font = .systemFont(ofSize: translationFontSize, weight: .regular)
+                    translationLabel.textColor = translationColor
+                    translationLabel.text = t
+                    translationLabel.isUserInteractionEnabled = false
+                    lineStack.addArrangedSubview(translationLabel)
+                    translationLabels.append(translationLabel)
+                }
+            }
+
+            stackView.addArrangedSubview(lineStack)
             lineLabels.append(label)
             displayTexts.append(text)
             wordRanges.append(ranges)
@@ -662,16 +692,16 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
         guard let label = recognizer.view as? LineLabel,
               let dto = dto, label.lineIndex >= 0, label.lineIndex < dto.lines.count,
               let offset = dto.lines[label.lineIndex].offsetMs else { return }
-        KaraokeSeeker.seek(toMs: offset)
+        WordByWordSeeker.seek(toMs: offset)
     }
 }
 
 // MARK: - 挂载管理
 
-final class KaraokeHost {
-    static let shared = KaraokeHost()
+final class WordByWordHost {
+    static let shared = WordByWordHost()
 
-    private var overlay: LyricsKaraokeOverlayView?
+    private var overlay: LyricsWordByWordOverlayView?
     private weak var hostView: UIView?
     private var isAttached = false
     /// 最近出现的内嵌歌词 VC（弱引用），全屏关闭后据此重新挂载。
@@ -709,7 +739,7 @@ final class KaraokeHost {
         if isAttached, hostView === view { return }
         detach()
 
-        let overlayView = LyricsKaraokeOverlayView(frame: view.bounds)
+        let overlayView = LyricsWordByWordOverlayView(frame: view.bounds)
         overlayView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         overlayView.showsProviderFooter = showsProviderFooter
         if let sideInset { overlayView.setSideInset(sideInset) }
@@ -725,68 +755,68 @@ final class KaraokeHost {
         hostView = view
         isAttached = true
 
-        KaraokePlaybackClock.shared.onChange = { [weak overlayView] ms in
+        WordByWordPlaybackClock.shared.onChange = { [weak overlayView] ms in
             overlayView?.setCurrentTime(ms)
         }
-        KaraokePlaybackClock.shared.start()
-        writeDebugLog("[Karaoke] overlay attached")
+        WordByWordPlaybackClock.shared.start()
+        writeDebugLog("[WordByWord] overlay attached")
     }
 
     func detach() {
         guard isAttached else { return }
-        KaraokePlaybackClock.shared.stop()
-        KaraokePlaybackClock.shared.onChange = nil
+        WordByWordPlaybackClock.shared.stop()
+        WordByWordPlaybackClock.shared.onChange = nil
         overlay?.removeFromSuperview()
         overlay = nil
         hostView = nil
         isAttached = false
-        writeDebugLog("[Karaoke] overlay detached")
+        writeDebugLog("[WordByWord] overlay detached")
     }
 }
 
 // MARK: - 挂载 hook（全屏歌词 VC）
 
-class LyricsKaraokeModernHostHook: ClassHook<UIViewController> {
+class LyricsWordByWordModernHostHook: ClassHook<UIViewController> {
     typealias Group = ModernLyricsGroup
     static let targetName = "Lyrics_NPVCommunicatorImpl.LyricsOnlyViewController"
 
     func viewDidAppear(_ animated: Bool) {
         orig.viewDidAppear(animated)
         let vc = target
-        KaraokeHost.shared.rememberInlineController(vc)
+        WordByWordHost.shared.rememberInlineController(vc)
         DispatchQueue.main.async {
-            KaraokeHost.shared.attach(to: vc)
+            WordByWordHost.shared.attach(to: vc)
         }
     }
 
     func viewWillDisappear(_ animated: Bool) {
         orig.viewWillDisappear(animated)
-        KaraokeHost.shared.detach()
+        WordByWordHost.shared.detach()
     }
 }
 
-class LyricsKaraokeLegacyHostHook: ClassHook<UIViewController> {
+class LyricsWordByWordLegacyHostHook: ClassHook<UIViewController> {
     typealias Group = LegacyLyricsGroup
     static let targetName = "Lyrics_CoreImpl.LyricsOnlyViewController"
 
     func viewDidAppear(_ animated: Bool) {
         orig.viewDidAppear(animated)
         let vc = target
-        KaraokeHost.shared.rememberInlineController(vc)
+        WordByWordHost.shared.rememberInlineController(vc)
         DispatchQueue.main.async {
-            KaraokeHost.shared.attach(to: vc)
+            WordByWordHost.shared.attach(to: vc)
         }
     }
 
     func viewWillDisappear(_ animated: Bool) {
         orig.viewWillDisappear(animated)
-        KaraokeHost.shared.detach()
+        WordByWordHost.shared.detach()
     }
 }
 
 // MARK: - 全屏歌词挂载 hook（点击歌词框架展开后铺满的页面）
 
-class LyricsKaraokeFullscreenModernHostHook: ClassHook<UIViewController> {
+class LyricsWordByWordFullscreenModernHostHook: ClassHook<UIViewController> {
     typealias Group = ModernLyricsGroup
     static let targetName = "Lyrics_FullscreenElementPageImpl.FullscreenElementViewController"
 
@@ -800,20 +830,20 @@ class LyricsKaraokeFullscreenModernHostHook: ClassHook<UIViewController> {
                 "Lyrics_FullscreenElementPageImpl.LyricsView", in: vc.view
             ) ?? vc.view
             // 全屏左边距用 24（贴近 Spotify 原生歌词内容的 24pt 内缩），比内嵌的 16 更靠右
-            KaraokeHost.shared.attach(to: vc, contentView: contentView, sideInset: 24, showsProviderFooter: true)
+            WordByWordHost.shared.attach(to: vc, contentView: contentView, sideInset: 24, showsProviderFooter: true)
         }
     }
 
     func viewWillDisappear(_ animated: Bool) {
         orig.viewWillDisappear(animated)
-        KaraokeHost.shared.detach()
+        WordByWordHost.shared.detach()
         // 全屏以 sheet 形式盖在内嵌之上，关闭时内嵌 VC 不会重新 viewDidAppear；
         // 用记住的内嵌 VC 把 overlay 挂回去。
-        KaraokeHost.shared.reattachToInline()
+        WordByWordHost.shared.reattachToInline()
     }
 }
 
-class LyricsKaraokeFullscreenLegacyHostHook: ClassHook<UIViewController> {
+class LyricsWordByWordFullscreenLegacyHostHook: ClassHook<UIViewController> {
     typealias Group = LegacyLyricsGroup
     static var targetName: String {
         switch EeveeSpotify.hookTarget {
@@ -829,14 +859,14 @@ class LyricsKaraokeFullscreenLegacyHostHook: ClassHook<UIViewController> {
             // 把原生 headerView（分享/举报按钮）保留在 overlay 之上；
             // iOS14/15 的歌词内容子模块等层级 dump 后再改为只覆盖内容区
             let header = Ivars<UIView>(vc.view).headerView
-            KaraokeHost.shared.attach(to: vc, keepAboveView: header, sideInset: 24, showsProviderFooter: true)
+            WordByWordHost.shared.attach(to: vc, keepAboveView: header, sideInset: 24, showsProviderFooter: true)
         }
     }
 
     func viewWillDisappear(_ animated: Bool) {
         orig.viewWillDisappear(animated)
-        KaraokeHost.shared.detach()
+        WordByWordHost.shared.detach()
         // 同 modern hook：关闭全屏时把 overlay 挂回内嵌歌词 VC
-        KaraokeHost.shared.reattachToInline()
+        WordByWordHost.shared.reattachToInline()
     }
 }
