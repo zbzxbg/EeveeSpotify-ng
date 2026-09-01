@@ -700,5 +700,5 @@ Additional notes:
 
 - Changed the UI display of “Clear Debug Logs”.
 - Added more logging.
-- Changed the display method of karaoke lyrics.
+
 </details>
