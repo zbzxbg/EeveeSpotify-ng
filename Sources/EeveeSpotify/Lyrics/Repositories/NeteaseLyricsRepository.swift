@@ -489,7 +489,9 @@ class NeteaseLyricsRepository: LyricsRepository {
 
     /// 逐字（yrc）走新接口 /api/song/lyric/v1（eapi 加密）；
     /// 老 weapi /weapi/song/lyric 不下发 yrc。
-    private func fetchYrcRaw(songId: Int) throws -> String? {
+    /// 返回 (yrc, ytlrc)：ytlrc 是逐字歌词配套的翻译 LRC，行 offset 与 yrc 行头
+    /// 一一对应（tlyric 与 lrc 同源、和 yrc 行头不是一套时间轴，无法精确对齐）。
+    private func fetchYrcRaw(songId: Int) throws -> (yrc: String?, ytlrc: String?) {
         let data = try performEapi("/api/song/lyric/v1", params: [
             "id": songId,
             "cp": false,
@@ -510,11 +512,12 @@ class NeteaseLyricsRepository: LyricsRepository {
         }
 
         let yrc = (json["yrc"] as? [String: Any])?["lyric"] as? String
-        writeDebugLog("[NetEase] eapi /api/song/lyric/v1 → yrc \(yrc == nil ? "absent" : "\(yrc!.count) chars")")
+        let ytlrc = (json["ytlrc"] as? [String: Any])?["lyric"] as? String
+        writeDebugLog("[NetEase] eapi /api/song/lyric/v1 → yrc \(yrc == nil ? "absent" : "\(yrc!.count) chars"), ytlrc \(ytlrc == nil ? "absent" : "\(ytlrc!.count) chars")")
         if let yrc {
             writeDebugLog("[NetEase] yrc raw head: \(yrc.prefix(600))")
         }
-        return yrc
+        return (yrc, ytlrc)
     }
 
     private func songId(from song: [String: Any]) -> Int? {
@@ -595,14 +598,16 @@ class NeteaseLyricsRepository: LyricsRepository {
                 }
 
                 guard let minute = Int(nsLine.substring(with: minuteRange)),
-                      let seconds = Float(
+                      let seconds = Double(
                           nsLine.substring(with: secondsRange)
                               .replacingOccurrences(of: ":", with: ".")
                       ) else {
                     continue
                 }
 
-                parsed.append((minute * 60 * 1000 + Int(seconds * 1000), content))
+                // Double + rounded()：Float32 会把 34.010 算成 34009.998 再截断为 34009，
+                // 与 yrc 行头的精确毫秒 34010 对不上，导致逐字翻译按 offset 对齐落空。
+                parsed.append((minute * 60 * 1000 + Int((seconds * 1000).rounded()), content))
             }
         }
 
@@ -837,9 +842,12 @@ class NeteaseLyricsRepository: LyricsRepository {
             // yrc 缺失/解析为空时回退到 lrc 行级时间轴（下面原逻辑不变）。
             let preferWordByWord = NgzhwmSettingsViewModel.isWordByWordLyricsEnabled
             var yrcText: String? = nil
+            var ytlrcText: String? = nil
             if preferWordByWord {
                 do {
-                    yrcText = try fetchYrcRaw(songId: songId)
+                    let fetched = try fetchYrcRaw(songId: songId)
+                    yrcText = fetched.yrc
+                    ytlrcText = fetched.ytlrc
                 } catch {
                     writeDebugLog("[NetEase] yrc (eapi) fetch failed: \(error)")
                 }
@@ -919,6 +927,10 @@ class NeteaseLyricsRepository: LyricsRepository {
         )
         if hideNetEaseTranslation {
             writeDebugLog("[NetEase] Hide translation enabled — skipping translation layer")
+        } else if !yrcParsed.isEmpty, let ytlrc = ytlrcText, !ytlrc.isEmpty {
+            // 逐字路径：翻译用网易配套下发的 ytlrc，其行 offset 与 yrc 行头一一对应；
+            // tlyric 与 lrc 同源、和 yrc 行头不是一套时间轴，精确匹配会全灭。
+            translation = buildTranslation(ytlrc, originalLines: lines)
         } else if let tlyric = raw.tlyric, !tlyric.isEmpty {
             translation = buildTranslation(tlyric, originalLines: lines)
         }
