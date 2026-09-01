@@ -689,7 +689,7 @@ Additional notes:
 <details>
 <summary><b>v5.0.0</b></summary>
 
-- Karaoke lyrics are now available on EeveeSpotify! (Preview)
+- Word-by-word lyrics are now available on EeveeSpotify! (Preview)
 
 </details>
 
@@ -700,5 +700,12 @@ Additional notes:
 
 - Changed the UI display of “Clear Debug Logs”.
 - Added more logging.
+
+</details>
+
+<details>
+<summary><b>v5.1.0-beta.2</b></summary>
+
+- Enabled word-by-word lyrics to display lyric translations and corresponding romanized lyrics.
 
 </details>
