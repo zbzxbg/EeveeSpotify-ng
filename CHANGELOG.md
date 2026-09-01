@@ -5,8 +5,6 @@
 
 ### 09.01
 
-
-</details>
 <details>
 <summary><b>v5.1.0-beta.3</b></summary>
 
@@ -713,3 +711,4 @@ Additional notes:
 
 </details>
 
+</details>
