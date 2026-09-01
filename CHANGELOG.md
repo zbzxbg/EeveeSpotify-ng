@@ -36,17 +36,17 @@ Officially released new functionality.
 - Tappable settings entry pointing to this repository.
   (v1.0.0-alpha.1)
 - Manually selectable lyrics fallback modes.
-  (v1.0.0)
+  (v1.0.0-beta.1)
 - Independent romanization switches for Japanese, Chinese, and Korean lyrics.
-  (v1.0.0)
+  (v1.0.0-beta.2)
 - Option to remove Mxm's interlude symbol.
   (v2.0.0-beta.1)
 - "Disable Lyrics Function" option.
   (v2.0.0-beta.3)
 - SpicyLyrics lyrics provider.
-  (v4.0.0)
+  (v4.0.0-beta.1)
 - NetEase lyrics provider.
-  (v4.0.0)
+  (v4.0.0-beta.3，beta-5)
 - Logging / log export.
   (v4.0.0-beta.4)
 - Modified display method for NetEase Japanese romanized lyrics.
