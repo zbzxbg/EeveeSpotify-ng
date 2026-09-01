@@ -195,6 +195,8 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
     private var providerLabel: UILabel?
     /// 是否在底部显示「歌词提供者」（全屏显示，内嵌不显示）。
     var showsProviderFooter = false
+    /// 是否显示行级译文（全屏显示；内嵌「预览歌词」不显示）。
+    var showsTranslation = true
     /// 行级译文标签（每行原文下面一行小字），用于 rebuild 清理。
     private var translationLabels: [UILabel] = []
 
@@ -207,8 +209,8 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
     private let activeLineColorValue = UIColor.white
     /// 行级译文字号（比歌词小）。
     private let translationFontSize: CGFloat = 16
-    /// 行级译文颜色（半透明白）。
-    private let translationColor = UIColor.white.withAlphaComponent(0.5)
+    /// 行级译文颜色：与未唱歌词（其余行）一致的黑色。
+    private let translationColor = UIColor.black
     /// 当前行内「未唱」词的透明度（已唱/正在唱为全白）。
     private let unsungWordOpacity: CGFloat = 0.45
     /// 背景色缓存：每次 rebuild（换歌/换数据）后按「定制」选项重新计算一次。
@@ -458,7 +460,7 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
             lineStack.spacing = 4
             lineStack.addArrangedSubview(label)
 
-            if let translation = dto.translation, index < translation.lines.count {
+            if showsTranslation, let translation = dto.translation, index < translation.lines.count {
                 let t = translation.lines[index]
                 if !t.isEmpty {
                     let translationLabel = UILabel()
@@ -713,7 +715,7 @@ final class WordByWordHost {
 
     func reattachToInline() {
         guard let controller = lastInlineController else { return }
-        attach(to: controller)
+        attach(to: controller, showsTranslation: false)
     }
 
     private var renderEnabled: Bool {
@@ -724,12 +726,14 @@ final class WordByWordHost {
     /// keepAboveView: 需要保留在 overlay 之上的原生控件（全屏歌词的分享/更多按钮），必须是 contentView 的直接子视图。
     /// sideInset: 覆盖层歌词行的左右边距（全屏可用更大值，默认用 overlay 自己的）。
     /// showsProviderFooter: 是否在底部显示「歌词提供者」（全屏显示，内嵌不显示）。
+    /// showsTranslation: 是否显示行级译文（全屏显示；内嵌「预览歌词」不显示）。
     func attach(
         to controller: UIViewController,
         contentView: UIView? = nil,
         keepAboveView: UIView? = nil,
         sideInset: CGFloat? = nil,
-        showsProviderFooter: Bool = false
+        showsProviderFooter: Bool = false,
+        showsTranslation: Bool = true
     ) {
         guard renderEnabled else { return }
         let view = contentView ?? controller.view
@@ -742,6 +746,7 @@ final class WordByWordHost {
         let overlayView = LyricsWordByWordOverlayView(frame: view.bounds)
         overlayView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         overlayView.showsProviderFooter = showsProviderFooter
+        overlayView.showsTranslation = showsTranslation
         if let sideInset { overlayView.setSideInset(sideInset) }
         view.addSubview(overlayView)
         if let keepAboveView, keepAboveView.superview === view {
@@ -785,7 +790,7 @@ class LyricsWordByWordModernHostHook: ClassHook<UIViewController> {
         let vc = target
         WordByWordHost.shared.rememberInlineController(vc)
         DispatchQueue.main.async {
-            WordByWordHost.shared.attach(to: vc)
+            WordByWordHost.shared.attach(to: vc, showsTranslation: false)
         }
     }
 
@@ -804,7 +809,7 @@ class LyricsWordByWordLegacyHostHook: ClassHook<UIViewController> {
         let vc = target
         WordByWordHost.shared.rememberInlineController(vc)
         DispatchQueue.main.async {
-            WordByWordHost.shared.attach(to: vc)
+            WordByWordHost.shared.attach(to: vc, showsTranslation: false)
         }
     }
 
