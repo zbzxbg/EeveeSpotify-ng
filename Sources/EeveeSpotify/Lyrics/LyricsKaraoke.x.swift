@@ -457,7 +457,7 @@ final class LyricsKaraokeOverlayView: UIView, UIScrollViewDelegate {
             footer.textAlignment = .left
             footer.font = .systemFont(ofSize: 14, weight: .regular)
             footer.textColor = lineColor
-            footer.text = "歌词提供者：\(currentLyricsProvider)"
+            footer.text = "逐字歌词提供者：\(currentLyricsProvider)"
             stackView.addArrangedSubview(footer)
             providerLabel = footer
         }
