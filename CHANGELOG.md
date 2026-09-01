@@ -693,12 +693,12 @@ Additional notes:
 
 </details>
 
-## 09.01
+### 09.01
 
 <details>
 <summary><b>v5.1.0-beta.1</b></summary>
 
 - Changed the UI display of “Clear Debug Logs”.
 - Added more logging.
-
+- Changed the display method of karaoke lyrics.
 </details>
