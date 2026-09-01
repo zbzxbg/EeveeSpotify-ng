@@ -172,5 +172,5 @@ debug_log_cleared = "Debug log cleared.";
 debug_log_cleared_ok = "OK";
 no_debug_log_found = "No debug log found.";
 no_debug_log_found_ok = "OK";
-no_log_to_clear = "No logs to clear.";
+no_log_to_clear = "There's no log to clear.";
 no_log_to_clear_ok = "OK";
