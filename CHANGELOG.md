@@ -14,7 +14,7 @@
 - Fixed an issue where the first letter of each word-by-word lyric line from NetEase was not capitalized.
 - Fixed an issue where NetEase did not remove all song identification terminology.
 
-<details>
+</details>
 
 <details>
 <summary><b>v5.1.0-beta.4</b></summary>
