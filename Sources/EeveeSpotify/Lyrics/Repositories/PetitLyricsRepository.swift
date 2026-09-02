@@ -125,18 +125,28 @@ class PetitLyricsRepository: LyricsRepository {
                 writeDebugLog("[Petit] line span: first=\(firstLine)ms last=\(lastLine)ms (\(lyrics.lines.count) lines)")
             }
 
+            // 卡拉OK音源导入段校正：WSY 时间轴起点是「卡拉OK音源」的起点，
+            // 部分歌开头有一段导入（静音/计数），首行会用「空 linestring + 单零时长词」作标记，
+            // 其 starttime 即音乐真正开始的时点（Spotify 音频 t=0 对应这里）。
+            // 不从时间轴里减掉它，整首歌词会整体晚 leadIn 毫秒（如「ふり」晚 6999ms ≈ 7s）。
+            let leadInMs = Self.leadInOffsetMs(lyrics.lines)
+            if leadInMs > 0 {
+                writeDebugLog("[Petit] karaoke lead-in \(leadInMs)ms — shifting timeline")
+            }
+
+            let sourceLines = leadInMs > 0 ? Array(lyrics.lines.dropFirst()) : lyrics.lines
             let preserveWords = NgzhwmSettingsViewModel.isWordByWordLyricsEnabled
-            writeDebugLog("[Petit] Words-synced lyrics — \(lyrics.lines.count) line(s)\(preserveWords ? " (word-by-word preserved)" : "")")
+            writeDebugLog("[Petit] Words-synced lyrics — \(sourceLines.count) line(s)\(preserveWords ? " (word-by-word preserved)" : "")")
             return LyricsDto(
-                lines: lyrics.lines.map {
+                lines: sourceLines.map {
                     LyricsLineDto(
                         content: $0.linestring,
-                        offsetMs: $0.words.first?.starttime,
-                        words: preserveWords ? Self.wordDto(for: $0, isCentiseconds: centi) : nil
+                        offsetMs: $0.words.first.map { $0.starttime - leadInMs },
+                        words: preserveWords ? Self.wordDto(for: $0, isCentiseconds: centi, leadInMs: leadInMs) : nil
                     )
                 },
                 timeSynced: true,
-                romanization: lyrics.lines.map { $0.linestring }.canBeRomanized
+                romanization: sourceLines.map { $0.linestring }.canBeRomanized
                     ? .canBeRomanized
                     : .original
             )
@@ -179,9 +189,25 @@ class PetitLyricsRepository: LyricsRepository {
         return centi
     }
 
+    /// 检测卡拉OK音源导入段并返回其毫秒偏移。
+    /// 导入段签名：首行 linestring 为空 + 恰好一个词 + 词文本为空 + 词时长为零（starttime==endtime）。
+    /// 这种行是 Petit WSY 的「音乐开始点」标记，不是歌词；返回其 starttime 作为要在所有时间轴上减去的偏移。
+    /// 无此标记（首行即真歌词）时返回 0，不改变时间轴。
+    private static func leadInOffsetMs(_ lines: [PetitLyricsLine]) -> Int {
+        guard let first = lines.first,
+              first.linestring.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              first.words.count == 1,
+              let marker = first.words.first,
+              marker.wordstring?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true,
+              marker.starttime == (marker.endtime ?? marker.starttime) else {
+            return 0
+        }
+        return marker.starttime
+    }
+
     /// Petit 的 wordsSynced 词元素通常只带 starttime、不带词文本，
     /// 词文本需从 linestring 推导：先按空白切分；日语无空格时按逐字符切分对齐词数。
-    private static func wordDto(for line: PetitLyricsLine, isCentiseconds: Bool) -> [LyricsWordDto]? {
+    private static func wordDto(for line: PetitLyricsLine, isCentiseconds: Bool, leadInMs: Int) -> [LyricsWordDto]? {
         let words = line.words
         guard !words.isEmpty else { return nil }
 
@@ -201,7 +227,7 @@ class PetitLyricsRepository: LyricsRepository {
         // 厘秒格式：词时间是「相对行首的厘秒差」（整数值 = 行首 + 厘秒差，未 ×10），换算成绝对毫秒；
         // 毫秒格式：词时间本身就是绝对毫秒。
         func convert(_ raw: Int) -> Int {
-            isCentiseconds ? lineOffsetMs + (raw - lineOffsetMs) * 10 : raw
+            (isCentiseconds ? lineOffsetMs + (raw - lineOffsetMs) * 10 : raw) - leadInMs
         }
 
         // Petit 的 word 元素带 wordstring（词文本，含空格 token）+ starttime + endtime
