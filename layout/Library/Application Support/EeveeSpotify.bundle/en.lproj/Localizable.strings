@@ -38,7 +38,7 @@ lyrics_source = "Lyrics Source";
 lyrics_source_description = "Genius: Offers the widest song coverage and the best quality lyrics, but the lyrics are not time-synced.
 LRCLIB: The most open service, offering time-synced lyrics. However, it lacks lyrics for many songs.
 Musixmatch: Provides time-synced lyrics for many songs, but you'll need a user token to use this source.";
-lyrics_additional_info = "Genius and NetEase search songs differently from other lyrics providers, so some songs may have display errors or fail to find lyrics.";
+lyrics_additional_info = "Genius, NetEase, and PetitLyrics use fuzzy search, so some songs may have display errors or fail to find lyrics.";
 petitlyrics_description = "PetitLyrics: Provides Japanese lyrics.";
 spicylyrics_description = "SpicyLyrics: Provides word-by-word lyrics and lyrics for some songs that other providers do not have. Visit spicylyrics.org for more details.";
 netease_description = "NetEase: Lyrics content goes through censorship. Lyrics for some songs may be updated faster than Genius, and most lyrics come with timestamps. However, support for users outside mainland China is weaker, and timestamps may be misaligned.";
