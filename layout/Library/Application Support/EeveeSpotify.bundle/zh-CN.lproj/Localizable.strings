@@ -31,8 +31,8 @@ overwrite_configuration_description = "用转存的 Premium 配置替换远程�
 do_not_replace_lyrics = "禁用自定义歌词替换功能";
 do_not_replace_lyrics_description = "开启此选项后会禁用自定义歌词功能，但不会阻止Spotify返回其自带的歌词。";
 lyrics_source = "歌词来源";
-lyrics_source_description = "可以自由选择自己喜欢的歌词来源。\n\nGenius：歌曲覆盖面最广和拥有最优质的歌词，但歌词不会有时间轴。\nLRCLIB：最开放的服务，提供带时间轴的歌词。但它缺少很多歌曲的歌词。\nMusixmatch：为很多歌曲提供带时间轴的歌词，但需要用户令牌才能使用。";
-lyrics_additional_info = "使用Genius或NetEase时，由于其搜索方式与其他歌词提供商有所不同，部分歌曲可能会出现歌词显示错误或搜索不到歌词的情况。";
+lyrics_source_description = "Genius：歌曲覆盖面最广和拥有最优质的歌词，但歌词不会有时间轴。\nLRCLIB：最开放的服务，提供带时间轴的歌词。但它缺少很多歌曲的歌词。\nMusixmatch：为很多歌曲提供带时间轴的歌词，但需要用户令牌才能使用。";
+lyrics_additional_info = "Genius和NetEase的搜索方式与其他歌词提供商有所不同，部分歌曲可能会出现歌词显示错误或搜索不到歌词的情况。";
 petitlyrics_description = "PetitLyrics：提供日语歌词。";
 spicylyrics_description = "SpicyLyrics：提供逐词歌词及部分其他提供商没有的歌词。具体介绍可前往spicylyrics.org查看。";
 netease_description = "NetEase：歌词内容会经过审查。部分歌曲的歌词更新速度可能比Genius更快，且歌词大部分带时间轴。但对非中国大陆用户的支持较差，且可能出现时间轴不对齐等情况。";
@@ -40,8 +40,6 @@ netease_description = "NetEase：歌词内容会经过审查。部分歌曲的�
 musixmatch_user_token = "Musixmatch 用户令牌";
 user_token_placeholder = "输入用户令牌或粘贴调试信息";
 
-enter_user_token = "输入用户令牌";
-enter_user_token_message = "为了使用 Musixmatch，需要从官方应用程序中检索你的用户令牌。从 AppStore 下载 Musixmatch，注册后转到 “设置” > “获取帮助” > “复制调试信息”，并粘贴在此处。用 MitM 来获取令牌也可以。";
 
 genius_fallback = "回退到 Genius";
 genius_fallback_description = "如果 %@ 有问题，将使用 Genius 加载歌词。";
@@ -89,7 +87,6 @@ could_not_share_popup = "无法分享到所选目标或 LiveContainer，URL 已�
 
 /* MARK: Lyrics */
 
-romanized_attribute = "罗马化";
 
 musixmatch_unauthorized_popup = "由于未授权错误，该插件无法从 Musixmatch 加载歌词。请检查或更新 Musixmatch 令牌。如果使用 iPad，则应从 iPad 版 Musixmatch 应用中获取令牌。";
 musixmatch_restricted_popup = "由于受到限制，该插件无法加载 Musixmatch 的歌词。这可能是由于美国 IP 地址导致的版权问题，因此如果在美国，则应更改地址（例如使用VPN）。";
@@ -107,7 +104,6 @@ Developement = "开发者";
 Localization = "本地化翻译";
 
 request_anonymous_token = "请求匿名令牌";
-request_anonymous_token_description = "点击 “请求匿名令牌” 即可在无需授权的情况下向 Musixmatch 请求令牌。";
 
 lrclib_api = "服务器地址";
 
@@ -125,10 +121,10 @@ payment_notice = "EeveeSpotify 已应用补丁来解锁部分高级功能，免�
 ngzhwm_title = "ngzhwm的专属功能";
 ngzhwm_disable_lyrics_feature = "禁用歌词功能";
 ngzhwm_disable_lyrics_feature_description = "此选项开启后会禁用有关于自定义歌词的所有功能。还会阻止Spotify返回其自带的歌词。";
-ngzhwm_word_by_word_lyrics = "开启逐字歌词";
-ngzhwm_word_by_word_lyrics_description = "预览版功能。目前Musixmatch，PetitLyrics，SpicyLyrics，NetEase提供逐字歌词服务。";
+ngzhwm_word_by_word_lyrics = "开启逐词歌词";
+ngzhwm_word_by_word_lyrics_description = "目前Musixmatch，PetitLyrics，SpicyLyrics，NetEase提供逐词歌词服务。";
 ngzhwm_multi_level_fallback = "歌词多级回退";
-ngzhwm_multi_level_fallback_description = "此选项开启时后歌词将按照Mxm-PL-LRC-Gen的方式多级回退查询(Mxm和PL最长等待5秒，LRCLIB和Genius最长等待3秒；如果某个来源在对应时间内仍未返回有效歌词，则查询下一个来源)。此选项关闭时歌词会按照whoeevee菜单内用户的设置进行查询。";
+ngzhwm_multi_level_fallback_description = "此选项开启后歌词将按照Mxm-PL-LRC-Gen的方式多级回退查询(Mxm和PL最长等待5秒，LRCLIB和Genius最长等待3秒；如果某个来源在对应时间内仍未返回有效歌词，则查询下一个来源)。此选项关闭时歌词会按照whoeevee菜单内用户的设置进行查询。";
 ngzhwm_netease_romaji_local = "修改NetEase日语罗马字的展示方式";
 ngzhwm_netease_romaji_local_description = "选项生效需要开启whoeevee菜单内的\"日语歌词罗马化\"。选项开启后NetEase的日语罗马字会交给本地日语罗马化处理，而不是交给NetEase。如果NetEase返回逐词歌词，此选项将不起作用。";
 ngzhwm_netease_hide_translation = "不展示NetEase的翻译按钮";
@@ -144,7 +140,7 @@ ngzhwm_remove_interlude_symbol_description = "此选项开启时后会删除歌�
 
 debug_title = "调试";
 enable_log_recording = "开启日志记录";
-enable_log_recording_description = "平常使用无须开启日志记录功能，因为它记录的内容比jaydenjcpy版本的要详细。";
+enable_log_recording_description = "平常使用无须开启日志记录功能。";
 export_debug_log = "导出调试日志";
 clear_debug_log = "清除调试日志";
 debug_log_cleared = "调试日志已清除。";

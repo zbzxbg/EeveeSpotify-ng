@@ -35,21 +35,16 @@ overwrite_configuration_description = "Replace the remote configuration with the
 do_not_replace_lyrics = "Disable Custom Lyrics Replacement";
 do_not_replace_lyrics_description = "When enabled, the custom lyrics feature is disabled, but Spotify is not prevented from returning its own lyrics.";
 lyrics_source = "Lyrics Source";
-lyrics_source_description = "You can select the lyrics source you prefer.
-
-Genius: Offers the widest song coverage and the best quality lyrics, but the lyrics are not time-synced.
+lyrics_source_description = "Genius: Offers the widest song coverage and the best quality lyrics, but the lyrics are not time-synced.
 LRCLIB: The most open service, offering time-synced lyrics. However, it lacks lyrics for many songs.
 Musixmatch: Provides time-synced lyrics for many songs, but you'll need a user token to use this source.";
-lyrics_additional_info = "When using Genius or NetEase, some songs may have display errors or fail to find lyrics, because their search method differs from other lyrics providers.";
+lyrics_additional_info = "Genius and NetEase search songs differently from other lyrics providers, so some songs may have display errors or fail to find lyrics.";
 petitlyrics_description = "PetitLyrics: Provides Japanese lyrics.";
 spicylyrics_description = "SpicyLyrics: Provides word-by-word lyrics and lyrics for some songs that other providers do not have. Visit spicylyrics.org for more details.";
 netease_description = "NetEase: Lyrics content goes through censorship. Lyrics for some songs may be updated faster than Genius, and most lyrics come with timestamps. However, support for users outside mainland China is weaker, and timestamps may be misaligned.";
 
 musixmatch_user_token = "Musixmatch User Token";
 user_token_placeholder = "Enter User Token or Paste Debug Info";
-
-enter_user_token = "Enter User Token";
-enter_user_token_message = "In order to use Musixmatch, you need to retrieve your user token from the official app. Download Musixmatch from the App Store, sign up, then go to Settings > Get help > Copy debug info, and paste it here. You can also extract the token using MITM.";
 
 genius_fallback = "Genius Fallback";
 genius_fallback_description = "Load lyrics from Genius if there is a problem with %@.";
@@ -98,8 +93,6 @@ could_not_share_popup = "Couldn’t share to the selected destination or LiveCon
 
 /* MARK: Lyrics */
 
-romanized_attribute = "Romanized";
-
 musixmatch_unauthorized_popup = "The tweak is unable to load lyrics from Musixmatch due to Unauthorized error. Please check or update your Musixmatch token. If you use an iPad, you should get the token from the Musixmatch app for iPad.";
 musixmatch_restricted_popup = "The tweak is unable to load lyrics from Musixmatch because they are restricted. It's likely a copyright issue due to the US IP address, so you should change it if you're in the US or use a VPN.";
 
@@ -117,7 +110,6 @@ Developement = "Developers";
 Localization = "Localization";
 
 request_anonymous_token = "Request Anonymous Token";
-request_anonymous_token_description = "Tap “Request Anonymous Token” to request a token from Musixmatch without authorization.";
 
 lrclib_api = "Server Address";
 
@@ -136,7 +128,7 @@ ngzhwm_title = "ngzhwm Features";
 ngzhwm_disable_lyrics_feature = "Disable Lyrics Function";
 ngzhwm_disable_lyrics_feature_description = "When enabled, this disables all functions related to custom lyrics. It also prevents Spotify from returning its own lyrics.";
 ngzhwm_word_by_word_lyrics = "Enable Word-by-Word Lyrics";
-ngzhwm_word_by_word_lyrics_description = "Preview feature. Currently Musixmatch, PetitLyrics, SpicyLyrics, and NetEase provide word-by-word lyrics services.";
+ngzhwm_word_by_word_lyrics_description = "Currently Musixmatch, PetitLyrics, SpicyLyrics, and NetEase provide word-by-word lyrics services.";
 ngzhwm_multi_level_fallback = "Multi-level Lyrics Fallback";
 ngzhwm_multi_level_fallback_description = "When this option is enabled, lyrics are searched through multiple providers in this order: Musixmatch → PetitLyrics → LRCLIB → Genius. Musixmatch and PetitLyrics are given up to 5 seconds each, while LRCLIB and Genius are given up to 3 seconds each; if a provider doesn't return valid lyrics within its time limit, the next provider is queried. When this option is disabled, lyrics are queried according to the user's settings in the whoeevee menu.";
 ngzhwm_netease_romaji_local = "Modify NetEase Japanese Romaji Display";
@@ -154,7 +146,7 @@ ngzhwm_remove_interlude_symbol_description = "When this option is enabled, the i
 
 debug_title = "Debug";
 enable_log_recording = "Enable Log Recording";
-enable_log_recording_description = "There's no need to enable log recording for normal use, since it records more detail than the jaydenjcpy version.";
+enable_log_recording_description = "There's no need to enable log recording for normal use.";
 export_debug_log = "Export Debug Log";
 clear_debug_log = "Clear Debug Log";
 debug_log_cleared = "Debug log cleared.";
