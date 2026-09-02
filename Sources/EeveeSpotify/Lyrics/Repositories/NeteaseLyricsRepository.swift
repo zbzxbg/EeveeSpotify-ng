@@ -669,6 +669,9 @@ class NeteaseLyricsRepository: LyricsRepository {
             }
 
             guard !content.isEmpty else { continue }
+            // 过滤制作信息行（「编曲 : TOKOTOKO」这类 yrc 行头 credit 行），
+            // 与 parseLrc 的 isCreditLine 过滤保持一致；否则会出现在歌词第一行。
+            guard !isCreditLine(content) else { continue }
             parsed.append((offsetMs: startMs, content: content, words: words))
         }
 
@@ -954,10 +957,20 @@ class NeteaseLyricsRepository: LyricsRepository {
             writeDebugLog("[NetEase] Local romaji display enabled — skipping official romaji")
         }
 
+        // 逐字歌词（preferWordByWord 且拿到 yrc）时跳过官方罗马音 + 本地兜底：
+        // 这两步会把 yrc 的 words 词级时间轴丢掉、且产出小写罗马字；
+        // 改为保持原文 + .canBeRomanized，交给显示层 romanizedForWordByWordIfEnabled
+        // （罗马化 + 首词大写 + 词级对齐）与原生 romanizeLine 处理。
+        let usingWordByWord = preferWordByWord && !yrcParsed.isEmpty
+        if usingWordByWord {
+            writeDebugLog("[NetEase] word-by-word path — skipping repo-side romaji (defer to display layer)")
+        }
+
         if let romalrc = raw.romalrc, !romalrc.isEmpty,
            languageCode == "ja",
            UserDefaults.standard.bool(forKey: "ngzhwm_japaneseRomanization"),
-           !preferLocalRomaji {
+           !preferLocalRomaji,
+           !usingWordByWord {
             let romanized = applyRomanization(romalrc, originalLines: lines)
             if romanized.matched > 0 {
                 lines = romanized.lines
