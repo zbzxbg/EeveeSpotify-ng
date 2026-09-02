@@ -28,14 +28,14 @@ overwrite_configuration_description = "用转存的 Premium 配置替换远程�
 
 // Lyrics
 
-do_not_replace_lyrics = "禁用EeveeSpotify的歌词替换功能";
-do_not_replace_lyrics_description = "开启此选项后会禁用EeveeSpotify的歌词功能，但不会阻止Spotify返回其自带的歌词。";
+do_not_replace_lyrics = "禁用自定义歌词替换功能";
+do_not_replace_lyrics_description = "开启此选项后会禁用自定义歌词功能，但不会阻止Spotify返回其自带的歌词。";
 lyrics_source = "歌词来源";
-lyrics_source_description = "可以自由选择自己喜欢的歌词来源。\n\nGenius：提供最多的歌曲和拥有最优质的歌词，歌词更新速度最快。但歌词不会有时间轴。\nLRCLIB：最开放的服务，提供带时间轴的歌词。但它缺少很多歌曲的歌词。\nMusixmatch：Spotify 本身所使用的服务，为很多歌曲提供带时间轴的歌词，但需要用户令牌才能使用。";
-lyrics_additional_info = "如果插件无法找到歌曲或处理歌词，将显示“无法加载这首歌的歌词”的提示。使用Genius或NetEase时，由于其搜索方式与其他歌词提供商有所不同，部分歌曲可能会出现歌词匹配或显示错误。";
-petitlyrics_description = "PetitLyrics：提供很多的日语歌词。";
-spicylyrics_description = "SpicyLyrics：面向桌面端Spotify的歌词提供商，提供逐词歌词及部分其他提供商没有的歌词。具体介绍可前往spicylyrics.org查看。";
-netease_description = "NetEase：主要面向中国大陆的歌词提供商，部分歌曲的歌词更新速度可能比Genius更快，且歌词大部分带时间轴。但对非中国大陆用户的支持较差，且可能出现歌词内容错误或时间轴不对齐等情况。";
+lyrics_source_description = "可以自由选择自己喜欢的歌词来源。\n\nGenius：歌曲覆盖面最广和拥有最优质的歌词，但歌词不会有时间轴。\nLRCLIB：最开放的服务，提供带时间轴的歌词。但它缺少很多歌曲的歌词。\nMusixmatch：为很多歌曲提供带时间轴的歌词，但需要用户令牌才能使用。";
+lyrics_additional_info = "使用Genius或NetEase时，由于其搜索方式与其他歌词提供商有所不同，部分歌曲可能会出现歌词显示错误或搜索不到歌词的情况。";
+petitlyrics_description = "PetitLyrics：提供日语歌词。";
+spicylyrics_description = "SpicyLyrics：提供逐词歌词及部分其他提供商没有的歌词。具体介绍可前往spicylyrics.org查看。";
+netease_description = "NetEase：歌词内容会经过审查。部分歌曲的歌词更新速度可能比Genius更快，且歌词大部分带时间轴。但对非中国大陆用户的支持较差，且可能出现时间轴不对齐等情况。";
 
 musixmatch_user_token = "Musixmatch 用户令牌";
 user_token_placeholder = "输入用户令牌或粘贴调试信息";
@@ -51,7 +51,7 @@ hide_lyrics_on_error_description = "如果歌词加载失败，则删除歌词�
 
 
 musixmatch_language = "Musixmatch 歌词语言";
-musixmatch_language_description = "可以输入两个字母的 Musixmatch 语言代码，并在 Musixmatch 上查看翻译的歌词（如果有）。";
+musixmatch_language_description = "可以输入两个字母的 Musixmatch 语言代码，并查看歌词翻译（如果有歌词翻译的话）。";
 
 // UI
 
@@ -94,15 +94,6 @@ romanized_attribute = "罗马化";
 musixmatch_unauthorized_popup = "由于未授权错误，该插件无法从 Musixmatch 加载歌词。请检查或更新 Musixmatch 令牌。如果使用 iPad，则应从 iPad 版 Musixmatch 应用中获取令牌。";
 musixmatch_restricted_popup = "由于受到限制，该插件无法加载 Musixmatch 的歌词。这可能是由于美国 IP 地址导致的版权问题，因此如果在美国，则应更改地址（例如使用VPN）。";
 
-// Errors Titles
-
-no_such_song = "未找到歌曲";
-musixmatch_restricted = "受限制";
-invalid_musixmatch_token = "未授权";
-decoding_error = "解码错误";
-no_current_track = "无当前曲目";
-unknown_error = "未知错误";
-
 // Instrumental Titles
 
 song_is_instrumental = "此歌曲为纯音乐。";
@@ -133,21 +124,21 @@ payment_notice = "EeveeSpotify 已应用补丁来解锁部分高级功能，免�
 
 ngzhwm_title = "ngzhwm的专属功能";
 ngzhwm_disable_lyrics_feature = "禁用歌词功能";
-ngzhwm_disable_lyrics_feature_description = "和这个功能的名字一样，它会禁用有关于歌词的所有功能。开启此功能后EeveeSpotify还会阻止Spotify返回其自带的歌词。";
+ngzhwm_disable_lyrics_feature_description = "此选项开启后会禁用有关于自定义歌词的所有功能。还会阻止Spotify返回其自带的歌词。";
 ngzhwm_word_by_word_lyrics = "开启逐字歌词";
 ngzhwm_word_by_word_lyrics_description = "预览版功能。目前Musixmatch，PetitLyrics，SpicyLyrics，NetEase提供逐字歌词服务。";
 ngzhwm_multi_level_fallback = "歌词多级回退";
-ngzhwm_multi_level_fallback_description = "当此选项开启时，歌词将按照Mxm-PL-LRC-Gen的方式多级回退查询(Mxm和PL最长等待5秒，LRCLIB和Genius最长等待3秒；如果某个来源在对应时间内仍未返回有效歌词，则查询下一个来源)。当此选项关闭时，歌词会按照whoeevee菜单内用户的设置进行查询。";
+ngzhwm_multi_level_fallback_description = "此选项开启时后歌词将按照Mxm-PL-LRC-Gen的方式多级回退查询(Mxm和PL最长等待5秒，LRCLIB和Genius最长等待3秒；如果某个来源在对应时间内仍未返回有效歌词，则查询下一个来源)。此选项关闭时歌词会按照whoeevee菜单内用户的设置进行查询。";
 ngzhwm_netease_romaji_local = "修改NetEase日语罗马字的展示方式";
-ngzhwm_netease_romaji_local_description = "选项生效需要开启whoeevee菜单内的\"日语歌词罗马化\"。此选项开启后，NetEase的日语罗马字会交给本地日语罗马化处理，而不是交给NetEase。如果NetEase返回逐词歌词，此选项将不起作用。";
+ngzhwm_netease_romaji_local_description = "选项生效需要开启whoeevee菜单内的\"日语歌词罗马化\"。选项开启后NetEase的日语罗马字会交给本地日语罗马化处理，而不是交给NetEase。如果NetEase返回逐词歌词，此选项将不起作用。";
 ngzhwm_netease_hide_translation = "不展示NetEase的翻译按钮";
-ngzhwm_netease_hide_translation_description = "选项开启后，NetEase歌词源不会显示歌词简中翻译。";
+ngzhwm_netease_hide_translation_description = "选项开启后NetEase歌词源不会显示歌词翻译按钮。";
 ngzhwm_romanization_description = "单独设置每种语言的歌词是否罗马化。如果某种语言的歌词未开启罗马化选项，该语言的歌词会直接显示，不进行罗马化。";
 ngzhwm_chinese_romanization = "中文歌词罗马化";
 ngzhwm_japanese_romanization = "日语歌词罗马化";
 ngzhwm_korean_romanization = "韩语歌词罗马化";
 ngzhwm_remove_interlude_symbol = "删除间奏符号「♪」";
-ngzhwm_remove_interlude_symbol_description = "当此选项开启时，会删除歌词内的间奏符号「♪」，有♪的这一行会显示空白。";
+ngzhwm_remove_interlude_symbol_description = "此选项开启时后会删除歌词内的间奏符号「♪」，有♪的这一行会显示空白。";
 
 // Debug
 
