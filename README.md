@@ -1,3 +1,5 @@
+### The original repository was taken down under a [DMCA notice](https://github.com/github/dmca/blob/master/2025/08/2025-08-14-spotify.md). This fork is independently maintained by me and is not affiliated with the original author, whoeevee.
+
 > **Language:** English | [简体中文](README-zhcn.md)
 
 Based on [EeveeSpotify](https://github.com/whoeevee/EeveeSpotifyReborn).
@@ -7,14 +9,6 @@ Latest public release: `v5.0.0`
 Current development version: `v5.1.0-beta.4`
 
 Development version last updated: `2026-09-02`
-
-## 📌 Overview
-
-The original repository was taken down under a [DMCA notice](https://github.com/github/dmca/blob/master/2025/08/2025-08-14-spotify.md). This fork is independently maintained by me and is not affiliated with the original author, whoeevee.
-
-Verified environment: iPhone 11 + iOS 26.6.1 + certificate-signed build + LCSign + rootless DEB. 
-
-The modified features in this fork have been verified to work in this environment. Other iOS versions, jailbreak environments, TrollStore, installation methods, and Spotify versions have not been tested, so compatibility with them is unknown.
 
 ## 🔧 Modifications
 
@@ -29,6 +23,10 @@ And other modifications and improvements.
 ## ⚠️ Notice
 
 It is recommended that you first familiarize yourself with whoeevee's original EeveeSpotify 9.1.0 before using this project. Compared to the original version, this project has reduced some error prompts. If you use it directly, you may not receive clear on-screen error notifications when issues occur, and you will need to export logs for further troubleshooting.
+
+Verified environment: iPhone 11 + iOS 26.6.1 + certificate-signed build + LCSign + rootless DEB. 
+
+The modified features in this fork have been verified to work in this environment. Other iOS versions, jailbreak environments, TrollStore, installation methods, and Spotify versions have not been tested, so compatibility with them is unknown.
 
 Tested with Spotify 9.1.0-Patched only. Compatibility with other Spotify versions is unknown.
 
