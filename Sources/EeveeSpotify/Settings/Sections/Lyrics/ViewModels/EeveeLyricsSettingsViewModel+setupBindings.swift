@@ -65,11 +65,6 @@ extension EeveeLyricsSettingsViewModel {
             .sink { [weak self] newSource in
                 guard let self = self else { return }
                 
-                if newSource == .musixmatch && self.musixmatchToken.isEmpty {
-                    self.musixmatchTokenInputAlertPublisher.send(true)
-                    return
-                }
-                
                 if newSource == .lrclib {
                     self.lyricsOptions.lrclibUrl = LrclibLyricsRepository.originalApiUrl
                 }

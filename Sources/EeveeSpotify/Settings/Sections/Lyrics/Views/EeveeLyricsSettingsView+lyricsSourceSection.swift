@@ -74,6 +74,21 @@ extension EeveeLyricsSettingsView {
             )
         )
         .frame(maxWidth: .infinity, alignment: .leading)
+        
+        Button {
+            viewModel.requestAnonymousMusixmatchToken()
+        } label: {
+            if viewModel.isRequestingMusixmatchToken {
+                HStack {
+                    ProgressView()
+                    Text("request_anonymous_token".localized)
+                        .padding(.leading, 8)
+                }
+            } else {
+                Text("request_anonymous_token".localized)
+            }
+        }
+        .disabled(viewModel.isRequestingMusixmatchToken)
     }
     
     @ViewBuilder private func lrclibURLField() -> some View {

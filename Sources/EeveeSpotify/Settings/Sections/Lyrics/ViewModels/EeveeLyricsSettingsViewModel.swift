@@ -61,17 +61,28 @@ class EeveeLyricsSettingsViewModel: ObservableObject {
     }
     
     func requestAnonymousMusixmatchToken() {
+        guard !isRequestingMusixmatchToken else { return }
         isRequestingMusixmatchToken = true
                 
         AnonymousTokenHelper.requestAnonymousMusixmatchToken()
+            .receive(on: DispatchQueue.main)
             .sink(receiveCompletion: { [weak self] completion in
                 self?.isRequestingMusixmatchToken = false
                 
                 switch completion {
-                case .failure(_):
-                    self?.musixmatchTokenInputAlertPublisher.send(false)
+                case .failure(let error):
+                    let message: String
+                    if error is AnonymousTokenError {
+                        message = "anonymous_token_request_failed".localized
+                    } else {
+                        message = error.localizedDescription
+                    }
+                    PopUpHelper.showPopUp(
+                        delayed: false,
+                        message: message,
+                        buttonText: "OK".uiKitLocalized
+                    )
                 case .finished:
-                    UserDefaults.lyricsSource = .musixmatch
                     break
                 }
             }, receiveValue: { [weak self] token in
