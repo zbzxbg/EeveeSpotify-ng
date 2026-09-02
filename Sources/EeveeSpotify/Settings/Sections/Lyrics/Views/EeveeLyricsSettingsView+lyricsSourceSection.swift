@@ -4,13 +4,13 @@ extension EeveeLyricsSettingsView {
     private func lyricsSourceFooter() -> some View {
         var text = "lyrics_source_description".localized
 
-        text.append("\n\n")
+        text.append("\n")
         text.append("petitlyrics_description".localized)
 
-        text.append("\n\n")
+        text.append("\n")
         text.append("spicylyrics_description".localized)
 
-        text.append("\n\n")
+        text.append("\n")
         text.append("netease_description".localized)
         
         text.append("\n\n")

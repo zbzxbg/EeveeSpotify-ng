@@ -38,9 +38,7 @@ lyrics_source = "Lyrics Source";
 lyrics_source_description = "You can select the lyrics source you prefer.
 
 Genius: Offers the widest song coverage and the best quality lyrics, but the lyrics are not time-synced.
-
 LRCLIB: The most open service, offering time-synced lyrics. However, it lacks lyrics for many songs.
-
 Musixmatch: Provides time-synced lyrics for many songs, but you'll need a user token to use this source.";
 lyrics_additional_info = "When using Genius or NetEase, some songs may have display errors or fail to find lyrics, because their search method differs from other lyrics providers.";
 petitlyrics_description = "PetitLyrics: Provides Japanese lyrics.";
