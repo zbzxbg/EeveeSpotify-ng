@@ -229,7 +229,7 @@
 
 
 <details>
-<summary><b>v4.1.0-beta.1</b></summary>
+<summary><b>v4.0.1-beta.1</b></summary>
 
 - Improved translations in the EeveeSpotify menu.
 
