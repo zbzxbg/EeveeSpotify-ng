@@ -3,6 +3,19 @@
 <details open>
 <summary><b>2026</b> </summary>
 
+### 09.02
+
+<details>
+<summary><b>v5.1.0-beta.4</b></summary>
+
+- Improved translations in the EeveeSpotify menu.
+- Removed the localization for “Lyrics Error”.
+- Removed the pop-up shown when selecting Mxm as the lyrics source for the first time.
+- Removed the localization for the first-time Mxm lyrics source selection pop-up.
+- Removed some other obsolete localizations that are no longer used.
+
+</details>
+
 ### 09.01
 
 <details>
