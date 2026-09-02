@@ -6,6 +6,17 @@
 ### 09.02
 
 <details>
+<summary><b>v5.1.1-beta.1</b></summary>
+
+- Fixed an issue where PetitLyrics word-by-word lyrics had inaccurate timestamps.
+- Fixed an issue where PetitLyrics could discard lyric lines containing only a single word.
+- Fixed an issue where NetEase could discard word-by-word lyrics timestamps.
+- Fixed an issue where the first letter of each word-by-word lyric line from NetEase was not capitalized.
+- Fixed an issue where NetEase did not remove all song identification terminology.
+
+<details>
+
+<details>
 <summary><b>v5.1.0-beta.4</b></summary>
 
 - Improved translations in the EeveeSpotify menu.
