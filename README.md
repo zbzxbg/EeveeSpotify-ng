@@ -30,7 +30,7 @@ And other modifications and improvements.
 
 It is recommended that you first familiarize yourself with whoeevee's original EeveeSpotify 9.1.0 before using this project. Compared to the original version, this project has reduced some error prompts. If you use it directly, you may not receive clear on-screen error notifications when issues occur, and you will need to export logs for further troubleshooting.
 
-Tested with Spotify 9.1.0 only. Compatibility with other Spotify versions is unknown.
+Tested with Spotify 9.1.0-Patched only. Compatibility with other Spotify versions is unknown.
 
 No IPA package is provided.
 
