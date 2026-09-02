@@ -12,7 +12,7 @@
 - Fixed an issue where PetitLyrics could discard lyric lines containing only a single word.
 - Fixed an issue where NetEase could discard word-by-word lyric timestamps.
 - Fixed an issue where the first letter of each word-by-word lyric line from NetEase was not capitalized.
-- Improved NetEase terminology handling when removing song identification terms.
+- Improved NetEase terminology handling to fix incomplete removal of song identification terms.
 - Improved translations in the EeveeSpotify menu.
 
 </details>
