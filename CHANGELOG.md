@@ -8,7 +8,6 @@
 <details>
 <summary><b>v5.1.1-beta.1</b></summary>
 
-- Fixed an issue where PetitLyrics word-by-word lyrics could have inaccurate timestamps.
 - Fixed an issue where PetitLyrics could discard lyric lines containing only a single word.
 - Fixed an issue where NetEase could discard word-by-word lyric timestamps.
 - Fixed an issue where the first letter of each word-by-word lyric line from NetEase was not capitalized.
