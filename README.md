@@ -22,7 +22,7 @@ Added two additional lyrics sources (NetEase and SpicyLyrics).
 
 Independent controls for romanization of Chinese, Japanese, and Korean lyrics.
 
-Implemented karaoke-style lyrics.
+Implemented Word-by-word lyrics.
 
 And other modifications and improvements.
 
