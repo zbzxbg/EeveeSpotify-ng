@@ -3,6 +3,15 @@
 <details open>
 <summary><b>2026</b> </summary>
 
+### 09.03
+<details>
+<summary><b>v5.1.1-beta.2</b></summary>
+
+- Attempted to implement the logic for fetching lyrics through Spotify’s “Lyrics” button.
+- Improved translations in the EeveeSpotify menu.
+
+</details>
+
 ### 09.02
 
 <details>

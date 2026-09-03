@@ -8,9 +8,9 @@
 
 Latest public release: `v5.1.0`
 
-Current development version: `v5.1.1-beta.1`
+Current development version: `v5.1.1-beta.2`
 
-Development version last updated: `2026-09-02`
+Development version last updated: `2026-09-03`
 
 ## 🔧 Modifications
 
