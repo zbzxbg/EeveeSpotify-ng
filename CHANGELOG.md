@@ -8,7 +8,7 @@
 <details>
 <summary><b>v5.1.1-beta.3</b></summary>
 
-- Fixed an issue where the NetEase lyrics translation button did not work properly.
+- Improved translations in the EeveeSpotify menu.
 
 </details>
 
