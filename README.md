@@ -1,6 +1,6 @@
 > **Language:** English | [简体中文](README-zhcn.md)
 
-`https://t.me/zbzxbg`
+[Telegram](https://t.me/zbzxbg)
 
 ### The original repository was taken down under a [DMCA notice](https://github.com/github/dmca/blob/master/2025/08/2025-08-14-spotify.md). This fork is independently maintained by me and is not affiliated with the original author, whoeevee.
 
