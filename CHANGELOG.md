@@ -6,16 +6,8 @@
 ### 09.03
 
 <details>
-<summary><b>v5.1.1-beta.3</b></summary>
-
-- Improved translations in the EeveeSpotify menu.
-
-</details>
-
-<details>
 <summary><b>v5.1.1-beta.2</b></summary>
 
-- Attempted to implement the logic for fetching lyrics through Spotify’s “Lyrics” button.
 - Improved translations in the EeveeSpotify menu.
 
 </details>
