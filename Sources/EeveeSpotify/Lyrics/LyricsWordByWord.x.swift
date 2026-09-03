@@ -324,6 +324,8 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
 
     /// 每帧由时钟调用：惰性取 dto、词级高亮、自动滚动。
     func setCurrentTime(_ ms: Double) {
+        syncTranslationToggle()
+
         if dtoVersion != currentLyricsVersion {
             dto = currentLyricsDto
             dtoVersion = currentLyricsVersion
@@ -426,6 +428,18 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
         }
     }
 
+    /// 同步原生「歌词翻译」按钮的开关状态：按钮 selected 一变就显隐译文。
+    private func syncTranslationToggle() {
+        guard let button = WordByWordHost.shared.nativeTranslationButton else { return }
+        let shows = button.isSelected
+        guard shows != showsTranslation else { return }
+        showsTranslation = shows
+        writeDebugLog("[WordByWord] translation toggle: \(shows ? "show" : "hide")")
+        for label in translationLabels {
+            label.isHidden = !shows
+        }
+    }
+
     private func rebuild() {
         for label in lineLabels { label.removeFromSuperview() }
         lineLabels = []
@@ -460,7 +474,7 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
             lineStack.spacing = 4
             lineStack.addArrangedSubview(label)
 
-            if showsTranslation, let translation = dto.translation, index < translation.lines.count {
+            if let translation = dto.translation, index < translation.lines.count {
                 let t = translation.lines[index]
                 if !t.isEmpty {
                     let translationLabel = UILabel()
@@ -470,6 +484,7 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
                     translationLabel.textColor = translationColor
                     translationLabel.text = t
                     translationLabel.isUserInteractionEnabled = false
+                    translationLabel.isHidden = !showsTranslation
                     lineStack.addArrangedSubview(translationLabel)
                     translationLabels.append(translationLabel)
                 }
@@ -708,6 +723,8 @@ final class WordByWordHost {
     private var isAttached = false
     /// 最近出现的内嵌歌词 VC（弱引用），全屏关闭后据此重新挂载。
     private weak var lastInlineController: UIViewController?
+    /// 原生「歌词翻译」按钮（全屏 ControlsView 里的 EncoreButton），用于同步 overlay 译文显隐。
+    weak var nativeTranslationButton: UIControl?
 
     func rememberInlineController(_ controller: UIViewController) {
         lastInlineController = controller
@@ -788,7 +805,6 @@ class LyricsWordByWordModernHostHook: ClassHook<UIViewController> {
     func viewDidAppear(_ animated: Bool) {
         orig.viewDidAppear(animated)
         let vc = target
-        dumpLyricsButtons(in: vc.view, label: "inline-modern")
         WordByWordHost.shared.rememberInlineController(vc)
         DispatchQueue.main.async {
             WordByWordHost.shared.attach(to: vc, showsTranslation: false)
@@ -808,7 +824,6 @@ class LyricsWordByWordLegacyHostHook: ClassHook<UIViewController> {
     func viewDidAppear(_ animated: Bool) {
         orig.viewDidAppear(animated)
         let vc = target
-        dumpLyricsButtons(in: vc.view, label: "inline-legacy")
         WordByWordHost.shared.rememberInlineController(vc)
         DispatchQueue.main.async {
             WordByWordHost.shared.attach(to: vc, showsTranslation: false)
@@ -830,12 +845,15 @@ class LyricsWordByWordFullscreenModernHostHook: ClassHook<UIViewController> {
     func viewDidAppear(_ animated: Bool) {
         orig.viewDidAppear(animated)
         let vc = target
-        // 诊断：dump 全屏 controlsView 里的按钮
+        // 找到原生「歌词翻译」按钮，供 overlay 同步译文显隐
         if let fullscreenView = WindowHelper.shared.findFirstSubview(
             "Lyrics_FullscreenElementPageImpl.FullscreenView", in: vc.view
         ) {
             let controlsView = Ivars<UIView>(fullscreenView).controlsView
-            dumpLyricsButtons(in: controlsView, label: "fullscreen-modern")
+            WordByWordHost.shared.nativeTranslationButton = controlsView
+                .subviews(matching: "Encore6Button")
+                .first(where: { $0.accessibilityIdentifier == "Components.UI.LyricsControlsView.TranslationsButton" })
+                as? UIControl
         }
         DispatchQueue.main.async {
             // 只覆盖「歌词内容」子模块 LyricsView（已由层级 dump 确认，frame=0,104 414x570）；
@@ -850,6 +868,7 @@ class LyricsWordByWordFullscreenModernHostHook: ClassHook<UIViewController> {
 
     func viewWillDisappear(_ animated: Bool) {
         orig.viewWillDisappear(animated)
+        WordByWordHost.shared.nativeTranslationButton = nil
         WordByWordHost.shared.detach()
         // 全屏以 sheet 形式盖在内嵌之上，关闭时内嵌 VC 不会重新 viewDidAppear；
         // 用记住的内嵌 VC 把 overlay 挂回去。
@@ -869,9 +888,6 @@ class LyricsWordByWordFullscreenLegacyHostHook: ClassHook<UIViewController> {
     func viewDidAppear(_ animated: Bool) {
         orig.viewDidAppear(animated)
         let vc = target
-        // 诊断：dump 全屏 headerView 里的按钮
-        let header = Ivars<UIView>(vc.view).headerView
-        dumpLyricsButtons(in: header, label: "fullscreen-legacy")
         DispatchQueue.main.async {
             // 把原生 headerView（分享/举报按钮）保留在 overlay 之上；
             // iOS14/15 的歌词内容子模块等层级 dump 后再改为只覆盖内容区
@@ -885,45 +901,5 @@ class LyricsWordByWordFullscreenLegacyHostHook: ClassHook<UIViewController> {
         WordByWordHost.shared.detach()
         // 同 modern hook：关闭全屏时把 overlay 挂回内嵌歌词 VC
         WordByWordHost.shared.reattachToInline()
-    }
-}
-
-// MARK: - 临时诊断：dump 歌词界面按钮
-
-/// 递归打印「按钮类」视图（类名 + frame + isSelected + 标题/无障碍），
-/// 用于定位 Spotify 原生「歌词翻译」按钮及其切换状态。
-func dumpLyricsButtons(in root: UIView, label: String) {
-    var stack: [(UIView, Int)] = [(root, 0)]
-    while !stack.isEmpty {
-        let (view, depth) = stack.removeLast()
-        guard depth <= 10 else { continue }
-
-        let cls = NSStringFromClass(type(of: view))
-        let buttonish = view is UIControl
-            || cls.contains("Button")
-            || cls.contains("Encore")
-            || cls.contains("Control")
-
-        if buttonish {
-            var parts = ["[Buttons] \(label) d\(depth) \(cls)"]
-            parts.append("frame=\(view.frame.debugDescription)")
-            if let control = view as? UIControl {
-                parts.append("selected=\(control.isSelected) enabled=\(control.isEnabled)")
-            }
-            if let button = view as? UIButton {
-                parts.append("title=\"\(button.currentTitle ?? "")\"")
-            }
-            if let acc = view.accessibilityLabel, !acc.isEmpty {
-                parts.append("acc=\"\(acc)\"")
-            }
-            if let iden = view.accessibilityIdentifier, !iden.isEmpty {
-                parts.append("id=\"\(iden)\"")
-            }
-            writeDebugLog(parts.joined(separator: " "))
-        }
-
-        for sub in view.subviews {
-            stack.append((sub, depth + 1))
-        }
     }
 }
