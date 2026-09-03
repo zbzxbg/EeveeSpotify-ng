@@ -6,9 +6,9 @@
 
 ## Based on [EeveeSpotify](https://github.com/whoeevee/EeveeSpotifyReborn).
 
-Latest public release: `v5.1.0`
+Latest public release: `v5.1.1`
 
-Current development version: `v5.1.1-beta.3`
+Current development version: `None`
 
 Development version last updated: `2026-09-03`
 
