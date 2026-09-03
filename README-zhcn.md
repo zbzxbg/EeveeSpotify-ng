@@ -1,33 +1,27 @@
-*该文件的内容不会随着README.md文件的更新而更新*
+本文件的内容不会随着README.md文件的更新而更新
 
-> **语言：** [English](README.md) | 简体中文
+原仓库因DMCA通知被下架。本Fork由我独立维护，与原作者whoeevee没有任何关联。
 
-基于[EeveeSpotify](https://github.com/whoeevee/EeveeSpotifyReborn)更新
+基于 EeveeSpotify。
 
-## 📌 说明
+🔧 修改内容
 
-本项目是[EeveeSpotify](https://github.com/whoeevee/EeveeSpotifyReborn)的修改分支
+* 新增两个歌词来源：网易云音乐和SpicyLyrics。
+* 实现逐词歌词。
+* 以及其他修改与优化。
 
-原仓库因 [DMCA](https://github.com/github/dmca/blob/master/2025/08/2025-08-14-spotify.md) 下架，本分支仅为个人维护，与原作者whoeevee无任何关联
+⚠️ 注意事项
 
-测试环境：iPhone 11  iOS 26.6.1 证书签名 签名软件LCSign 无根deb
+* 建议在使用本项目之前，先熟悉whoeevee原版EeveeSpotify 9.1.0的使用方法。
+* 已验证环境： iPhone 11 · iOS 26.6.1 · EeveeSpotify 9.1.0 · 证书签名版本 · LCSign · Rootless DEB。
+* 本Fork中修改的功能均已在上述环境中验证可以正常工作。
+* 本项目不提供IPA安装包。
+* 目前仅提供英语和简体中文本地化。出于维护方面的考虑，仓库中已移除其他语言的本地化文件。
 
-## 🔧 修改内容
+❤️ 致谢
 
-- 歌词多级回退
-- 可罗马化的三类歌词可单独调整
-- 以及……其他
+* 感谢whoeevee制作原版EeveeSpotify项目。
+* 感谢SideloadLabs制作SpicyLyrics歌词提供商，以及提供日志记录和导出功能。相关代码已根据本项目需求进行修改。
 
-## ⚠️ 声明
+⸻
 
-- 仅在 Spotify 9.1.0 版本测试过
-- 不提供 IPA 包，请自行构建
-- 本地化内容只做了英文和简体中文
-
----
-
-感谢 [whoeevee](https://github.com/whoeevee) 的卓越工作
-
----
-
-- [更新日志](CHANGELOG.md)
