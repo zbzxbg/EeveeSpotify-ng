@@ -324,8 +324,6 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
 
     /// 每帧由时钟调用：惰性取 dto、词级高亮、自动滚动。
     func setCurrentTime(_ ms: Double) {
-        syncTranslationToggle()
-
         if dtoVersion != currentLyricsVersion {
             dto = currentLyricsDto
             dtoVersion = currentLyricsVersion
@@ -428,15 +426,12 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
         }
     }
 
-    /// 同步原生「歌词翻译」按钮的开关状态：按钮 selected 一变就显隐译文。
-    private func syncTranslationToggle() {
-        guard let button = WordByWordHost.shared.nativeTranslationButton else { return }
-        let shows = button.isSelected
-        guard shows != showsTranslation else { return }
-        showsTranslation = shows
-        writeDebugLog("[WordByWord] translation toggle: \(shows ? "show" : "hide")")
+    /// 切换译文显隐（由原生「歌词翻译」按钮点击触发）。
+    func toggleTranslation() {
+        showsTranslation.toggle()
+        writeDebugLog("[WordByWord] translation toggle: \(showsTranslation ? "show" : "hide")")
         for label in translationLabels {
-            label.isHidden = !shows
+            label.isHidden = !showsTranslation
         }
     }
 
@@ -723,8 +718,21 @@ final class WordByWordHost {
     private var isAttached = false
     /// 最近出现的内嵌歌词 VC（弱引用），全屏关闭后据此重新挂载。
     private weak var lastInlineController: UIViewController?
-    /// 原生「歌词翻译」按钮（全屏 ControlsView 里的 EncoreButton），用于同步 overlay 译文显隐。
+    /// 原生「歌词翻译」按钮（全屏 ControlsView 里的 EncoreButton）。
     weak var nativeTranslationButton: UIControl?
+    /// 翻译按钮点击监听（强引用，避免 target 被释放）。
+    private var translationTapObserver: TranslationTapObserver?
+
+    /// 给原生翻译按钮挂点击监听：点一下切换 overlay 译文显隐。
+    func attachTranslationTapObserver(to button: UIControl) {
+        nativeTranslationButton = button
+        let observer = TranslationTapObserver()
+        observer.onTap = { [weak self] in
+            self?.overlay?.toggleTranslation()
+        }
+        translationTapObserver = observer
+        button.addTarget(observer, action: #selector(TranslationTapObserver.handleTap), for: .touchUpInside)
+    }
 
     func rememberInlineController(_ controller: UIViewController) {
         lastInlineController = controller
@@ -796,6 +804,15 @@ final class WordByWordHost {
     }
 }
 
+/// 监听原生「歌词翻译」按钮的点击（作为 UIControl 的 target）。
+final class TranslationTapObserver: NSObject {
+    var onTap: (() -> Void)?
+
+    @objc func handleTap() {
+        onTap?()
+    }
+}
+
 // MARK: - 挂载 hook（全屏歌词 VC）
 
 class LyricsWordByWordModernHostHook: ClassHook<UIViewController> {
@@ -845,15 +862,16 @@ class LyricsWordByWordFullscreenModernHostHook: ClassHook<UIViewController> {
     func viewDidAppear(_ animated: Bool) {
         orig.viewDidAppear(animated)
         let vc = target
-        // 找到原生「歌词翻译」按钮，供 overlay 同步译文显隐
+        // 找到原生「歌词翻译」按钮，挂点击监听切换 overlay 译文
         if let fullscreenView = WindowHelper.shared.findFirstSubview(
             "Lyrics_FullscreenElementPageImpl.FullscreenView", in: vc.view
         ) {
             let controlsView = Ivars<UIView>(fullscreenView).controlsView
-            WordByWordHost.shared.nativeTranslationButton = controlsView
+            if let button = controlsView
                 .subviews(matching: "Encore6Button")
-                .first(where: { $0.accessibilityIdentifier == "Components.UI.LyricsControlsView.TranslationsButton" })
-                as? UIControl
+                .first(where: { $0.accessibilityIdentifier == "Components.UI.LyricsControlsView.TranslationsButton" }) as? UIControl {
+                WordByWordHost.shared.attachTranslationTapObserver(to: button)
+            }
         }
         DispatchQueue.main.async {
             // 只覆盖「歌词内容」子模块 LyricsView（已由层级 dump 确认，frame=0,104 414x570）；
@@ -862,7 +880,7 @@ class LyricsWordByWordFullscreenModernHostHook: ClassHook<UIViewController> {
                 "Lyrics_FullscreenElementPageImpl.LyricsView", in: vc.view
             ) ?? vc.view
             // 全屏左边距用 24（贴近 Spotify 原生歌词内容的 24pt 内缩），比内嵌的 16 更靠右
-            WordByWordHost.shared.attach(to: vc, contentView: contentView, sideInset: 24, showsProviderFooter: true)
+            WordByWordHost.shared.attach(to: vc, contentView: contentView, sideInset: 24, showsProviderFooter: true, showsTranslation: false)
         }
     }
 
