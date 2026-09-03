@@ -1,6 +1,6 @@
 > **Language:** English | [简体中文](README-zhcn.md)
 
-[My Telegram](https://t.me/zbzxbg)
+[Telegram](https://t.me/zbzxbg)
 
 ### The original repository was taken down under a [DMCA notice](https://github.com/github/dmca/blob/master/2025/08/2025-08-14-spotify.md). This fork is independently maintained by me and is not affiliated with the original author, whoeevee.
 
@@ -16,15 +16,13 @@ Development version last updated: `2026-09-03`
 
 Added two additional lyrics sources (NetEase and SpicyLyrics).
 
-Independent controls for romanization of Chinese, Japanese, and Korean lyrics.
-
-Implemented Word-by-word lyrics.
+Implemented word-by-word lyrics.
 
 And other modifications and improvements.
 
 ## ⚠️ Notice
 
-It is recommended that you first familiarize yourself with whoeevee's original EeveeSpotify 9.1.0 before using this project. Compared to the original version, this project has reduced some error prompts. If you use it directly, you may not receive clear on-screen error notifications when issues occur, and you will need to export logs for further troubleshooting.
+It is recommended that you first familiarize yourself with whoeevee's original EeveeSpotify 9.1.0 before using this project.
 
 Verified environment: iPhone 11 + iOS 26.6.1 + certificate-signed build + LCSign + rootless DEB. 
 
