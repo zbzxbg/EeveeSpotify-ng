@@ -4,6 +4,14 @@
 <summary><b>2026</b> </summary>
 
 ### 09.03
+
+<details>
+<summary><b>v5.1.1-beta.3</b></summary>
+
+- Fixed an issue where the NetEase lyrics translation button did not work properly.
+
+</details>
+
 <details>
 <summary><b>v5.1.1-beta.2</b></summary>
 
