@@ -8,7 +8,7 @@ Based on [EeveeSpotify](https://github.com/whoeevee/EeveeSpotifyReborn).
 | --- | --- |
 | Latest public release | `v5.1.1` |
 | Current development version | `None` |
-| Development version last updated | `2026-09-03` |
+| Development version last updated | `2026/09/03` |
 
 ## 🔧 Modifications
 
