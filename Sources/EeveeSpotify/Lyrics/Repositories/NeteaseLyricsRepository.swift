@@ -845,12 +845,9 @@ class NeteaseLyricsRepository: LyricsRepository {
             // yrc 缺失/解析为空时回退到 lrc 行级时间轴（下面原逻辑不变）。
             let preferWordByWord = NgzhwmSettingsViewModel.isWordByWordLyricsEnabled
             var yrcText: String? = nil
-            var ytlrcText: String? = nil
             if preferWordByWord {
                 do {
-                    let fetched = try fetchYrcRaw(songId: songId)
-                    yrcText = fetched.yrc
-                    ytlrcText = fetched.ytlrc
+                    yrcText = try fetchYrcRaw(songId: songId).yrc
                 } catch {
                     writeDebugLog("[NetEase] yrc (eapi) fetch failed: \(error)")
                 }
@@ -930,10 +927,9 @@ class NeteaseLyricsRepository: LyricsRepository {
         )
         if hideNetEaseTranslation {
             writeDebugLog("[NetEase] Hide translation enabled — skipping translation layer")
-        } else if !yrcParsed.isEmpty, let ytlrc = ytlrcText, !ytlrc.isEmpty {
-            // 逐字路径：翻译用网易配套下发的 ytlrc，其行 offset 与 yrc 行头一一对应；
-            // tlyric 与 lrc 同源、和 yrc 行头不是一套时间轴，精确匹配会全灭。
-            translation = buildTranslation(ytlrc, originalLines: lines)
+        } else if !yrcParsed.isEmpty {
+            // 逐字路径：不展示翻译层（网易逐字歌词不显示翻译）
+            writeDebugLog("[NetEase] word-by-word — skipping translation layer")
         } else if let tlyric = raw.tlyric, !tlyric.isEmpty {
             translation = buildTranslation(tlyric, originalLines: lines)
         }
