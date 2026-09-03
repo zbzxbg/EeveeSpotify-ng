@@ -906,7 +906,7 @@ func dumpLyricsButtons(in root: UIView, label: String) {
 
         if buttonish {
             var parts = ["[Buttons] \(label) d\(depth) \(cls)"]
-            parts.append("frame=\(NSStringFromCGRect(view.frame))")
+            parts.append("frame=\(view.frame.debugDescription)")
             if let control = view as? UIControl {
                 parts.append("selected=\(control.isSelected) enabled=\(control.isEnabled)")
             }
