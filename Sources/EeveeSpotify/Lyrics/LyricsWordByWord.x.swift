@@ -788,6 +788,7 @@ class LyricsWordByWordModernHostHook: ClassHook<UIViewController> {
     func viewDidAppear(_ animated: Bool) {
         orig.viewDidAppear(animated)
         let vc = target
+        dumpLyricsButtons(in: vc.view, label: "inline-modern")
         WordByWordHost.shared.rememberInlineController(vc)
         DispatchQueue.main.async {
             WordByWordHost.shared.attach(to: vc, showsTranslation: false)
@@ -807,6 +808,7 @@ class LyricsWordByWordLegacyHostHook: ClassHook<UIViewController> {
     func viewDidAppear(_ animated: Bool) {
         orig.viewDidAppear(animated)
         let vc = target
+        dumpLyricsButtons(in: vc.view, label: "inline-legacy")
         WordByWordHost.shared.rememberInlineController(vc)
         DispatchQueue.main.async {
             WordByWordHost.shared.attach(to: vc, showsTranslation: false)
@@ -828,6 +830,13 @@ class LyricsWordByWordFullscreenModernHostHook: ClassHook<UIViewController> {
     func viewDidAppear(_ animated: Bool) {
         orig.viewDidAppear(animated)
         let vc = target
+        // 诊断：dump 全屏 controlsView 里的按钮
+        if let fullscreenView = WindowHelper.shared.findFirstSubview(
+            "Lyrics_FullscreenElementPageImpl.FullscreenView", in: vc.view
+        ) {
+            let controlsView = Ivars<UIView>(fullscreenView).controlsView
+            dumpLyricsButtons(in: controlsView, label: "fullscreen-modern")
+        }
         DispatchQueue.main.async {
             // 只覆盖「歌词内容」子模块 LyricsView（已由层级 dump 确认，frame=0,104 414x570）；
             // 页面其余部分（标题 HeaderView、按钮 ControlsView、进度条 FooterView）保持原生
@@ -860,6 +869,9 @@ class LyricsWordByWordFullscreenLegacyHostHook: ClassHook<UIViewController> {
     func viewDidAppear(_ animated: Bool) {
         orig.viewDidAppear(animated)
         let vc = target
+        // 诊断：dump 全屏 headerView 里的按钮
+        let header = Ivars<UIView>(vc.view).headerView
+        dumpLyricsButtons(in: header, label: "fullscreen-legacy")
         DispatchQueue.main.async {
             // 把原生 headerView（分享/举报按钮）保留在 overlay 之上；
             // iOS14/15 的歌词内容子模块等层级 dump 后再改为只覆盖内容区
@@ -873,5 +885,45 @@ class LyricsWordByWordFullscreenLegacyHostHook: ClassHook<UIViewController> {
         WordByWordHost.shared.detach()
         // 同 modern hook：关闭全屏时把 overlay 挂回内嵌歌词 VC
         WordByWordHost.shared.reattachToInline()
+    }
+}
+
+// MARK: - 临时诊断：dump 歌词界面按钮
+
+/// 递归打印「按钮类」视图（类名 + frame + isSelected + 标题/无障碍），
+/// 用于定位 Spotify 原生「歌词翻译」按钮及其切换状态。
+func dumpLyricsButtons(in root: UIView, label: String) {
+    var stack: [(UIView, Int)] = [(root, 0)]
+    while !stack.isEmpty {
+        let (view, depth) = stack.removeLast()
+        guard depth <= 10 else { continue }
+
+        let cls = NSStringFromClass(type(of: view))
+        let buttonish = view is UIControl
+            || cls.contains("Button")
+            || cls.contains("Encore")
+            || cls.contains("Control")
+
+        if buttonish {
+            var parts = ["[Buttons] \(label) d\(depth) \(cls)"]
+            parts.append("frame=\(NSStringFromCGRect(view.frame))")
+            if let control = view as? UIControl {
+                parts.append("selected=\(control.isSelected) enabled=\(control.isEnabled)")
+            }
+            if let button = view as? UIButton {
+                parts.append("title=\"\(button.currentTitle ?? "")\"")
+            }
+            if let acc = view.accessibilityLabel, !acc.isEmpty {
+                parts.append("acc=\"\(acc)\"")
+            }
+            if let iden = view.accessibilityIdentifier, !iden.isEmpty {
+                parts.append("id=\"\(iden)\"")
+            }
+            writeDebugLog(parts.joined(separator: " "))
+        }
+
+        for sub in view.subviews {
+            stack.append((sub, depth + 1))
+        }
     }
 }
