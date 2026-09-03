@@ -30,7 +30,7 @@ Verified environment: iPhone 11 + iOS 26.6.1 + certificate-signed build + LCSign
 
 The modified features in this fork have been verified to work in this environment. Other iOS versions, jailbreak environments, TrollStore, installation methods, and Spotify versions have not been tested, so compatibility with them is unknown.
 
-Tested with EeveeSpotify 9.1.0-Patched only. Compatibility with other Spotify versions is unknown.
+Tested with EeveeSpotify 9.1.0 only. Compatibility with other Spotify versions is unknown.
 
 No IPA package is provided.
 
