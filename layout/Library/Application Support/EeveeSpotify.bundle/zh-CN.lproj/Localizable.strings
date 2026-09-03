@@ -28,7 +28,7 @@ overwrite_configuration_description = "用转存的 Premium 配置替换远程�
 
 // Lyrics
 
-do_not_replace_lyrics = "禁用自定义歌词替换功能";
+do_not_replace_lyrics = "禁用歌词替换功能";
 do_not_replace_lyrics_description = "开启此选项后会禁用自定义歌词功能，但不会阻止Spotify返回其自带的歌词。";
 lyrics_source = "歌词来源";
 lyrics_source_description = "Genius：歌曲覆盖面最广和拥有最优质的歌词，但歌词不会有时间轴。\nLRCLIB：最开放的服务，提供带时间轴的歌词。但它缺少很多歌曲的歌词。\nMusixmatch：为很多歌曲提供带时间轴的歌词，但需要用户令牌才能使用。";
@@ -120,11 +120,11 @@ payment_notice = "EeveeSpotify 已应用补丁来解锁部分高级功能，免�
 
 ngzhwm_title = "ngzhwm的专属功能";
 ngzhwm_disable_lyrics_feature = "禁用歌词功能";
-ngzhwm_disable_lyrics_feature_description = "此选项开启后会禁用有关于自定义歌词的所有功能。还会阻止Spotify返回其自带的歌词。";
+ngzhwm_disable_lyrics_feature_description = "选项开启后会禁用有关于自定义歌词的所有功能。还会阻止Spotify返回其自带的歌词。";
 ngzhwm_word_by_word_lyrics = "开启逐词歌词";
 ngzhwm_word_by_word_lyrics_description = "目前Musixmatch，PetitLyrics，SpicyLyrics，NetEase提供逐词歌词服务。";
 ngzhwm_multi_level_fallback = "歌词多级回退";
-ngzhwm_multi_level_fallback_description = "此选项开启后歌词将按照Mxm-PL-LRC-Gen的方式多级回退查询(Mxm和PL最长等待5秒，LRCLIB和Genius最长等待3秒；如果某个来源在对应时间内仍未返回有效歌词，则查询下一个来源)。此选项关闭时歌词会按照whoeevee菜单内用户的设置进行查询。";
+ngzhwm_multi_level_fallback_description = "选项开启后歌词将按照Mxm-PL-LRC-Gen的方式多级回退查询(Mxm和PL最长等待5秒，LRCLIB和Genius最长等待3秒；如果某个来源在对应时间内仍未返回有效歌词，则查询下一个来源)。选项关闭时歌词会按照whoeevee菜单内用户的设置进行查询。";
 ngzhwm_netease_romaji_local = "修改NetEase日语罗马字的展示方式";
 ngzhwm_netease_romaji_local_description = "选项生效需要开启whoeevee菜单内的\"日语歌词罗马化\"。选项开启后NetEase的日语罗马字会交给本地日语罗马化处理，而不是交给NetEase。如果NetEase返回逐词歌词，此选项将不起作用。";
 ngzhwm_netease_hide_translation = "不展示NetEase的翻译按钮";
@@ -134,7 +134,7 @@ ngzhwm_chinese_romanization = "中文歌词罗马化";
 ngzhwm_japanese_romanization = "日语歌词罗马化";
 ngzhwm_korean_romanization = "韩语歌词罗马化";
 ngzhwm_remove_interlude_symbol = "删除间奏符号「♪」";
-ngzhwm_remove_interlude_symbol_description = "此选项开启时后会删除歌词内的间奏符号「♪」，有♪的这一行会显示空白。";
+ngzhwm_remove_interlude_symbol_description = "选项开启时后会删除歌词内的间奏符号「♪」，有♪的这一行会显示空白。";
 
 // Debug
 
