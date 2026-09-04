@@ -52,13 +52,12 @@ struct LyricsDto {
                     let content: String
                     if canRomanize {
                         content = line.content.romanizedIfEnabled(languageHint: languageCode, songLanguage: songLanguage)
-                    } else if romanization == .romanized {
-                        // MxM/Genius 已返回罗马字：统一补首字母大写（含「xxx」装饰符跳过）
-                        content = line.content.capitalizingFirstLetterIfAlphabetic()
                     } else {
                         content = line.content
                     }
-                    $0.content = content
+                    // 统一行首大写：无论来源/设置，行首第一个字母都大写；
+                    // 仍会跳过「「 " ・ 空格」等装饰/隐形前缀，只大写其后的第一个字母。
+                    $0.content = content.capitalizingFirstLetterIfAlphabetic()
                     $0.offsetMs = Int32(line.offsetMs ?? 0)
                 }
             }

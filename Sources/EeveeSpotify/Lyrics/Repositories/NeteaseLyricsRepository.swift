@@ -922,9 +922,7 @@ class NeteaseLyricsRepository: LyricsRepository {
         // 网易云翻译只有简体中文。开启「不展示网易云歌词翻译」开关时，
         // 跳过翻译层构建，不把简体中文翻译交给上游（不影响中日韩罗马化）。
         var translation: LyricsTranslationDto? = nil
-        let hideNetEaseTranslation = UserDefaults.standard.bool(
-            forKey: NgzhwmSettingsViewModel.neteaseHideTranslationKey
-        )
+        let hideNetEaseTranslation = NgzhwmSettingsViewModel.isNeteaseHideTranslationEnabled
         if hideNetEaseTranslation {
             writeDebugLog("[NetEase] Hide translation enabled — skipping translation layer")
         } else if !yrcParsed.isEmpty {

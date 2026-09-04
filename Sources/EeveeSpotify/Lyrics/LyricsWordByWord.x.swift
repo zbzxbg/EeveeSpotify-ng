@@ -330,10 +330,9 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
             rebuild()
         }
 
-        // 只有「有词级数据 且 时间同步」才显示逐字；
-        // 否则（无逐字 / 静态歌词 / 还没加载到 dto）一律透明 + 隐藏标签，回退 Spotify 原生。
-        guard let dto, dto.timeSynced,
-              dto.lines.contains(where: { $0.words?.isEmpty == false }) else {
+        // 只有「有足够多行真逐字 且 时间同步」才显示逐字；
+        // 否则（无逐字 / 坏逐字 / 静态歌词 / 还没加载到 dto）一律透明 + 隐藏标签，回退 Spotify 原生。
+        guard let dto, dto.timeSynced, hasUsableWordLevel(dto) else {
             backgroundColor = .clear
             stackView.isHidden = true
             topFadeView.isHidden = true
@@ -426,6 +425,15 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
         }
     }
 
+    /// 逐字数据是否可用：至少一半行有「多词」级时间轴（words.count >= 2）。
+    /// 整行一个词 / 全退化 / 词级时间轴错位 等坏数据会低于阈值，回退原生行级。
+    private func hasUsableWordLevel(_ dto: LyricsDto) -> Bool {
+        let lines = dto.lines
+        guard !lines.isEmpty else { return false }
+        let wordLevelLines = lines.filter { ($0.words?.count ?? 0) >= 2 }.count
+        return wordLevelLines * 10 >= lines.count * 5  // >= 50%
+    }
+
     private func rebuild() {
         for label in lineLabels { label.removeFromSuperview() }
         lineLabels = []
@@ -448,7 +456,7 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
             label.lineIndex = index
             label.numberOfLines = 0
             label.textAlignment = .left
-            label.font = .systemFont(ofSize: lyricsFontSize, weight: .regular)
+            label.font = .systemFont(ofSize: lyricsFontSize, weight: .semibold)
             label.text = text
             label.textColor = lineColor
             label.isUserInteractionEnabled = true
@@ -543,7 +551,7 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
         let label = lineLabels[lineIndex]
         let text = displayTexts[lineIndex]
 
-        let regularFont = UIFont.systemFont(ofSize: lyricsFontSize, weight: .regular)
+        let regularFont = UIFont.systemFont(ofSize: lyricsFontSize, weight: .semibold)
 
         // 整行默认全白（没有词级数据的行也保持全白）
         let highlighted = NSMutableAttributedString(string: text, attributes: [
@@ -665,6 +673,9 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
         // 手动滚动暂停期内不自动拉回
         guard Date() >= autoScrollPauseUntil else { return }
         guard lineIndex >= 0, lineIndex < lineLabels.count else { return }
+        // 强制刷新布局：初次挂载/rebuild 后 contentSize 与各行 frame 尚未更新，
+        // 不刷新会按旧 contentSize 算出错误 target，导致全屏打开时不滚到当前行。
+        scrollView.layoutIfNeeded()
         let label = lineLabels[lineIndex]
         let rect = label.convert(label.bounds, to: scrollView)
         // 当前行定位到视口上方约 1/3 处，而不是 scrollRectToVisible 那样贴到最底部。
@@ -719,7 +730,7 @@ final class WordByWordHost {
     }
 
     private var renderEnabled: Bool {
-        UserDefaults.standard.bool(forKey: NgzhwmSettingsViewModel.wordByWordLyricsKey)
+        NgzhwmSettingsViewModel.isWordByWordLyricsEnabled
     }
 
     /// contentView: overlay 挂到哪个视图（默认 VC 的 view；全屏歌词挂到内容子视图）。

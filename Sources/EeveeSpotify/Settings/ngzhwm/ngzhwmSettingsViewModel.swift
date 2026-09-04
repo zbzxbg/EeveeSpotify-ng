@@ -12,8 +12,24 @@ class NgzhwmSettingsViewModel: ObservableObject {
         UserDefaults.standard.bool(forKey: disableLyricsFeatureKey)
     }
 
+    /// 设备主语言是否为中文（简体/繁体）。
+    static var isChineseDevice: Bool {
+        Locale.preferredLanguages.first?.lowercased().hasPrefix("zh") == true
+    }
+
+    /// 读取带默认值的布尔开关：key 尚未写入时返回 defaultValue，否则返回已存值。
+    private static func bool(forKey key: String, defaultValue: Bool) -> Bool {
+        UserDefaults.standard.object(forKey: key) == nil
+            ? defaultValue
+            : UserDefaults.standard.bool(forKey: key)
+    }
+
     static var isWordByWordLyricsEnabled: Bool {
-        UserDefaults.standard.bool(forKey: wordByWordLyricsKey)
+        bool(forKey: wordByWordLyricsKey, defaultValue: true)
+    }
+
+    static var isNeteaseHideTranslationEnabled: Bool {
+        bool(forKey: neteaseHideTranslationKey, defaultValue: !isChineseDevice)
     }
 
     @Published var disableLyricsFeature: Bool {
@@ -57,7 +73,7 @@ class NgzhwmSettingsViewModel: ObservableObject {
         self.multiLevelFallback = UserDefaults.standard.bool(forKey: "ngzhwm_multiLevelLyricsFallback")
         self.removeMxmInterludeSymbol = UserDefaults.standard.bool(forKey: Self.removeMxmInterludeSymbolKey)
         self.neteaseRomajiLocal = UserDefaults.standard.bool(forKey: Self.neteaseRomajiLocalKey)
-        self.neteaseHideTranslation = UserDefaults.standard.bool(forKey: Self.neteaseHideTranslationKey)
-        self.wordByWordLyrics = UserDefaults.standard.bool(forKey: Self.wordByWordLyricsKey)
+        self.neteaseHideTranslation = Self.isNeteaseHideTranslationEnabled
+        self.wordByWordLyrics = Self.isWordByWordLyricsEnabled
     }
 }
