@@ -230,9 +230,9 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
     /// 当前行在视口中的目标位置（距顶部比例）：0.40 = 视口上方约 40% 处。
     private let activeLineViewportFraction: CGFloat = 0.40
     /// 自动滚动动画时长（秒），越小越「干脆」。
-    private let scrollAnimationDuration: TimeInterval = 0.15
+    private let scrollAnimationDuration: TimeInterval = 0.20
     /// 歌词行字号（对照 Spotify 原生歌词放大）。
-    private let lyricsFontSize: CGFloat = 24
+    private let lyricsFontSize: CGFloat = 22
     /// 歌词行左右内边距（对照「歌词」标题的左缩进）；全屏歌词可单独调大。
     private var lyricsSideInset: CGFloat = 16
     /// 歌词块顶部留白（未滚动时第一行的起始高度）。

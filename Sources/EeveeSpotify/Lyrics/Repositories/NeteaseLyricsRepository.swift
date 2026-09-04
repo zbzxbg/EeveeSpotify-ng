@@ -587,6 +587,7 @@ class NeteaseLyricsRepository: LyricsRepository {
             let content = nsLine.substring(from: lastRange.location + lastRange.length)
                 .trimmingCharacters(in: .whitespaces)
             guard !isCreditLine(content) else { continue }
+            guard !LyricsMarkerFilter.isNonLyricLine(content) else { continue }
 
             // 每个时间戳拆成独立一行（相同正文、不同 offset）
             for match in matches {
@@ -672,6 +673,7 @@ class NeteaseLyricsRepository: LyricsRepository {
             // 过滤制作信息行（「编曲 : TOKOTOKO」这类 yrc 行头 credit 行），
             // 与 parseLrc 的 isCreditLine 过滤保持一致；否则会出现在歌词第一行。
             guard !isCreditLine(content) else { continue }
+            guard !LyricsMarkerFilter.isNonLyricLine(content) else { continue }
             parsed.append((offsetMs: startMs, content: content, words: words))
         }
 
@@ -883,7 +885,8 @@ class NeteaseLyricsRepository: LyricsRepository {
                             with: "",
                             options: .regularExpression
                         ).trimmingCharacters(in: .whitespaces)
-                        guard !stripped.isEmpty, !isCreditLine(stripped) else { continue }
+                        guard !stripped.isEmpty, !isCreditLine(stripped),
+                              !LyricsMarkerFilter.isNonLyricLine(stripped) else { continue }
                         // 合并式制作信息（如「作词/作曲 : xxx」）isCreditLine 匹配不到，单独兜住：
                         // 以制作关键词开头且后面带冒号，视为制作信息，不收录。
                         let creditKeywords = ["作词", "作曲", "编曲", "混音", "混音师", "母带",
