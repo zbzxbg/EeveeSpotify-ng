@@ -30,5 +30,3 @@ Based on [EeveeSpotify](https://github.com/whoeevee/EeveeSpotifyReborn).
 - Thanks to [SideloadLabs](https://github.com/SideloadLabs/EeveeSpotifyReincarnated) for creating the SpicyLyrics lyrics provider, as well as the logging and export functionality. The relevant code has been modified to fit this project.
 
 ---
-
-[📋 Changelog](CHANGELOG.md)
