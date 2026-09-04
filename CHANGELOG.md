@@ -6,6 +6,14 @@
 ### 09.04
 
 <details>
+<summary><b>v5.1.2-beta.2</b></summary>
+
+* Improved the display of lyrics in the word-by-word lyrics module.
+* Improved terminology handling when removing song identification terms from Genius/NetEase lyrics.
+
+</details>
+
+<details>
 <summary><b>v5.1.2-beta.1</b></summary>
 
 * Fixed an issue where the lyrics would not fall back to line-by-line lyrics when the quality of word-by-word lyric timestamps was too poor.
