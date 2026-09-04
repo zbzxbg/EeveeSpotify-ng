@@ -3,6 +3,20 @@
 <details open>
 <summary><b>2026</b> </summary>
 
+### 09.04
+
+<details>
+<summary><b>v5.1.2-beta.1</b></summary>
+
+* Fixed an issue where the lyrics would not fall back to line-by-line lyrics when the quality of word-by-word lyric timestamps was too poor.
+* Fixed an issue where the first letter of a lyric line was not capitalized under certain circumstances.
+* Improved the display of lyrics in the word-by-word lyrics module.
+* Changed:
+    1. Enabled “Hide NetEase Translation Button” by default when the device language is not Simplified Chinese or Traditional Chinese.
+    2. Enabled “Enable Word-by-Word Lyrics” by default.
+
+</details>
+
 ### 09.03
 
 <details>
