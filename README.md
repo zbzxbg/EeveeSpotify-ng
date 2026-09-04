@@ -6,9 +6,9 @@ Based on [EeveeSpotify](https://github.com/whoeevee/EeveeSpotifyReborn).
 
 | | Version |
 | --- | --- |
-| Latest public release | `v5.1.1` |
-| Current development version | `v5.1.2-beta.1` |
-| Development version last updated | `2026/09/04` |
+| Latest public release | v5.1.1 |
+| Current development version | [v5.1.2-beta.1](CHANGELOG.md)|
+| Development version last updated | 2026/09/04 |
 
 ## 🔧 Modifications
 
@@ -30,5 +30,3 @@ Based on [EeveeSpotify](https://github.com/whoeevee/EeveeSpotifyReborn).
 - Thanks to [SideloadLabs](https://github.com/SideloadLabs/EeveeSpotifyReincarnated) for creating the SpicyLyrics lyrics provider, as well as the logging and export functionality. The relevant code has been modified to fit this project.
 
 ---
-
-[📋 Changelog](CHANGELOG.md)
