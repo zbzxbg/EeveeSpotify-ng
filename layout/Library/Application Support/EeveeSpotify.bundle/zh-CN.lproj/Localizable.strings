@@ -123,6 +123,7 @@ ngzhwm_disable_lyrics_feature = "禁用歌词功能";
 ngzhwm_disable_lyrics_feature_description = "选项开启后会禁用有关于自定义歌词的所有功能。还会阻止Spotify返回其自带的歌词。";
 ngzhwm_word_by_word_lyrics = "开启逐词歌词";
 ngzhwm_word_by_word_lyrics_description = "Musixmatch，PetitLyrics，SpicyLyrics，NetEase提供逐词歌词服务。";
+word_by_word_lyrics_provider = "逐词歌词提供者：%@";
 ngzhwm_multi_level_fallback = "歌词多级回退";
 ngzhwm_multi_level_fallback_description = "选项开启后歌词将按照Mxm-PL-LRC-Gen的方式多级回退查询(Mxm和PL最长等待5秒，LRCLIB和Genius最长等待3秒；如果某个来源在对应时间内仍未返回有效歌词，则查询下一个来源)。";
 ngzhwm_netease_romaji_local = "修改NetEase日语罗马字的展示方式";

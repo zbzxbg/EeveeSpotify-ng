@@ -497,7 +497,7 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
             footer.textAlignment = .left
             footer.font = .systemFont(ofSize: 14, weight: .regular)
             footer.textColor = lineColor
-            footer.text = "逐词歌词提供者：\(currentLyricsProvider)"
+            footer.text = "word_by_word_lyrics_provider".localizeWithFormat(currentLyricsProvider)
             stackView.addArrangedSubview(footer)
             providerLabel = footer
         }

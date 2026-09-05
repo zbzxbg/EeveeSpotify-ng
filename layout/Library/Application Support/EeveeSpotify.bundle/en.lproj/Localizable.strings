@@ -129,6 +129,7 @@ ngzhwm_disable_lyrics_feature = "Disable Lyrics Function";
 ngzhwm_disable_lyrics_feature_description = "When enabled, this disables all functions related to custom lyrics. It also prevents Spotify from returning its own lyrics.";
 ngzhwm_word_by_word_lyrics = "Enable Word-by-Word Lyrics";
 ngzhwm_word_by_word_lyrics_description = "Musixmatch, PetitLyrics, SpicyLyrics, and NetEase provide word-by-word lyrics services.";
+word_by_word_lyrics_provider = "Lyrics Provider: %@";
 ngzhwm_multi_level_fallback = "Multi-level Lyrics Fallback";
 ngzhwm_multi_level_fallback_description = "When this option is enabled, lyrics are searched through multiple providers in this order: Musixmatch → PetitLyrics → LRCLIB → Genius. Musixmatch and PetitLyrics are given up to 5 seconds each, while LRCLIB and Genius are given up to 3 seconds each; if a provider doesn't return valid lyrics within its time limit, the next provider is queried.";
 ngzhwm_netease_romaji_local = "Modify NetEase Japanese Romaji Display";
