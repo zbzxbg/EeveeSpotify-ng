@@ -33,14 +33,14 @@ overwrite_configuration_description = "Replace the remote configuration with the
 // Lyrics
 
 do_not_replace_lyrics = "Disable Lyrics Replacement";
-do_not_replace_lyrics_description = "When enabled, the custom lyrics feature is disabled, but Spotify is not prevented from returning its own lyrics.";
+do_not_replace_lyrics_description = "When this option is enabled, the custom lyrics feature is disabled, but Spotify is not prevented from returning its own lyrics.";
 lyrics_source = "Lyrics Source";
-lyrics_source_description = "Genius: Offers the widest song coverage and the best quality lyrics, but the lyrics are not time-synced.
+lyrics_source_description = "Genius: Offers the widest song coverage, but the lyrics are not time-synced.
 LRCLIB: The most open service, offering time-synced lyrics. However, it lacks lyrics for many songs.
 Musixmatch: Provides time-synced lyrics for many songs, but you'll need a user token to use this source.";
 lyrics_additional_info = "Genius, NetEase, and PetitLyrics use fuzzy search, so some songs may have display errors or fail to find lyrics.";
 petitlyrics_description = "PetitLyrics: Provides Japanese lyrics.";
-spicylyrics_description = "SpicyLyrics: Provides word-by-word lyrics and lyrics for some songs that other providers do not have. Visit spicylyrics.org for more details.";
+spicylyrics_description = "SpicyLyrics: Provides word-by-word lyrics and lyrics that some other lyrics sources do not have. Visit spicylyrics.org for more details.";
 netease_description = "NetEase: Most lyrics come with timestamps. However, support for users outside mainland China is weaker, and timestamps may be misaligned.";
 
 musixmatch_user_token = "Musixmatch User Token";
