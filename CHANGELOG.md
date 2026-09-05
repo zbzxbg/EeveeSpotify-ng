@@ -6,6 +6,13 @@
 ### 09.05
 
 <details>
+<summary><b>v5.1.2-beta.5</b></summary>
+
+- Fixed an issue where some letters in Japanese lyrics from NetEase and Genius could have excessive spacing after local romanization.
+
+</details>
+
+<details>
 <summary><b>v5.1.2-beta.4</b></summary>
 
 - Improved translations in the EeveeSpotify menu.
