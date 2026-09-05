@@ -3,6 +3,16 @@
 <details open>
 <summary><b>2026</b> </summary>
 
+### 09.05
+
+<details>
+<summary><b>v5.1.2-beta.3</b></summary>
+
+- Moved all functionality from the ngzhwm page to the “Lyrics” module.
+- Removed the ngzhwm page.
+
+</details>
+
 ### 09.04
 
 <details>
