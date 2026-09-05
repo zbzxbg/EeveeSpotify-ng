@@ -32,7 +32,7 @@ overwrite_configuration_description = "Replace the remote configuration with the
 
 // Lyrics
 
-do_not_replace_lyrics = "Disable Custom Lyrics Replacement";
+do_not_replace_lyrics = "Disable Lyrics Replacement";
 do_not_replace_lyrics_description = "When enabled, the custom lyrics feature is disabled, but Spotify is not prevented from returning its own lyrics.";
 lyrics_source = "Lyrics Source";
 lyrics_source_description = "Genius: Offers the widest song coverage and the best quality lyrics, but the lyrics are not time-synced.
@@ -41,7 +41,7 @@ Musixmatch: Provides time-synced lyrics for many songs, but you'll need a user t
 lyrics_additional_info = "Genius, NetEase, and PetitLyrics use fuzzy search, so some songs may have display errors or fail to find lyrics.";
 petitlyrics_description = "PetitLyrics: Provides Japanese lyrics.";
 spicylyrics_description = "SpicyLyrics: Provides word-by-word lyrics and lyrics for some songs that other providers do not have. Visit spicylyrics.org for more details.";
-netease_description = "NetEase: Lyrics content goes through censorship. Lyrics for some songs may be updated faster than Genius, and most lyrics come with timestamps. However, support for users outside mainland China is weaker, and timestamps may be misaligned.";
+netease_description = "NetEase: Most lyrics come with timestamps. However, support for users outside mainland China is weaker, and timestamps may be misaligned.";
 
 musixmatch_user_token = "Musixmatch User Token";
 user_token_placeholder = "Enter User Token or Paste Debug Info";
@@ -128,9 +128,9 @@ ngzhwm_title = "ngzhwm Features";
 ngzhwm_disable_lyrics_feature = "Disable Lyrics Function";
 ngzhwm_disable_lyrics_feature_description = "When enabled, this disables all functions related to custom lyrics. It also prevents Spotify from returning its own lyrics.";
 ngzhwm_word_by_word_lyrics = "Enable Word-by-Word Lyrics";
-ngzhwm_word_by_word_lyrics_description = "Currently Musixmatch, PetitLyrics, SpicyLyrics, and NetEase provide word-by-word lyrics services.";
+ngzhwm_word_by_word_lyrics_description = "Musixmatch, PetitLyrics, SpicyLyrics, and NetEase provide word-by-word lyrics services.";
 ngzhwm_multi_level_fallback = "Multi-level Lyrics Fallback";
-ngzhwm_multi_level_fallback_description = "When this option is enabled, lyrics are searched through multiple providers in this order: Musixmatch → PetitLyrics → LRCLIB → Genius. Musixmatch and PetitLyrics are given up to 5 seconds each, while LRCLIB and Genius are given up to 3 seconds each; if a provider doesn't return valid lyrics within its time limit, the next provider is queried. When this option is disabled, lyrics are queried according to the user's settings in the whoeevee menu.";
+ngzhwm_multi_level_fallback_description = "When this option is enabled, lyrics are searched through multiple providers in this order: Musixmatch → PetitLyrics → LRCLIB → Genius. Musixmatch and PetitLyrics are given up to 5 seconds each, while LRCLIB and Genius are given up to 3 seconds each; if a provider doesn't return valid lyrics within its time limit, the next provider is queried.";
 ngzhwm_netease_romaji_local = "Modify NetEase Japanese Romaji Display";
 ngzhwm_netease_romaji_local_description = "Taking effect requires \"Romanize Japanese Lyrics\" to be enabled in the whoeevee menu. When enabled, NetEase's Japanese romaji is processed by local Japanese romanization instead of NetEase. If NetEase returns word-by-word lyrics, this option has no effect.";
 ngzhwm_netease_hide_translation = "Hide NetEase Translation Button";
