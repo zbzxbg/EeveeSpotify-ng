@@ -60,6 +60,17 @@ extension EeveeLyricsSettingsView {
         }
     }
     
+    @ViewBuilder private func multiLevelFallbackSection() -> some View {
+        Section(
+            footer: Text("ngzhwm_multi_level_fallback_description".localized)
+        ) {
+            Toggle(
+                "ngzhwm_multi_level_fallback".localized,
+                isOn: $viewModel.multiLevelFallback
+            )
+        }
+    }
+    
     @ViewBuilder private func musixmatchTokenField() -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text("musixmatch_user_token".localized)

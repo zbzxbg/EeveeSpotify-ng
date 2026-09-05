@@ -95,17 +95,6 @@ struct EeveeLyricsSettingsView: View {
         }
     }
 
-    @ViewBuilder private func multiLevelFallbackSection() -> some View {
-        Section(
-            footer: Text("ngzhwm_multi_level_fallback_description".localized)
-        ) {
-            Toggle(
-                "ngzhwm_multi_level_fallback".localized,
-                isOn: $viewModel.multiLevelFallback
-            )
-        }
-    }
-
     @ViewBuilder private func neteaseRomajiLocalSection() -> some View {
         Section(
             footer: Text("ngzhwm_netease_romaji_local_description".localized)
