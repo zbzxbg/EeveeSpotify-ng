@@ -37,6 +37,8 @@ extension EeveeLyricsSettingsView {
         }
         
         if viewModel.lyricsSource.isReplacingLyrics {
+            multiLevelFallbackSection()
+            
             Section(footer: lyricsSourceFooter()) {
                 Picker(
                     "lyrics_source".localized,

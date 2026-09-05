@@ -5,7 +5,14 @@ struct EeveeLyricsSettingsView: View {
     
     var body: some View {
         List {
+            wordByWordLyricsSection()
+            disableLyricsSection()
             lyricsSourceSection()
+            
+            if viewModel.lyricsSource == .netease {
+                neteaseRomajiLocalSection()
+                neteaseHideTranslationSection()
+            }
             
             if viewModel.lyricsSource != .notReplaced {
                 if viewModel.lyricsSource != .genius {
@@ -20,6 +27,8 @@ struct EeveeLyricsSettingsView: View {
                 }
             }
             
+            removeInterludeSymbolSection()
+            
             NonIPadSpacerView()
         }
         .onReceive(viewModel.musixmatchTokenInputAlertPublisher) { showAnonymousTokenOption in
@@ -28,6 +37,28 @@ struct EeveeLyricsSettingsView: View {
         .listStyle(GroupedListStyle())
         .disabled(viewModel.isRequestingMusixmatchToken)
         .animation(.default, value: viewModel.animationValues)
+    }
+    
+    @ViewBuilder private func wordByWordLyricsSection() -> some View {
+        Section(
+            footer: Text("ngzhwm_word_by_word_lyrics_description".localized)
+        ) {
+            Toggle(
+                "ngzhwm_word_by_word_lyrics".localized,
+                isOn: $viewModel.wordByWordLyrics
+            )
+        }
+    }
+    
+    @ViewBuilder private func disableLyricsSection() -> some View {
+        Section(
+            footer: Text("ngzhwm_disable_lyrics_feature_description".localized)
+        ) {
+            Toggle(
+                "ngzhwm_disable_lyrics_feature".localized,
+                isOn: $viewModel.disableLyricsFeature
+            )
+        }
     }
     
     @ViewBuilder private func geniusFallbackSection() -> some View {
@@ -61,6 +92,50 @@ struct EeveeLyricsSettingsView: View {
             )
         } footer: {
             Text("hide_lyrics_on_error_description".localized)
+        }
+    }
+
+    @ViewBuilder private func multiLevelFallbackSection() -> some View {
+        Section(
+            footer: Text("ngzhwm_multi_level_fallback_description".localized)
+        ) {
+            Toggle(
+                "ngzhwm_multi_level_fallback".localized,
+                isOn: $viewModel.multiLevelFallback
+            )
+        }
+    }
+
+    @ViewBuilder private func neteaseRomajiLocalSection() -> some View {
+        Section(
+            footer: Text("ngzhwm_netease_romaji_local_description".localized)
+        ) {
+            Toggle(
+                "ngzhwm_netease_romaji_local".localized,
+                isOn: $viewModel.neteaseRomajiLocal
+            )
+        }
+    }
+
+    @ViewBuilder private func neteaseHideTranslationSection() -> some View {
+        Section(
+            footer: Text("ngzhwm_netease_hide_translation_description".localized)
+        ) {
+            Toggle(
+                "ngzhwm_netease_hide_translation".localized,
+                isOn: $viewModel.neteaseHideTranslation
+            )
+        }
+    }
+
+    @ViewBuilder private func removeInterludeSymbolSection() -> some View {
+        Section(
+            footer: Text("ngzhwm_remove_interlude_symbol_description".localized)
+        ) {
+            Toggle(
+                "ngzhwm_remove_interlude_symbol".localized,
+                isOn: $viewModel.removeMxmInterludeSymbol
+            )
         }
     }
 

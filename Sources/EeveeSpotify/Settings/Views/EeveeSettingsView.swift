@@ -90,15 +90,9 @@ struct EeveeSettingsView: View {
             }
             
             // MARK: - 新增
-            Button {
-               pushSettingsController(
-                with: NgzhwmContainerSettingsView(),   // 改这里
-                title: "ngzhwm_title".localized
-            )
-           } label: {
-                NgzhwmSectionView()
-            }
-            
+            // ngzhwm 页面的所有设置已并入「歌词」页面，入口暂移除。
+            // 如需恢复，取消下面代码的注释即可。
+
             //
             
             Section(header: Text("debug_title".localized), footer: Text("enable_log_recording_description".localized)) {

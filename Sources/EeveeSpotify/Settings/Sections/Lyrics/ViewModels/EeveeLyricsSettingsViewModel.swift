@@ -18,6 +18,68 @@ class EeveeLyricsSettingsViewModel: ObservableObject {
         didSet { UserDefaults.standard.set(koreanRomanization, forKey: "ngzhwm_koreanRomanization") }
     }
     
+    @Published var wordByWordLyrics = NgzhwmSettingsViewModel.isWordByWordLyricsEnabled {
+        didSet {
+            UserDefaults.standard.set(
+                wordByWordLyrics,
+                forKey: NgzhwmSettingsViewModel.wordByWordLyricsKey
+            )
+        }
+    }
+    
+    @Published var disableLyricsFeature = UserDefaults.standard.bool(
+        forKey: NgzhwmSettingsViewModel.disableLyricsFeatureKey
+    ) {
+        didSet {
+            UserDefaults.standard.set(
+                disableLyricsFeature,
+                forKey: NgzhwmSettingsViewModel.disableLyricsFeatureKey
+            )
+        }
+    }
+    
+    @Published var removeMxmInterludeSymbol = UserDefaults.standard.bool(
+        forKey: NgzhwmSettingsViewModel.removeMxmInterludeSymbolKey
+    ) {
+        didSet {
+            UserDefaults.standard.set(
+                removeMxmInterludeSymbol,
+                forKey: NgzhwmSettingsViewModel.removeMxmInterludeSymbolKey
+            )
+        }
+    }
+    
+    @Published var neteaseRomajiLocal = UserDefaults.standard.bool(
+        forKey: NgzhwmSettingsViewModel.neteaseRomajiLocalKey
+    ) {
+        didSet {
+            UserDefaults.standard.set(
+                neteaseRomajiLocal,
+                forKey: NgzhwmSettingsViewModel.neteaseRomajiLocalKey
+            )
+        }
+    }
+    
+    @Published var neteaseHideTranslation = NgzhwmSettingsViewModel.isNeteaseHideTranslationEnabled {
+        didSet {
+            UserDefaults.standard.set(
+                neteaseHideTranslation,
+                forKey: NgzhwmSettingsViewModel.neteaseHideTranslationKey
+            )
+        }
+    }
+    
+    @Published var multiLevelFallback = UserDefaults.standard.bool(
+        forKey: "ngzhwm_multiLevelLyricsFallback"
+    ) {
+        didSet {
+            UserDefaults.standard.set(
+                multiLevelFallback,
+                forKey: "ngzhwm_multiLevelLyricsFallback"
+            )
+        }
+    }
+    
     @Published var musixmatchToken = UserDefaults.musixmatchToken
     @Published var isRequestingMusixmatchToken = false
     @Published var musixmatchTokenInputAlertPublisher = PassthroughSubject<Bool, Never>()
@@ -30,6 +92,12 @@ class EeveeLyricsSettingsViewModel: ObservableObject {
         [
             lyricsSource,
             lyricsOptions,
+            wordByWordLyrics,
+            disableLyricsFeature,
+            removeMxmInterludeSymbol,
+            neteaseRomajiLocal,
+            neteaseHideTranslation,
+            multiLevelFallback,
             isMusixmatchTokenValid,
             isRequestingMusixmatchToken,
             lrclibURLState,

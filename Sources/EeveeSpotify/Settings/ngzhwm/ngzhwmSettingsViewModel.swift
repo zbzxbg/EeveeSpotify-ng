@@ -31,49 +31,4 @@ class NgzhwmSettingsViewModel: ObservableObject {
     static var isNeteaseHideTranslationEnabled: Bool {
         bool(forKey: neteaseHideTranslationKey, defaultValue: !isChineseDevice)
     }
-
-    @Published var disableLyricsFeature: Bool {
-        didSet {
-            UserDefaults.standard.set(disableLyricsFeature, forKey: Self.disableLyricsFeatureKey)
-        }
-    }
-
-    @Published var multiLevelFallback: Bool {
-        didSet {
-            UserDefaults.standard.set(multiLevelFallback, forKey: "ngzhwm_multiLevelLyricsFallback")
-        }
-    }
-    
-    @Published var removeMxmInterludeSymbol: Bool {
-        didSet {
-            UserDefaults.standard.set(removeMxmInterludeSymbol, forKey: Self.removeMxmInterludeSymbolKey)
-        }
-    }
-    
-    @Published var neteaseRomajiLocal: Bool {
-        didSet {
-            UserDefaults.standard.set(neteaseRomajiLocal, forKey: Self.neteaseRomajiLocalKey)
-        }
-    }
-    
-    @Published var neteaseHideTranslation: Bool {
-        didSet {
-            UserDefaults.standard.set(neteaseHideTranslation, forKey: Self.neteaseHideTranslationKey)
-        }
-    }
-    
-    @Published var wordByWordLyrics: Bool {
-        didSet {
-            UserDefaults.standard.set(wordByWordLyrics, forKey: Self.wordByWordLyricsKey)
-        }
-    }
-
-    init() {
-        self.disableLyricsFeature = UserDefaults.standard.bool(forKey: Self.disableLyricsFeatureKey)
-        self.multiLevelFallback = UserDefaults.standard.bool(forKey: "ngzhwm_multiLevelLyricsFallback")
-        self.removeMxmInterludeSymbol = UserDefaults.standard.bool(forKey: Self.removeMxmInterludeSymbolKey)
-        self.neteaseRomajiLocal = UserDefaults.standard.bool(forKey: Self.neteaseRomajiLocalKey)
-        self.neteaseHideTranslation = Self.isNeteaseHideTranslationEnabled
-        self.wordByWordLyrics = Self.isWordByWordLyricsEnabled
-    }
 }
