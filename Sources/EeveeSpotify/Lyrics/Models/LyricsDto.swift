@@ -419,6 +419,14 @@ extension String {
 
             let original = substring(range)
 
+            // CFStringTokenizer 会把全角空格（U+3000）等空白当成独立 token 返回；
+            // 空白本身无需罗马化，直接跳过，词间空格统一交给 appendToken 的语法分写。
+            if original.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                cursor = range.location + range.length
+                tokenType = CFStringTokenizerAdvanceToNextToken(tokenizer)
+                continue
+            }
+
             var romaji: String
             if japaneseIsPureKana(original) {
                 romaji = japaneseKanaRomaji(original, pendingGeminate: &pendingGeminate)
@@ -525,6 +533,14 @@ extension String {
             addGap(CFRangeMake(cursor, range.location - cursor))
 
             let original = substring(range)
+
+            // 同上：跳过 CFStringTokenizer 返回的纯空白 token（如全角空格 U+3000），
+            // 避免空白以 token 形式进入 chunk 后被逐字对齐拼成多余空格。
+            if original.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                cursor = range.location + range.length
+                tokenType = CFStringTokenizerAdvanceToNextToken(tokenizer)
+                continue
+            }
 
             var romaji: String
             if japaneseIsPureKana(original) {
