@@ -6,6 +6,13 @@
 ### 09.05
 
 <details>
+<summary><b>v5.1.2-beta.4</b></summary>
+
+- Improved translations in the EeveeSpotify menu.
+
+</details>
+
+<details>
 <summary><b>v5.1.2-beta.3</b></summary>
 
 - Moved all functionality from the ngzhwm page to the “Lyrics” module.
