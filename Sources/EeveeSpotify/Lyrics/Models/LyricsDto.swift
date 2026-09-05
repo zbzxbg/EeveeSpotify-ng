@@ -61,23 +61,6 @@ struct LyricsDto {
                     $0.offsetMs = Int32(line.offsetMs ?? 0)
                 }
             }
-
-            // 诊断日志（临时）：打印最终罗马化行并标记全角空格/双空格残留，
-            // 用于定位「罗马字之间的空格过大」问题；确认修复后可移除。
-            if canRomanize {
-                for (index, line) in lyricsData.lines.prefix(80).enumerated() {
-                    let text = line.content
-                    let hasWideSpace = text.unicodeScalars.contains { scalar in
-                        scalar.value == 0x3000 || scalar.value == 0x00A0
-                            || (0x2000...0x200A).contains(scalar.value)
-                            || scalar.value == 0x202F || scalar.value == 0x205F
-                    }
-                    let hasDoubleSpace = text.contains("  ")
-                    if index < 12 || hasWideSpace || hasDoubleSpace {
-                        writeDebugLog("[Lyrics] romanized[\(index)]: \"\(text)\" wideSpace=\(hasWideSpace) doubleSpace=\(hasDoubleSpace)")
-                    }
-                }
-            }
         }
         
         if let translation = translation {
