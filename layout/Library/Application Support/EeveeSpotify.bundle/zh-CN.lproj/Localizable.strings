@@ -29,12 +29,12 @@ overwrite_configuration_description = "用转存的 Premium 配置替换远程�
 // Lyrics
 
 do_not_replace_lyrics = "禁用歌词替换功能";
-do_not_replace_lyrics_description = "开启此选项后会禁用自定义歌词功能，但不会阻止Spotify返回其自带的歌词。";
+do_not_replace_lyrics_description = "选项开启后会禁用自定义歌词功能，但不会阻止Spotify返回其自带的歌词。";
 lyrics_source = "歌词来源";
-lyrics_source_description = "Genius：歌曲覆盖面最广和拥有最优质的歌词，但歌词不会有时间轴。\nLRCLIB：最开放的服务，提供带时间轴的歌词。但它缺少很多歌曲的歌词。\nMusixmatch：为很多歌曲提供带时间轴的歌词，但需要用户令牌才能使用。";
+lyrics_source_description = "Genius：歌词覆盖面最广，但歌词没有时间轴。\nLRCLIB：最开放的服务，提供带时间轴的歌词。但它缺少很多歌曲的歌词。\nMusixmatch：为很多歌曲提供带时间轴的歌词，但需要用户令牌才能使用。";
 lyrics_additional_info = "Genius，NetEase和PetitLyrics的搜索方式是模糊搜索，所以部分歌曲可能会出现歌词显示错误或搜索不到歌词的情况。";
 petitlyrics_description = "PetitLyrics：提供日语歌词。";
-spicylyrics_description = "SpicyLyrics：提供逐词歌词及部分其他提供商没有的歌词。具体介绍可前往spicylyrics.org查看。";
+spicylyrics_description = "SpicyLyrics：提供逐词歌词及部分其他歌词来源没有的歌词。具体介绍可前往spicylyrics.org查看。";
 netease_description = "NetEase：歌词大部分带时间轴。但对非中国大陆用户的支持较差，且可能出现时间轴不对齐等情况。";
 
 musixmatch_user_token = "Musixmatch 用户令牌";
