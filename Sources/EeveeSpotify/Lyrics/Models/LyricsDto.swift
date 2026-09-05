@@ -321,6 +321,26 @@ private func japaneseSanitizeTranscription(_ text: String, original: String) -> 
     return s
 }
 
+/// 归一化 token 之间的间隙：把全角空格（U+3000）等 Unicode 空白折叠成
+/// 单个半角空格，标点等非空白字符原样保留。NetEase / Genius 的日文歌词里
+/// 常把词间空格写成全角空格，直接透传会让罗马化输出出现“过宽”的空格。
+private func japaneseNormalizedGap(_ gap: String) -> String {
+    var result = ""
+    var pendingSpace = false
+    for ch in gap {
+        if ch.isWhitespace || ch.isNewline {
+            if !pendingSpace {
+                result.append(" ")
+                pendingSpace = true
+            }
+        } else {
+            result.append(ch)
+            pendingSpace = false
+        }
+    }
+    return result
+}
+
 extension String {
     /// 把日语（假名+汉字）转为罗马字：
     /// - 假名部分用映射表逐字转换（正确处理促音/拗音/长音/拨音，无怪符号）；
@@ -354,7 +374,7 @@ extension String {
 
         func appendGap(upTo location: CFIndex) {
             guard location > cursor else { return }
-            result += substring(CFRangeMake(cursor, location - cursor))
+            result += japaneseNormalizedGap(substring(CFRangeMake(cursor, location - cursor)))
             cursor = location
         }
 
@@ -476,8 +496,9 @@ extension String {
         func addGap(_ range: CFRange) {
             guard range.length > 0 else { return }
             let gap = substring(range)
-            chunks.append(JapaneseRomajiChunk(original: gap, romaji: gap, range: range, leadingSpace: false))
-            lastOutputChar = gap.last
+            let normalized = japaneseNormalizedGap(gap)
+            chunks.append(JapaneseRomajiChunk(original: gap, romaji: normalized, range: range, leadingSpace: false))
+            lastOutputChar = normalized.last
         }
 
         var tokenType = CFStringTokenizerAdvanceToNextToken(tokenizer)
@@ -658,14 +679,18 @@ extension LyricsDto {
                 chunkIndex += 1
             }
 
-            guard !romaji.isEmpty else { continue }
+            // 去掉首尾空白：网易 yrc 把词间空格编码成前一词的尾随空格，
+            // 会与上游给下一个词补的前导空格叠加成双空格；纯空白词（该词读音
+            // 已被前一个词消耗、只剩间隙）直接丢弃。
+            let stripped = romaji.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !stripped.isEmpty else { continue }
             let text: String
             if !hasCapitalized {
-                let candidate = romaji.capitalizingFirstLetterIfAlphabetic()
-                hasCapitalized = candidate != romaji
+                let candidate = stripped.capitalizingFirstLetterIfAlphabetic()
+                hasCapitalized = candidate != stripped
                 text = candidate
             } else {
-                text = romaji
+                text = stripped
             }
             mapped.append(LyricsWordDto(text: text, startMs: word.startMs, endMs: word.endMs))
         }
