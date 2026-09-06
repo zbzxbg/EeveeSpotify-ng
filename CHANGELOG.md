@@ -3,6 +3,15 @@
 <details open>
 <summary><b>2026</b> </summary>
 
+### 09.06
+
+<details>
+<summary><b>v6.0.0-beta.1</b></summary>
+
+- Improved translations in the EeveeSpotify menu.
+
+</details>
+
 ### 09.05
 
 <details>
