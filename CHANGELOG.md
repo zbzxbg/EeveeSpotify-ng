@@ -246,7 +246,7 @@
 </details>
 
 <details>
-<summary><b>v5.0.0-alpha.5</b></summary>
+<summary><b>v5.0.0-demo.5</b></summary>
 
 - Experimental: Attempted to fetch lyrics using Spotify's lyrics probe.
 
@@ -255,28 +255,28 @@
 ### 08.29
 
 <details>
-<summary><b>v5.0.0-alpha.4</b></summary>
+<summary><b>v5.0.0-demo.4</b></summary>
 
 - Experimental: Tested fetching NetEase word-by-word lyrics.
 
 </details>
 
 <details>
-<summary><b>v5.0.0-alpha.3</b></summary>
+<summary><b>v5.0.0-demo.3</b></summary>
 
 - Experimental: Tested fetching NetEase word-by-word lyrics.
 
 </details>
 
 <details>
-<summary><b>v5.0.0-alpha.2</b></summary>
+<summary><b>v5.0.0-demo.2</b></summary>
 
 - Experimental: Implemented the code for word-by-word lyrics.
 
 </details>
 
 <details>
-<summary><b>v5.0.0-alpha.1</b></summary>
+<summary><b>v5.0.0-demo.1</b></summary>
 
 - Experimental: Implemented the UI for the "Enable Word-by-Word Lyrics" option.
 
@@ -426,7 +426,7 @@
 </details>
 
 <details>
-<summary><b>v4.0.0-alpha.1</b></summary>
+<summary><b>v4.0.0-demo.1</b></summary>
 
 - Experimental: Implemented an experimental UI for the SpicyLyrics lyrics provider.
 
@@ -597,21 +597,21 @@
 ### 08.13
 
 <details>
-<summary><b>v1.0.0-alpha.3</b></summary>
+<summary><b>v1.0.0-demo.3</b></summary>
 
 - Added dedicated clickable UI for this repository's features, including lyrics and language romanization.
 
 </details>
 
 <details>
-<summary><b>v1.0.0-alpha.2</b></summary>
+<summary><b>v1.0.0-demo.2</b></summary>
 
 - Added dedicated clickable UI for this repository's features, including lyrics and language romanization.
 
 </details>
 
 <details>
-<summary><b>v1.0.0-alpha.1</b></summary>
+<summary><b>v1.0.0-demo.1</b></summary>
 
 - Added a clickable settings entry dedicated to this repository's features.
 
@@ -679,7 +679,7 @@
 </details>
 
 <details>
-<summary><b>v0.1.0-alpha.1</b></summary>
+<summary><b>v0.1.0-demo.1</b></summary>
 
 - Feature: Implemented multi-level lyrics fallback.
 - Improved the Chinese translations in the EeveeSpotify menu.
