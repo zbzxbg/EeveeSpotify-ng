@@ -41,11 +41,11 @@ musixmatch_user_token = "Musixmatch 用户令牌";
 user_token_placeholder = "输入用户令牌或粘贴调试信息";
 
 
-genius_fallback = "回退到 Genius";
+genius_fallback = "Genius回退";
 genius_fallback_description = "如果 %@ 有问题，将使用 Genius 加载歌词。";
 
-hide_lyrics_on_error = "错误时隐藏";
-hide_lyrics_on_error_description = "如果歌词加载失败，则删除歌词组件。";
+hide_lyrics_on_error = "隐藏歌词模块";
+hide_lyrics_on_error_description = "如果歌词加载失败，则删除歌词模块。";
 
 
 musixmatch_language = "Musixmatch 歌词语言";
