@@ -7,8 +7,8 @@ This fork is independently maintained by me and is not affiliated with the origi
 | | Version |
 | --- | --- |
 | Latest public release | v5.1.2 |
-| Current development version | [None](CHANGELOG.md)|
-| Development version last updated | 2026/09/05 |
+| Current development version | [v6.0.0-beta.1](CHANGELOG.md)|
+| Development version last updated | 2026/09/06 |
 
 ## 🔧 Modifications
 
