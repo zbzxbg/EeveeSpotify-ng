@@ -90,22 +90,47 @@ class MusixmatchLyricsRepository: LyricsRepository {
 
         let semaphore = DispatchSemaphore(value: 0)
         var data: Data?
+        var httpResponse: HTTPURLResponse?
         var error: Error?
 
-        let task = URLSession.shared.dataTask(with: request) { response, _, err in
+        let task = URLSession.shared.dataTask(with: request) { body, response, err in
             error = err
-            data = response
+            data = body
+            httpResponse = response as? HTTPURLResponse
             semaphore.signal()
         }
 
         task.resume()
         semaphore.wait()
 
+        let httpStatus = httpResponse?.statusCode ?? -1
+
         if let error = error {
+            // 传输层失败（DNS / 连接 / TLS / 取消）以前完全没有日志，
+            // 上层只会显示成一句「Musixmatch failed」，看不出是网络问题。
+            writeDebugLog("[Musixmatch] \(path) — transport error: \(error) (http=\(httpStatus))")
             throw error
         }
 
-        return data!
+        writeDebugLog("[Musixmatch] \(path) -> http \(httpStatus), \(data?.count ?? 0) byte(s)")
+
+        guard let data = data else {
+            writeDebugLog("[Musixmatch] \(path) — empty response body (http=\(httpStatus))")
+            throw LyricsError.decodingError
+        }
+
+        return data
+    }
+
+    /// 原始响应体片段，用于诊断「响应不是预期 JSON」这类静默失败。
+    private func bodyHead(_ data: Data, limit: Int = 300) -> String {
+        guard let text = String(data: data, encoding: .utf8) else {
+            return "<non-utf8, \(data.count) byte(s)>"
+        }
+
+        return String(text.prefix(limit))
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
     }
 
     //
@@ -113,18 +138,36 @@ class MusixmatchLyricsRepository: LyricsRepository {
     private func getMacroCalls(_ data: Data) throws -> [String: Any] {
         guard
             let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
-            let message = json["message"] as? [String: Any],
-            let body = message["body"] as? [String: Any],
-            let macroCalls = body["macro_calls"] as? [String: Any]
+            let message = json["message"] as? [String: Any]
         else {
+            writeDebugLog("[Musixmatch] macro.subtitles.get — response is not JSON / no message: \(bodyHead(data))")
             throw LyricsError.decodingError
         }
 
-        if let header = message["header"] as? [String: Any],
-            header["status_code"] as? Int == 401
-        {
+        let header = message["header"] as? [String: Any]
+        let statusCode = header?["status_code"] as? Int
+        let statusText = statusCode.map { String($0) } ?? "-"
+
+        // 状态码检查必须排在 macro_calls 的 guard 之前：401 等错误响应体里没有 macro_calls，
+        // 否则会先抛 decodingError，把「token 失效」静默吞掉（连带未授权弹窗也永远弹不出来）。
+        if let code = statusCode, code != 200 {
+            let hint = header?["hint"] as? String ?? "-"
+            writeDebugLog("[Musixmatch] macro.subtitles.get — status_code=\(code), hint=\(hint), body: \(bodyHead(data))")
+        }
+
+        if statusCode == 401 {
             writeDebugLog("[Musixmatch] 401 — invalid token")
             throw LyricsError.invalidMusixmatchToken
+        }
+
+        guard
+            let body = message["body"] as? [String: Any],
+            let macroCalls = body["macro_calls"] as? [String: Any]
+        else {
+            writeDebugLog(
+                "[Musixmatch] macro.subtitles.get — no macro_calls (status_code=\(statusText)): \(bodyHead(data))"
+            )
+            throw LyricsError.decodingError
         }
 
         return macroCalls

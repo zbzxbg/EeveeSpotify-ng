@@ -102,6 +102,7 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
             let waitResult = semaphore.wait(timeout: .now() + requestTimeout)
 
             if waitResult == .timedOut {
+                writeDebugLog("[Lyrics] \(source.description) timed out after \(requestTimeout)s")
                 // Genius 失败（含超时）不再兜底为空歌词，统一走下面的抛错逻辑
                 if index == 0 { lyricsState.fallbackError = .unknownError }
                 if isLastAttempt { throw LyricsError.unknownError } else { continue }
@@ -166,6 +167,10 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
                 // Genius 失败（含查无此曲）直接抛出，不再兜底为空歌词
                 throw error
             } else {
+                // 单源模式以前只打一句「failed — falling back to Genius」，具体错误被丢掉，
+                // 日志里看不出是网络失败、授权失败还是解析失败。
+                writeDebugLog("[Lyrics] \(source.description) failed: \(error)")
+
                 if let error = error as? LyricsError {
                     lyricsState.fallbackError = error
                     handleLyricsErrorPopUp(error)

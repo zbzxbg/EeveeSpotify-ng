@@ -23,8 +23,13 @@ enum LyricsError: Error, CustomStringConvertible {
             return "decoding_error".localized
         case .unknownError:
             return "unknown_error".localized
-        default:
-            return ""
+        // 以前这三个 case 掉进 default 返回空串，日志里会打印成「failed: 」什么都看不到。
+        case .noCurrentTrack:
+            return "no_current_track"
+        case .trackMismatch:
+            return "track_mismatch"
+        case .invalidSource:
+            return "invalid_source"
         }
     }
 }
