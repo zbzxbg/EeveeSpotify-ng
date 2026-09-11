@@ -6,6 +6,14 @@
 ### 09.11
 
 <details>
+<summary><b>v6.0.0-beta.3</b></summary>
+
+- Moved: Multi-level lyric fallback is now part of the lyric source options instead of being a separate toggle.
+- Removed unused ngzhwm-related code.
+
+</details>
+
+<details>
 <summary><b>v6.0.0-beta.2</b></summary>
 
 - Changed: The “Disable Lyrics Replacement” option is now displayed as a submenu under “Disable Lyrics Function” in the EeveeSpotify menu.
