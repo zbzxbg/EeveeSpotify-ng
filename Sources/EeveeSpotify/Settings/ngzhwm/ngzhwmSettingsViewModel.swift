@@ -7,6 +7,7 @@ class NgzhwmSettingsViewModel: ObservableObject {
     static let neteaseRomajiLocalKey = "ngzhwm_neteaseRomajiLocal"
     static let neteaseHideTranslationKey = "ngzhwm_neteaseHideTranslation"
     static let wordByWordLyricsKey = "ngzhwm_wordByWordLyrics"
+    static let betterWordByWordLyricsKey = "ngzhwm_betterWordByWordLyrics"
 
     static var isLyricsFeatureDisabled: Bool {
         UserDefaults.standard.bool(forKey: disableLyricsFeatureKey)

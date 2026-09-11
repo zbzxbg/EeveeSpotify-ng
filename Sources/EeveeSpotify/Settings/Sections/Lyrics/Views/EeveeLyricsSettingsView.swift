@@ -6,6 +6,7 @@ struct EeveeLyricsSettingsView: View {
     var body: some View {
         List {
             wordByWordLyricsSection()
+            betterWordByWordLyricsSection()
             lyricsSourceSection()
             
             // 「禁用歌词功能」作为「禁用歌词替换功能」的二级菜单：
@@ -54,6 +55,17 @@ struct EeveeLyricsSettingsView: View {
             Toggle(
                 "ngzhwm_word_by_word_lyrics".localized,
                 isOn: $viewModel.wordByWordLyrics
+            )
+        }
+    }
+    
+    @ViewBuilder private func betterWordByWordLyricsSection() -> some View {
+        Section(
+            footer: Text("ngzhwm_better_word_by_word_lyrics_description".localized)
+        ) {
+            Toggle(
+                "ngzhwm_better_word_by_word_lyrics".localized,
+                isOn: $viewModel.betterWordByWordLyrics
             )
         }
     }

@@ -27,6 +27,17 @@ class EeveeLyricsSettingsViewModel: ObservableObject {
         }
     }
     
+    @Published var betterWordByWordLyrics = UserDefaults.standard.bool(
+        forKey: NgzhwmSettingsViewModel.betterWordByWordLyricsKey
+    ) {
+        didSet {
+            UserDefaults.standard.set(
+                betterWordByWordLyrics,
+                forKey: NgzhwmSettingsViewModel.betterWordByWordLyricsKey
+            )
+        }
+    }
+    
     @Published var disableLyricsFeature = UserDefaults.standard.bool(
         forKey: NgzhwmSettingsViewModel.disableLyricsFeatureKey
     ) {
@@ -81,6 +92,7 @@ class EeveeLyricsSettingsViewModel: ObservableObject {
         [
             lyricsSource,
             lyricsOptions,
+            betterWordByWordLyrics,
             wordByWordLyrics,
             disableLyricsFeature,
             removeMxmInterludeSymbol,
