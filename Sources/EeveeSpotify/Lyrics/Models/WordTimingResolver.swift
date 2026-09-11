@@ -126,52 +126,18 @@ enum WordTimingResolver {
         let medianDuration = durations[durations.count / 2]
         return medianDuration >= 1
     }
-
-    // MARK: 逐字动效的作用范围
-    //
-    // 分歧点：**每个词都做位移动效，还是只给长音符？**
-    // 调研到的成品一致选了「长音符才做真正的动效」：
-    //   - AMLL `line.ts shouldEmphasize`：`>= 1000ms`；非 CJK 再加 2~7 字符。
-    //     逐字注释写明这是「果子对辉光效果的解释是一种**强调**效果」。
-    //   - Cider 2 更新日志原文：*"lift each word as it is sung and give
-    //     **held words** the per-glyph bump, glow and float"* —— 同样二分。
-    //   - Lyricify：光效只给 *"longer words"*。
-    //   - BlurLyric：`if (contentObj.dur >= 2)` 才加特效。
-    // 反过来，「每个词都大幅位移」在六份证据里**一家都没有**。
-
-    /// 强调门槛（毫秒）。AMLL 用 1000，这里沿用。
-    static let emphasizeMinDurationMs = 1000
-
-    /// 该词是否够「长」，值得上真正的逐字动效。
-    ///
-    /// CJK 单字天然短，不加长度上限（AMLL 同）；
-    /// 非 CJK 再加 2~7 字符的限制，避免把 "the"、"a" 这类虚词也点亮。
-    static func shouldEmphasize(_ timing: WordTiming) -> Bool {
-        let duration = timing.endMs - timing.startMs
-        guard duration >= emphasizeMinDurationMs else { return false }
-
-        let stripped = timing.text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let count = stripped.count
-        if containsCJK(stripped) { return true }
-        return count >= 2 && count <= 7
-    }
-
-    /// 是否含 CJK。范围与 AMLL 的 `isCJK` 正则一致
-    /// （`[\p{Unified_Ideograph}\u0800-\u9FFC]`），覆盖汉字、假名、韩文与
-    /// 扩展区，因此日文歌词也会走「不加长度上限」这一支。
-    static func containsCJK(_ text: String) -> Bool {
-        text.unicodeScalars.contains { scalar in
-            switch scalar.value {
-            case 0x0800...0x9FFF,     // 涵盖傈僳文、天城文区、CJK 及假名
-                 0x3400...0x4DBF,     // CJK 扩展 A
-                 0xF900...0xFAFF,     // CJK 兼容表意文字
-                 0x20000...0x2FA1F,   // CJK 扩展 B~F 与兼容补充
-                 0xAC00...0xD7AF,     // 韩文音节
-                 0x1100...0x11FF:     // 韩文字母
-                return true
-            default:
-                return false
-            }
-        }
-    }
 }
+
+// 已删除：`shouldEmphasize` / `emphasizeMinDurationMs` / `containsCJK`。
+//
+// 它们实现的是「只有够长的词才配逐词动效」这条规则（抄 AMLL 的
+// `shouldEmphasize`：时长 ≥1000ms，非 CJK 再加 2~7 字符）。
+// 读完参考实现后确认这条规则用错了地方：
+//
+//   `SideloadLabs/EeveeSpotifyReincarnated` 的 `KaraokeWordView`
+//   **对每个词都跑三条曲线，没有任何门槛**，而它的竖向上浮只有
+//   0.75pt —— 真正撑起观感的是缩放 pop（0.95 → 1.0505）与 glow 阴影。
+//
+// 用门槛去筛"哪些词配动效"，是在用排除法的思路解决一个"权重放错"的问题。
+// 在 yrc 这种音节级数据上门槛还会更糟：几乎没有一个 token 能到 1s，
+// 结果就是整行一个动效都不出现（实测日志 `emph=[]` 21 条全空）。

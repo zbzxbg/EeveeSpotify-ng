@@ -219,9 +219,10 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
     private let translationFontSize: CGFloat = 16
     /// 行级译文颜色：与未唱歌词（其余行）一致的黑色。
     private let translationColor = UIColor.black
-    /// 当前行内「未唱」部分的透明度。与 `KaraokeLineLabel.dimOpacity` 的默认值
-    /// 一致，显式写在这里是为了让「观感参数」集中在这个 overlay 里可调。
-    private let unsungWordOpacity: CGFloat = 0.45
+    /// 当前行内「未唱」部分的透明度。对齐参考实现
+    /// （`KaraokeLineView.swift` 用 `white.opacity(0.35)`）：已唱纯白、
+    /// 未唱 35%，对比度 2.86:1。原来取 0.45 偏亮，层次不够。
+    private let unsungWordOpacity: CGFloat = 0.35
     /// 背景色缓存：每次 rebuild（换歌/换数据）后按「定制」选项重新计算一次。
     private var resolvedBackgroundColor: UIColor?
     /// 顶部渐隐层（scrim）：背景色 → 透明，让上滚的歌词在顶部渐隐退出。
@@ -512,20 +513,22 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
         }
 
         // 填充链路自检：轴算错、或「某些词不亮」这类问题，都靠这里定位。
-        // `tailCovered=false` 是行尾不亮的直接证据；`boundaries` 是每个词的落点。
+        // `rowW` 与 `fullW` 必须相等 —— 硬边遮罩铺满时宽度就是行宽，
+        // 不等就说明几何算错了。
         var fillInfo = "no-fill"
         if line >= 0, line < lineLabels.count {
             let label = lineLabels[line]
             fillInfo = "\(label.axisDiagnostics) fill=\(label.lastVariantSummary) | \(label.fillDiagnostics)"
         }
 
-        // 跳动层自检：span 为空 / 宽度为 0 就是「某个词不跳」的原因。
-        var bounceInfo = "no-bounce"
+        // 逐词动效自检：span 为空就是「某个词不动」的原因；
+        // progress 应该随着词内推进从 0 走到 1。
+        var motionInfo = "no-motion"
         if line >= 0, line < lineLabels.count {
-            bounceInfo = lineLabels[line].bounceDiagnostics
+            motionInfo = lineLabels[line].bounceDiagnostics
         }
 
-        writeDebugLog("[WordByWord] t=\(Int(ms))ms line=\(line) \(wordInfo) | \(fillInfo) | \(bounceInfo)")
+        writeDebugLog("[WordByWord] t=\(Int(ms))ms line=\(line) \(wordInfo) | \(fillInfo) | \(motionInfo)")
     }
 
     /// 逐字数据是否可用：至少一半行有「多词」级时间轴（words.count >= 2）。
