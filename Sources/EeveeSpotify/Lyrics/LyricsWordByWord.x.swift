@@ -236,8 +236,13 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
     private var autoScrollPauseUntil: Date = .distantPast
     /// 诊断：节流打印当前高亮状态
     private var lastDiagnosticLog: Date = .distantPast
-    /// 当前行在视口中的目标位置（距顶部比例）：0.40 = 视口上方约 40% 处。
-    private let activeLineViewportFraction: CGFloat = 0.40
+    /// 当前行在视口中的目标位置（距顶部比例）。
+    ///
+    /// 取值依据：SPlayer 默认 `lyricsScrollOffset = 0.25`（锚点为 top）、
+    /// Apple 自己 dex 里读出的 `APPLE_LYRICS_INITIAL_ANCHOR_Y_FRACTION ≈ 0.22`、
+    /// AMLL 核心 0.35（锚点为 center，换算到 top 约 0.4）。
+    /// 原来取 0.40，比 SPlayer 和 Apple 都偏下近 20 个百分点。
+    private let activeLineViewportFraction: CGFloat = 0.25
     /// 自动滚动动画时长（秒），越小越「干脆」。
     private let scrollAnimationDuration: TimeInterval = 0.20
     /// 歌词行字号（对照 Spotify 原生歌词放大）。
@@ -439,9 +444,25 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
             for index in 0..<max(0, bestLine) where index < lineLabels.count {
                 lineLabels[index].setFullyLit(true)
             }
+            // 行级层次：AMLL 在逐词模式下**不靠透明度区分非活动行**，
+            // 区分全靠缩放（0.97）与模糊。这里按「距当前行几行」设置。
+            applyLineEmphasis(activeLine: bestLine)
         }
 
         pushFill(lineIndex: bestLine, ms: ms, dto: dto)
+    }
+
+    /// 按「距当前行几行」给每行设置缩放与透明度层次。
+    ///
+    /// AMLL 的做法：非活动行 `scale = 0.97`，透明度在逐词模式下**不变**，
+    /// 层次感主要来自缩放与模糊梯度。这里只做缩放 + 轻度透明度衰减
+    /// （模糊逐行动画在 iOS 上代价太高，暂不接）。
+    private func applyLineEmphasis(activeLine: Int) {
+        guard !lineLabels.isEmpty else { return }
+        let focus = max(0, activeLine)
+        for (index, label) in lineLabels.enumerated() {
+            label.setLineEmphasis(distance: abs(index - focus))
+        }
     }
 
     /// 把播放进度喂给当前行的填充。

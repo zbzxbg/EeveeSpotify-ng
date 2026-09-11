@@ -412,19 +412,25 @@ struct WordByWordFillStops {
 
     /// 展平轴坐标 → 每一行的遮罩 frame。
     /// 用于「立即铺满」这类不需要动画的场景。
-    func frames(atUnrolled value: CGFloat) -> [WordByWordMaskFrame] {
+    func frames(atUnrolled value: CGFloat, feather: CGFloat) -> [WordByWordMaskFrame] {
         rowWidths.indices.map { row in
             KaraokeMaskGeometry.frame(
                 unrolled: value,
                 row: row,
                 rowStarts: rowStarts,
-                rowWidths: rowWidths
+                rowWidths: rowWidths,
+                feather: feather
             )
         }
     }
 }
 
 /// 单行遮罩子层的 frame。
+///
+/// 遮罩**宽度固定、只动 x** —— 这是 AMLL `animator-web.ts` 与 SPlayer
+/// `DefaultLyric.vue` 共同的机制，也是"羽化恒定"的前提：
+/// 只要宽度是动画量，`locations`（按宽度取百分比）就会让羽化随宽度漂移，
+/// 短遮罩上硬如刀切（几 px）、长遮罩上糊成一片（上百 px）。
 struct WordByWordMaskFrame {
     var x: CGFloat
     var width: CGFloat
@@ -432,62 +438,99 @@ struct WordByWordMaskFrame {
 
 enum KaraokeMaskGeometry {
 
-    /// 遮罩向右多出的余量（pt）。
+    /// 羽化长度相对**字号**的倍数。
     ///
-    /// 这是修「行尾不亮」的关键：遮罩用的渐变是「不透明 → 完全透明」，
-    /// 若遮罩固定贴 x = 0、铺满时右端正好落在渐变末端，则**每一个铺满的行的
-    /// 最后一段永远是半透明的**（300pt 行约最后 16pt 只有一半亮度，60pt 短行
-    /// 更暗）。让不透明区越过行尾，才能真正整行点亮。
-    /// 取值必须显著大于羽化宽度，否则又退回到行尾不亮。
-    static let trail: CGFloat = 40
+    /// AMLL 的 `fadeWidth = 字形高 × wordFadeWidth`，默认 0.5、行高 1.2
+    /// → 约 0.6em；其文档写明「Apple Music for iPad → 0.5」「Android → 1」。
+    /// 字号 22pt → 13pt。
+    ///
+    /// ⚠️ 必须只与字号挂钩：与行宽挂钩会让长行糊、短行硬；
+    /// 与遮罩宽度挂钩会让羽化在动画过程中从几 px 漂到上百 px。
+    static let featherRatio: CGFloat = 0.6
 
-    /// 遮罩在当前行内的 x 范围。
+    /// 平方衰减的渐变 stop 采样数。
+    /// cnblogs「WPF 使用 HLSL + Clip 实现高亮歌词光照效果」用
+    /// `glow = (1 - d/W)²`（原文：「平方处理，使衰减更陡峭」），
+    /// 并明确线性渐变「尾段偏灰」。这里用多个 stop 逼近同一条曲线，
+    /// 不必上 shader 也能拿到陡峭的光照式衰减。
+    static let falloffSampleCount = 9
+
+    static func featherWidth(fontSize: CGFloat) -> CGFloat {
+        max(2, fontSize * featherRatio)
+    }
+
+    /// 遮罩在当前行内的 x 范围。**宽度恒为 `rowWidth + feather`，不参与动画。**
     ///
-    /// 三种状态：
-    /// - **前缘未到本行**（`visibleX <= 0`）：宽度 0，整行隐藏。
-    /// - **前缘在本行内**：从 0 一直延伸到 `rowWidth + trail`，
-    ///   因此行尾永远落在不透明区，不会出现行尾半透明。
-    /// - **前缘已过本行**（铺满）：从 `rowWidth` 延伸到 `rowWidth + trail`，
-    ///   起点已在行尾之外，所以整行都处于不透明区 —— 这才是「整行点亮」。
-    ///
-    /// 前缘刚进入本行时遮罩宽度即 `rowWidth + trail`，看似"整行瞬间可见"，
-    /// 但渐变从左侧约 15% 处才开始衰减，所以观感仍是自左向右擦除。
+    /// - `sweep` = 推进前缘在本行内的位置（0...rowWidth）
+    /// - 未推进到本行（`sweep <= 0`）：x 停在 `-(rowWidth + feather)`，
+    ///   整个遮罩在本行左缘之外 → 整行隐藏。
+    /// - 推进中：`x = sweep - feather`，不透明区 `[0, sweep]` 覆盖已唱部分，
+    ///   羽化区恰落在前缘右侧。
+    /// - 铺满（`sweep == rowWidth`）：`x = -feather`，
+    ///   不透明区正好是 `[0, rowWidth]` → **行尾必然满亮**。
+    static func frame(sweep: CGFloat, rowWidth: CGFloat, feather: CGFloat) -> WordByWordMaskFrame {
+        let span = max(1, rowWidth)
+        let fade = max(1, feather)
+        let width = span + fade
+
+        let clamped = min(max(0, sweep), span)
+        guard clamped > 0 else {
+            // 隐藏态：整块停在行左缘之外（注意宽度不是 0 —— 宽度是固定的）。
+            return WordByWordMaskFrame(x: -width, width: width)
+        }
+        return WordByWordMaskFrame(x: clamped - fade, width: width)
+    }
+
+    /// 单行遮罩的 frame（按展平轴坐标）。
     static func frame(
         unrolled: CGFloat,
         row: Int,
         rowStarts: [CGFloat],
-        rowWidths: [CGFloat]
+        rowWidths: [CGFloat],
+        feather: CGFloat
     ) -> WordByWordMaskFrame {
         guard rowWidths.indices.contains(row), rowStarts.indices.contains(row) else {
             return WordByWordMaskFrame(x: 0, width: 0)
         }
         let rowWidth = max(0, rowWidths[row])
-        let visibleX = min(max(0, unrolled - rowStarts[row]), rowWidth)
-
-        // 未推进到本行：完全隐藏。宽度必须真的是 0，
-        // 否则渐变在窄遮罩上会退化成"半透明块"，让下一行的开头漏出来。
-        guard visibleX > 0 else { return WordByWordMaskFrame(x: 0, width: 0) }
-
-        let start = min(visibleX, rowWidth)
-        let width = max(0, rowWidth + trail - start)
-        return WordByWordMaskFrame(x: start, width: width)
+        let sweep = min(max(0, unrolled - rowStarts[row]), rowWidth)
+        return frame(sweep: sweep, rowWidth: rowWidth, feather: feather)
     }
 
     /// 渐变 stop 的位置数组。
     ///
-    /// `fade` 是羽化长度占遮罩宽度的比例，而**遮罩宽度会随时间增长**，
-    /// 因此 `locations` 只在铺满/隐藏这类终态设置一次 —— 动画过程中比例
-    /// 本身在变，但视觉上是"遮罩从左侧长出来"，效果正确。
-    ///
-    /// 羽化长度优先用调用方给的 `feather`（pt）；未指定时取遮罩宽度的 15%。
-    /// 夹在 [8pt, 45%] 之间：下限避免长行上羽化细到看不见（硬边），
-    /// 上限避免极短行上羽化吃掉整行。
-    static func locations(maskWidth: CGFloat, feather: CGFloat? = nil) -> [NSNumber] {
-        let width = max(1, maskWidth)
-        let preferred = feather ?? (width * 0.15)
-        let fadePoints = min(max(8, preferred), width * 0.45)
-        let fade = min(0.45, max(0, fadePoints / width))
-        return [0, NSNumber(value: 1 - Double(fade)), 1]
+    /// 形状：`[0, rowWidth]` 完全不透明，`(rowWidth, rowWidth + feather]` 按
+    /// `1 - (d/feather)²` 衰减到 0。因为宽度固定，这条曲线在动画全程**完全不变** ——
+    /// 这正是"宽度固定 + 只动 x"换来的性质。
+    static func locations(rowWidth: CGFloat, feather: CGFloat) -> [NSNumber] {
+        let span = max(1, rowWidth)
+        let fade = max(1, feather)
+        let width = span + fade
+        let solidEnd = min(1, span / width)
+
+        var result: [NSNumber] = [0, NSNumber(value: Double(solidEnd))]
+        let samples = max(2, falloffSampleCount)
+        for step in 1...samples {
+            let t = CGFloat(step) / CGFloat(samples)
+            let location = min(1, (span + fade * t) / width)
+            result.append(NSNumber(value: Double(location)))
+        }
+        return result
+    }
+
+    /// 与 `locations` 一一对应的颜色数组：
+    /// 前两个 stop 全白，其后按 `1 - (d/feather)²` 的平方衰减取 alpha，
+    /// 末点自然落到 0（全透明）。
+    static func colors() -> [CGColor] {
+        let solid = UIColor.white.cgColor
+        var result: [CGColor] = [solid, solid]
+        let samples = max(2, falloffSampleCount)
+        for step in 1...samples {
+            let t = CGFloat(step) / CGFloat(samples)
+            let intensity = max(0, 1 - t * t)
+            result.append(UIColor.white.withAlphaComponent(intensity).cgColor)
+        }
+        return result
     }
 }
 
@@ -504,6 +547,7 @@ enum WordByWordKeyframes {
         timing: [WordTimingResolver.WordTiming],
         boundaries: [CGFloat],
         rowWidths: [CGFloat],
+        feather: CGFloat,
         segmentStartMs: Int,
         segmentEndMs: Int,
         anchorPosition: TimeInterval
@@ -527,7 +571,8 @@ enum WordByWordKeyframes {
                     unrolled: clamped,
                     row: row,
                     rowStarts: rowStarts,
-                    rowWidths: rowWidths
+                    rowWidths: rowWidths,
+                    feather: feather
                 )
             }
         }
@@ -598,6 +643,7 @@ enum WordByWordKeyframes {
     /// 单个词的词级数据同理（`isUsableForFill` 要求 >= 2 个词）。
     static func discrete(
         axis: WordByWordAxis,
+        feather: CGFloat,
         keyTime: Double,
         duration: TimeInterval,
         anchorPosition: TimeInterval
@@ -615,7 +661,8 @@ enum WordByWordKeyframes {
                     unrolled: position,
                     row: row,
                     rowStarts: rowStarts,
-                    rowWidths: rowWidths
+                    rowWidths: rowWidths,
+                    feather: feather
                 )
             }
         }

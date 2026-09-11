@@ -29,10 +29,12 @@ import UIKit
 
 class KaraokeLineLabel: UIView {
 
-    /// 行内羽化边宽度（pt）。参考 KaraokeText 的 `feather` 默认
-    /// `min(width × 0.6, 34)`；这里取固定 16pt，因为歌词字号固定，
-    /// 固定柔边比按宽度缩放更稳定。
-    var feather: CGFloat = 16
+    /// 羽化长度（pt）。**只与字号挂钩，绝不与行宽或遮罩宽度挂钩** ——
+    /// 与行宽挂钩会让长行糊、短行硬边；与遮罩宽度挂钩（旧实现）会让羽化
+    /// 在动画过程中从几 px 漂到上百 px，这正是「比上一版更糊」的原因。
+    ///
+    /// 由 `setFont` 按 `KaraokeMaskGeometry.featherRatio` 自动赋值。
+    private(set) var feather: CGFloat = 13
 
     /// 漂移校正阈值上限（秒）。FlowX 用固定 0.5s；这里再按段时长收一档，
     /// 避免短行上肉眼可见的错位。
@@ -119,10 +121,13 @@ class KaraokeLineLabel: UIView {
         bounceLabel.layer.mask = mask
     }
 
-    /// 逐词跳动幅度（pt）。0 = 关闭。参考 KaraokeText 的 `bounceHeight`（默认 1.4）
-    /// 与 accompanist 的 `floatOffset = 4 * dipAndRise(...)`，取 3pt：
-    /// 歌词字号 22pt，位移太大像抖动而不像「抬起来唱」。
-    var bounceHeight: CGFloat = 3
+    /// 逐词跳动幅度（pt）。0 = 关闭。
+    ///
+    /// 22pt 字号下 1.1pt = 0.05em，对齐参考实现：AMLL `float` 0.05em、
+    /// HyperLyrics 0.05/0.06em、am-lyrics 0.033em；Lyricify 出厂
+    /// `karaoke_style_float_height` = 2.0。
+    /// 旧的 3pt = 0.136em，是全簇的 2.3–4 倍 —— 那是「像抽搐」的来源。
+    var bounceHeight: CGFloat = 1.1
 
     // MARK: 接口
 
@@ -155,6 +160,7 @@ class KaraokeLineLabel: UIView {
         dimLabel.font = font
         litLabel.font = font
         bounceLabel.font = font
+        feather = KaraokeMaskGeometry.featherWidth(fontSize: font.pointSize)
         invalidateAxis()
     }
 
@@ -187,38 +193,41 @@ class KaraokeLineLabel: UIView {
         // 只有「当前动画位置」必须作废（否则会从旧位置继续扫）。
         anchor = nil
         activeBounceWord = -1
+        clearBounce()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         litLabel.layer.removeAnimation(forKey: KaraokeLineLabel.fillAnimationKey)
         litLabel.layer.removeAnimation(forKey: KaraokeLineLabel.positionAnimationKey)
-        bounceLabel.layer.removeAnimation(forKey: KaraokeLineLabel.bounceAnimationKey)
-        bounceLabel.layer.opacity = 0
-        bounceMask?.frame = .zero
         applyFrames(frames: lit ? fullFrames() : emptyFrames())
         CATransaction.commit()
     }
 
-    /// 每一行铺满时的遮罩 frame（不透明区越过行尾，见 KaraokeMaskGeometry.trail）。
+    /// 每一行铺满时的遮罩 frame。
+    ///
+    /// 铺满时 `x = -feather`，不透明区正好是 `[0, rowWidth]` ——
+    /// **行尾必然满亮**，不需要额外的 trail 余量。
     private func fullFrames() -> [WordByWordMaskFrame] {
+        guard let axis else { return [] }
+        return axis.frames(atUnrolled: axis.totalWidth, feather: feather)
+    }
+
+    /// 每一行的隐藏态 frame（整块停在行左缘之外）。
+    private func emptyFrames() -> [WordByWordMaskFrame] {
         guard let axis else { return [] }
         let rowStarts = axis.rowOffsets.starts
         return axis.rowWidths.indices.map { row in
             KaraokeMaskGeometry.frame(
-                unrolled: axis.totalWidth,
+                unrolled: max(0, rowStarts[row]),
                 row: row,
                 rowStarts: rowStarts,
-                rowWidths: axis.rowWidths
+                rowWidths: axis.rowWidths,
+                feather: feather
             )
         }
     }
 
-    /// 每一行完全隐藏时的遮罩 frame。
-    private func emptyFrames() -> [WordByWordMaskFrame] {
-        guard let axis else { return [] }
-        return axis.rowWidths.map { _ in WordByWordMaskFrame(x: 0, width: 0) }
-    }
-
     /// 把 frame 直接写进模型层（不走动画）。
+    /// 宽度在所有状态间都相同（行宽 + 羽化），只有 `x` 在变。
     private func applyFrames(frames: [WordByWordMaskFrame]) {
         for (row, layer) in rowMasks.enumerated() {
             layer.removeAnimation(forKey: KaraokeLineLabel.fillAnimationKey)
@@ -227,7 +236,6 @@ class KaraokeLineLabel: UIView {
             let frame = frames[row]
             layer.bounds.size.width = frame.width
             layer.position.x = frame.x
-            layer.locations = KaraokeMaskGeometry.locations(maskWidth: frame.width, feather: feather)
         }
     }
 
@@ -317,16 +325,17 @@ class KaraokeLineLabel: UIView {
     var fillDiagnostics: String {
         guard let axis else { return "no-axis" }
         let rowWidths = axis.rowWidths
-        let rowStarts = axis.rowOffsets.starts
         var parts: [String] = []
 
-        parts.append("textW=\(Int(axis.totalWidth)) rows=\(rowWidths.count)")
+        parts.append("textW=\(Int(axis.totalWidth)) rows=\(rowWidths.count) feather=\(Int(feather))")
 
+        // 铺满态自检：不透明区起点 = x，终点 = x + rowWidth。
+        // 要「整行点亮」必须 x <= 0 且 x + rowWidth >= rowWidth，
+        // 也就是 x ∈ [-feather, 0] —— 新几何下恒为 x = -feather。
         let full = fullFrames()
         for (row, frame) in full.enumerated() {
-            // 铺满时，不透明区起点应 ≤ 0（即整行覆盖）。
-            let opaqueEnd = frame.x + frame.width * (1 - fadeRatio(frame.width))
-            let covered = frame.x == 0 && opaqueEnd >= rowWidths[row] - 0.5
+            let opaqueEnd = frame.x + rowWidths[row]
+            let covered = frame.x <= 0.01 && opaqueEnd >= rowWidths[row] - 0.5
             parts.append(
                 "r\(row):w=\(Int(rowWidths[row])) full[x=\(Int(frame.x)) "
                     + "mask=\(Int(frame.width)) opaqueEnd=\(Int(opaqueEnd)) tailCovered=\(covered)]"
@@ -335,18 +344,10 @@ class KaraokeLineLabel: UIView {
 
         if let variant = cachedVariant, !variant.lineLevel, let boundaries = wordBoundaries,
            !boundaries.isEmpty {
-            parts.append("rowStarts=\(rowStarts.map { Int($0) })")
             parts.append("boundaries=\(boundaries.map { Int($0) })")
         }
 
         return parts.joined(separator: " ")
-    }
-
-    /// 与 `KaraokeMaskGeometry.locations` 保持同一公式，用于自检。
-    private func fadeRatio(_ maskWidth: CGFloat) -> CGFloat {
-        let width = max(1, maskWidth)
-        let fadePoints = min(max(8, feather), width * 0.45)
-        return min(0.45, max(0, fadePoints / width))
     }
 
     // MARK: 填充数据
@@ -370,6 +371,8 @@ class KaraokeLineLabel: UIView {
         let duration = Double(fillEndMs - firstWordMs) / 1000
         let anchorPosition = Double(firstWordMs) / 1000
 
+        // 词时长与词矩形是两条路径共用的（离散基例也需要它们来判定强调词）。
+        var emphasized: Set<Int> = []
         if words.count >= 2 {
             let timing = WordTimingResolver.resolve(words: words, segmentEndMs: segmentEndMs)
             let boundaries = wordBoundaries ?? axis.boundaries(forWordRanges: wordNSRanges)
@@ -377,6 +380,9 @@ class KaraokeLineLabel: UIView {
             cachedTiming = timing
             bounceSpans = axis.wordSpans(boundaries: boundaries, words: words)
             activeBounceWord = -1
+            for index in timing.indices where WordTimingResolver.shouldEmphasize(timing[index]) {
+                emphasized.insert(index)
+            }
 
             if WordTimingResolver.isUsableForFill(timing), boundaries.count == timing.count + 1,
                let stops = WordByWordKeyframes.wordLevel(
@@ -384,11 +390,16 @@ class KaraokeLineLabel: UIView {
                    timing: timing,
                    boundaries: boundaries,
                    rowWidths: axis.rowWidths,
+                   feather: feather,
                    segmentStartMs: firstWordMs,
                    segmentEndMs: fillEndMs,
                    anchorPosition: anchorPosition
                ) {
-                return WordByWordFillVariant(stops: stops, lineLevel: false)
+                return WordByWordFillVariant(
+                    stops: stops,
+                    lineLevel: false,
+                    emphasizedWords: emphasized
+                )
             }
         } else {
             cachedTiming = []
@@ -408,11 +419,12 @@ class KaraokeLineLabel: UIView {
         }
         let stops = WordByWordKeyframes.discrete(
             axis: axis,
+            feather: feather,
             keyTime: 0.02,
             duration: max(0.3, duration),
             anchorPosition: anchorPosition
         )
-        return WordByWordFillVariant(stops: stops, lineLevel: true)
+        return WordByWordFillVariant(stops: stops, lineLevel: true, emphasizedWords: emphasized)
     }
 
     // MARK: 应用
@@ -448,18 +460,11 @@ class KaraokeLineLabel: UIView {
                 let keyTimes = stops.stops.map { NSNumber(value: $0.keyTime) }
                 guard frames.count >= 2, frames.count == keyTimes.count else { continue }
 
-                // 宽度与 x 必须同时插值：遮罩跟着推进的前缘走，
-                // 而不是固定贴 x = 0（原因见 KaraokeMaskGeometry.trail）。
-                let widthAnimation = CAKeyframeAnimation(keyPath: "bounds.size.width")
-                widthAnimation.values = frames.map(\.width)
-                widthAnimation.keyTimes = keyTimes
-                widthAnimation.duration = stops.duration
-                widthAnimation.calculationMode = .linear
-                widthAnimation.isRemovedOnCompletion = false
-                widthAnimation.fillMode = .both
-                widthAnimation.beginTime = beginTime
-                layer.add(widthAnimation, forKey: KaraokeLineLabel.fillAnimationKey)
-
+                // **只动画 position.x，不动宽度。**
+                // 宽度固定是「羽化恒定」的前提：一旦宽度是动画量，
+                // 按宽度百分比定义的 locations 就会让羽化在几 px 到上百 px
+                // 之间漂移 —— 那正是上一版「糊」的成因。
+                // 机制同 AMLL animator-web.ts / SPlayer DefaultLyric.vue。
                 let positionAnimation = CAKeyframeAnimation(keyPath: "position.x")
                 positionAnimation.values = frames.map(\.x)
                 positionAnimation.keyTimes = keyTimes
@@ -475,37 +480,46 @@ class KaraokeLineLabel: UIView {
         anchor = (stops.anchorPosition, stops.anchorWallTime, stops.duration)
 
         // 跳动层：只在活动词变化时才真正重建，常规帧在这里直接返回。
-        updateBounce(timing: cachedTiming, currentTime: currentTime)
+        updateBounce(
+            timing: cachedTiming,
+            emphasized: variant.emphasizedWords,
+            currentTime: currentTime
+        )
     }
 
     // MARK: 逐词跳动
 
-    /// 找到当前正在唱的词并重建跳动动画。
+    /// 找到当前正在唱的**强调词**并重建跳动动画。
     ///
-    /// 只在**活动词发生变化**时才重建：关键帧数等于词数，
+    /// 只在**目标词发生变化**时才重建：关键帧数组与词数同阶，
     /// 每帧重建会白白分配一堆数组（本模块的整个设计就是避免这件事）。
-    private func updateBounce(timing: [WordTimingResolver.WordTiming], currentTime: TimeInterval) {
+    ///
+    /// - Parameter emphasized: 够长、值得上位移的词下标集合。
+    ///   空集合表示整行都不做位移，此时只撤掉跳动层。
+    private func updateBounce(
+        timing: [WordTimingResolver.WordTiming],
+        emphasized: Set<Int>,
+        currentTime: TimeInterval
+    ) {
         guard let axis, !bounceSpans.isEmpty, bounceHeight > 0 else { return }
+        guard !emphasized.isEmpty else {
+            clearBounceIfNeeded()
+            return
+        }
         let ms = currentTime * 1000
 
-        // 正在唱 = 有词满足 start <= now < end。
-        // `firstIndex(where:)` 返回 Int?：没有词在唱（词间空档）时为 nil，
-        // 因此统一用 -1 作为「无活动词」的哨兵，避免可选值来回解包。
+        // 当前正在唱的词，且必须在强调集合里 —— 否则保持静止。
         let active = timing.firstIndex {
             ms >= Double($0.startMs) && ms < Double($0.endMs)
         } ?? -1
+        let target = (active >= 0 && emphasized.contains(active)) ? active : -1
 
-        guard active != activeBounceWord else { return }
-        activeBounceWord = active
+        guard target != activeBounceWord else { return }
+        activeBounceWord = target
 
-        guard active >= 0, timing.indices.contains(active) else {
-            // 词间空档：撤掉跳动层，唱针停在原处。
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            bounceLabel.layer.removeAnimation(forKey: KaraokeLineLabel.bounceAnimationKey)
-            bounceLabel.layer.opacity = 0
-            bounceMask?.frame = .zero
-            CATransaction.commit()
+        guard target >= 0, timing.indices.contains(target) else {
+            // 词间空档 / 短词：撤掉跳动层，唱针停在原处。
+            clearBounce()
             return
         }
 
@@ -513,16 +527,16 @@ class KaraokeLineLabel: UIView {
         // 必须在事务之外挂上去，否则会被这里的 setDisableActions 影响。
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        updateBounceMask(wordIndex: active, axis: axis, currentTime: currentTime, timing: timing)
+        updateBounceMask(wordIndex: target, axis: axis, currentTime: currentTime, timing: timing)
         CATransaction.commit()
 
         writeDebugLog(
-            "[WordByWord/Bounce] word=\(active) \"\(timing[active].text)\" "
-                + "span=\(bounceSpanDescription(active)) "
-                + "start=\(timing[active].startMs)ms end=\(timing[active].endMs)ms"
+            "[WordByWord/Bounce] word=\(target) \"\(timing[target].text)\" "
+                + "span=\(bounceSpanDescription(target)) "
+                + "start=\(timing[target].startMs)ms end=\(timing[target].endMs)ms"
         )
 
-        addBounceAnimation(wordIndex: active, timing: timing, axis: axis)
+        addBounceAnimation(wordIndex: target, timing: timing, axis: axis)
     }
 
     private func bounceSpanDescription(_ wordIndex: Int) -> String {
@@ -530,6 +544,23 @@ class KaraokeLineLabel: UIView {
         let spans = bounceSpans[wordIndex]
         guard !spans.isEmpty else { return "empty" }
         return spans.map { "r\($0.row)x=\(Int($0.x))w=\(Int($0.width))" }.joined(separator: "+")
+    }
+
+    /// 撤掉跳动层（词间空档 / 短词 / 整行无强调词）。
+    private func clearBounce() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        bounceLabel.layer.removeAnimation(forKey: KaraokeLineLabel.bounceAnimationKey)
+        bounceLabel.layer.opacity = 0
+        bounceMask?.frame = .zero
+        CATransaction.commit()
+    }
+
+    /// 只在确实还有活动词时才做撤销，避免每帧重复进事务。
+    private func clearBounceIfNeeded() {
+        guard activeBounceWord != -1 else { return }
+        activeBounceWord = -1
+        clearBounce()
     }
 
     /// 把跳动层裁到「当前词已经唱到的那一段」。
@@ -565,12 +596,15 @@ class KaraokeLineLabel: UIView {
         )
     }
 
-    /// 单个词的「抬起 → 回落」。
+    /// 单个词的「抬起 → 保持 → 回落」。
     ///
-    /// 形制参考 KaraokeText：`kSmoothstep` 上升 + 指数衰减余弦回落；
-    /// 这里用 CAKeyframeAnimation 的 timingFunctions 表达同一条曲线
-    /// （`calculationMode = .cubic`），既省去逐帧计算，也能让
-    /// ±bounceHeight 的位移精确落在词起止时刻上。
+    /// 形制取自 AMLL `animation/float/index.ts`：`translateY(0 → -0.05em)`、
+    /// `ease-out`、**抬起后保持**，而不是快起快落再弹一下。
+    ///
+    /// ⚠️ 旧实现用的是带回弹过冲的 `cubic-bezier(0.34, 1.56, …)`。
+    /// 调研过的成品里**没有任何一家做位移过冲** —— AMLL 是 ease-out 保持、
+    /// HyperLyrics 是单调 easeOutQuint、am-lyrics 是峰值后回落、YouLyPlus 是
+    /// 1s ease。过冲是我从 KaraokeText 的"衰减余弦"推出来的，方向错了。
     private func addBounceAnimation(
         wordIndex: Int,
         timing: [WordTimingResolver.WordTiming],
@@ -582,35 +616,37 @@ class KaraokeLineLabel: UIView {
         let end = Double(word.endMs) / 1000
         guard end > start else { return }
 
-        // 动画总长延伸到「下一个词开始」或本词结束后 0.25s，取较早者：
-        // 保证回落能在遮罩跳到下一个词之前完成，不会半途被截断。
-        let candidate = timing.indices.contains(wordIndex + 1)
-            ? Double(timing[wordIndex + 1].startMs) / 1000
-            : end + 0.25
-        let animationEnd = max(end, min(end + 0.25, candidate))
-        let duration = animationEnd - start
-        guard duration > 0.01 else { return }
+        // 回落的结束时刻：下一个词开始，或至少给 0.2s 让回落看得见。
+        // 必须**早于**遮罩跳到下一个词，否则回落会被截断成一次跳变。
+        let fallEnd: Double
+        if timing.indices.contains(wordIndex + 1) {
+            let nextStart = Double(timing[wordIndex + 1].startMs) / 1000
+            fallEnd = max(end, min(nextStart, max(end, start + 0.2)))
+        } else {
+            fallEnd = end + 0.2
+        }
 
-        let riseRatio = min(0.9, 0.09 / duration)
-        let holdRatio = min(0.95, 0.18 / duration)
-        let sign: CGFloat = -1
+        let total = max(0.01, fallEnd - start)
+        let riseEnd = min(0.85, max(0.02, (end - start) * 0.35 / total))
+        let maxOffset = -bounceHeight
 
         let animation = CAKeyframeAnimation(keyPath: "transform.translation.y")
-        animation.values = [0, sign * bounceHeight, sign * bounceHeight, 0] as [CGFloat]
-        animation.keyTimes = [0, NSNumber(value: riseRatio), NSNumber(value: holdRatio), 1]
+        animation.values = [0, maxOffset, maxOffset, 0] as [CGFloat]
+        // 第三帧必须与末帧分开一点，否则"保持结束"与"回落结束"是同一时刻、
+        // 会被 Core Animation 合并掉，回落那一段就不存在了。
+        animation.keyTimes = [0, NSNumber(value: riseEnd), NSNumber(value: 0.999), 1]
         animation.timingFunctions = [
-            CAMediaTimingFunction(controlPoints: 0.25, 0.10, 0.35, 1.00),  // 快起
-            CAMediaTimingFunction(name: .linear),                          // 顶点停留
-            CAMediaTimingFunction(controlPoints: 0.34, 1.56, 0.64, 1.00),  // 带回落过冲
+            CAMediaTimingFunction(name: .easeOut),   // 抬起：先快后慢，无过冲
+            CAMediaTimingFunction(name: .linear),    // 保持：单调，不做振荡
+            CAMediaTimingFunction(name: .easeInOut), // 回落：对称收尾
         ]
-        animation.duration = duration
+        animation.duration = total
         animation.calculationMode = .cubic
         animation.isRemovedOnCompletion = false
         animation.fillMode = .both
 
-        // 关键点：`start` 是**播放进度**（秒），不是系统时钟。
-        // 因此要先由锚点求出「现在的播放进度」，再把播放时刻换算到
-        // CACurrentMediaTime 时基上，否则 beginTime 会是一个毫无意义的数。
+        // `start` 是**播放进度**（秒），不是系统时钟。先把当前播放进度由锚点
+        // 求出，再换算到 CACurrentMediaTime 时基，否则 beginTime 没有意义。
         let now = CACurrentMediaTime()
         let positionNow = anchor?.position ?? start
         animation.beginTime = now - max(0, positionNow - start)
@@ -619,6 +655,51 @@ class KaraokeLineLabel: UIView {
     }
 
     private static let bounceAnimationKey = "WordByWordBounce"
+
+    // MARK: 行级视觉（缩放 / 模糊）
+    //
+    // AMLL 在**逐词模式下不靠透明度区分非活动行** —— `resolveOpacity` 给
+    // 高亮行 0.85、其余行 1，区分全靠缩放（`SCALE_ASPECT = 97`）与模糊
+    // （`level = 1 + distance`，上限 5px）。缺了这两样，用户就读不出"当前唱到哪一行"。
+    //
+    // ⚠️ LyricFever 源码里记了一个坑：用**新行**做动画基准会让上一行看起来
+    // 先动（*"appear to 'push' Lyric 1 upward"*）。这里只做静态的
+    // 目标值 + 短过渡，不做逐行错峰，避免同类问题。
+
+    /// 非活动行的缩放。AMLL 用 0.97。
+    private let inactiveScale: CGFloat = 0.97
+
+    /// 按「距当前行几行」设置缩放与模糊。distance == 0 即当前行。
+    ///
+    /// 模糊用 `CIGaussianBlur` 在逐行动画下太贵，这里用
+    /// 「缩放 + 基础透明度」表达层次；模糊梯度留待后续按需接入。
+    func setLineEmphasis(distance: Int, animated: Bool = true) {
+        let clamped = max(0, distance)
+        let targetScale: CGFloat = clamped == 0 ? 1.0 : inactiveScale
+        // 越远越暗，但**当前行的未唱部分仍然比邻行亮**，这是 AMLL 的 pop。
+        let targetAlpha: CGFloat = clamped == 0 ? 1.0 : max(0.55, 1.0 - CGFloat(clamped) * 0.12)
+
+        guard abs(currentEmphasisScale - targetScale) > 0.001
+            || abs(currentEmphasisAlpha - targetAlpha) > 0.001 else { return }
+
+        currentEmphasisScale = targetScale
+        currentEmphasisAlpha = targetAlpha
+
+        let apply = { [weak self] in
+            guard let self else { return }
+            self.transform = CGAffineTransform(scaleX: targetScale, y: targetScale)
+            self.alpha = targetAlpha
+        }
+
+        guard animated else {
+            apply()
+            return
+        }
+        UIView.animate(withDuration: 0.25, delay: 0, options: [.curveEaseOut], animations: apply)
+    }
+
+    private var currentEmphasisScale: CGFloat = 1
+    private var currentEmphasisAlpha: CGFloat = 1
 
     // MARK: 遮罩几何
 
@@ -702,17 +783,17 @@ class KaraokeLineLabel: UIView {
         for row in rowWidths.indices {
             let layer = CAGradientLayer()
             layer.anchorPoint = CGPoint(x: 0, y: 0.5)
-            layer.position = CGPoint(x: 0, y: CGFloat(row) * lineHeight + lineHeight / 2)
-            layer.bounds = CGRect(x: 0, y: 0, width: 0, height: lineHeight)
+            // 遮罩**宽度固定**（行宽 + 羽化），位置随推进前缘移动。
+            // 宽度不参与动画 → locations 百分比恒定 → 羽化是一个常数像素值。
+            let rowWidth = max(1, rowWidths[row])
+            let width = rowWidth + feather
+            layer.position = CGPoint(x: -width, y: CGFloat(row) * lineHeight + lineHeight / 2)
+            layer.bounds = CGRect(x: 0, y: 0, width: width, height: lineHeight)
 
             layer.startPoint = CGPoint(x: 0, y: 0.5)
             layer.endPoint = CGPoint(x: 1, y: 0.5)
-            layer.locations = KaraokeMaskGeometry.locations(maskWidth: 0)
-            layer.colors = [
-                UIColor.white.cgColor,
-                UIColor.white.cgColor,
-                UIColor.white.withAlphaComponent(0).cgColor,
-            ]
+            layer.locations = KaraokeMaskGeometry.locations(rowWidth: rowWidth, feather: feather)
+            layer.colors = KaraokeMaskGeometry.colors()
 
             container.addSublayer(layer)
             rowMasks.append(layer)
@@ -729,10 +810,12 @@ class KaraokeLineLabel: UIView {
     /// 跳动状态自检（粘进日志便于定位「某个词不跳」）。
     var bounceDiagnostics: String {
         guard bounceHeight > 0 else { return "bounce=off" }
+        let emphasized = cachedVariant?.emphasizedWords.sorted() ?? []
         let descriptions = bounceSpans.map { group -> String in
             group.first.map { "r\($0.row)x=\(Int($0.x))w=\(Int($0.width))" } ?? "empty"
         }
-        return "bounce=h\(Int(bounceHeight)) active=\(activeBounceWord) "
+        return "bounce=h\(String(format: "%.1f", bounceHeight)) "
+            + "emph=\(emphasized) active=\(activeBounceWord) "
             + "spans=[\(descriptions.joined(separator: ","))]"
     }
 
@@ -773,6 +856,8 @@ struct WordByWordFillVariant {
     /// 是否走了离散基例（无词级数据 / 只有单个词 / 词级数据退化）。
     /// 供 overlay 打诊断日志用。
     var lineLevel: Bool
+    /// 够「长」、值得上逐字位移的词下标。见 `WordTimingResolver.shouldEmphasize`。
+    var emphasizedWords: Set<Int>
     var duration: TimeInterval { stops.duration }
     var stopCount: Int { stops.stops.count }
 }
