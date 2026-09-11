@@ -4,6 +4,14 @@
 <summary><b>2026</b> </summary>
 
 ### 09.11
+
+<details>
+<summary><b>v6.0.0-beta.5</b></summary>
+
+* Improved testing for Better Word-by-Word Lyrics.
+
+</details>
+
 <details>
 <summary><b>v6.0.0-beta.4</b></summary>
 
