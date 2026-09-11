@@ -7,7 +7,7 @@ This fork is independently maintained by me and is not affiliated with the origi
 | | Version |
 | --- | --- |
 | Latest public release | v5.1.2 |
-| Current development version | [v6.0.0-beta.3](CHANGELOG.md)|
+| Current development version | [v6.0.0-beta.4](CHANGELOG.md)|
 | Development version last updated | 2026/09/11 |
 
 ## 🔧 Modifications
