@@ -427,14 +427,47 @@ struct WordByWordFillStops {
 
     /// 某个词在自己时间窗内的进度（0...1），供逐词动效使用。
     ///
+    /// `endMs` 允许为 nil（词不在时间轴上，或零时长/负时长）：这时给一个
+    /// **名义时长**而不是直接返回 0/1 —— 否则零时长的词会让缩放曲线停在
+    /// 起点附近的中性区，观感就是"字母不跳"。
+    ///
     /// - Parameters:
-    ///   - startMs / endMs: 该词的绝对毫秒时间窗。
+    ///   - startMs: 该词的绝对起始毫秒。
+    ///   - endMs: 绝对结束毫秒；nil 或 ≤ startMs 时按名义时长处理。
     ///   - time: 当前播放进度（秒）。
-    func wordProgress(startMs: Int, endMs: Int, atTime time: TimeInterval) -> Double {
+    ///   - nominalDuration: 名义时长（毫秒），默认 120ms。
+    func wordProgress(
+        startMs: Int,
+        endMs: Int?,
+        atTime time: TimeInterval,
+        nominalDuration: Double = 120
+    ) -> Double {
         let currentMs = time * 1000
-        guard endMs > startMs else { return currentMs >= Double(endMs) ? 1 : 0 }
-        let raw = (currentMs - Double(startMs)) / Double(endMs - startMs)
+        let span = endMs.map { Double($0 - startMs) } ?? 0
+        let duration = span > 0 ? span : nominalDuration
+        let raw = (currentMs - Double(startMs)) / duration
         return min(1, max(0, raw))
+    }
+
+    /// 找出「当前正在唱的词」：**最后一个已经开始的词**。
+    ///
+    /// 不用 `start <= now < end` 那种"落在窗口内"的判据 —— yrc 的音节
+    /// 大量是零时长（`endMs == startMs`，实测日志里比比皆是），
+    /// 那种词永远不满足 `now < end`，会让整行找不到活动词、逐词动效全线失效。
+    /// 取"最后一个已开始"天然容忍零时长，和行级的 `activeLineIndex` 同一思路。
+    ///
+    /// 返回 `nil` 表示本行第一个词都还没开始。
+    ///
+    /// 注意**不要**在遇到第一个未开始的词时就 break：同一行里后面的词
+    /// 完全可能起始时间更早（yrc 的音节顺序与时间顺序并不严格一致），
+    /// break 会漏掉它们。全量扫一遍是 O(词数)，一行最多几十个词。
+    func activeWordIndex(timing: [WordTimingResolver.WordTiming], atTime time: TimeInterval) -> Int? {
+        let currentMs = time * 1000
+        var found: Int?
+        for index in timing.indices where currentMs >= Double(timing[index].startMs) {
+            found = index
+        }
+        return found
     }
 }
 
@@ -463,6 +496,31 @@ enum KaraokeMaskGeometry {
         let span = max(0, rowWidth)
         return min(max(0, sweep), span)
     }
+
+    /// 遮罩子层横向外扩的余量（pt）。
+    ///
+    /// 行的测量宽度来自 `boundingRect`，它可能比最后一个字形的**墨水边界**
+    /// 窄一线（字形的右侧承重、斜体溢出、tracking 误差都不计入）。
+    /// 遮罩只盖到测量宽度就会把最后一笔削掉 —— 就是"最后一个字母不亮"。
+    /// 往外多盖几 pt 只会盖到空白像素。
+    static let horizontalBleed: CGFloat = 3
+
+    /// 遮罩子层该做多高。
+    ///
+    /// 直接用 `font.lineHeight` 是偏紧的：`lineHeight` 是"行距盒"，
+    /// 而字形可以超出它（降部、重音符号、CJK 的溢出），超出部分会被遮罩裁掉
+    /// —— 表现为字顶/字底被削平。参考实现那边也踩过同类问题：它用
+    /// `mask-clip: border-box` + `line-height: 1.2`，导致边框盒外的字形被当透明裁掉
+    /// （其 PR #584）。
+    ///
+    /// 这里按字形实际边界（`ascender` / `descender`）加上一点余量，
+    /// 并保证不小于 `lineHeight` —— 宽一点只是多盖到空白像素，没有副作用。
+    static func layerHeight(for font: UIFont?) -> CGFloat {
+        guard let font else { return 20 }
+        let glyphHeight = font.ascender - font.descender + font.leading
+        return max(font.lineHeight, glyphHeight) + 3
+    }
+}
 
     /// 单行遮罩宽度（按展平轴坐标）。
     static func maskWidth(

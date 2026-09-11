@@ -39,10 +39,6 @@ class KaraokeLineLabel: UIView {
     private var rowMasks: [CALayer] = []
     private var maskContainer: CALayer?
 
-    /// 逐词跳动的叠加层：与 litLabel 完全相同的文字，被裁到「当前正在唱的那个词」，
-    /// 然后整体做一个垂直位移 —— 遮罩只能表达一维推进，做不了位移，所以需要它。
-    private let bounceLabel = UILabel()
-    private var bounceMask: CALayer?
     private var bounceSpans: [[WordByWordAxis.WordSpan]] = []
     private var activeBounceWord = -1
     /// 当前正在跳动的词下标（-1 = 无），供 overlay 打日志。
@@ -91,7 +87,7 @@ class KaraokeLineLabel: UIView {
         backgroundColor = .clear
         clipsToBounds = false
 
-        for label in [dimLabel, litLabel, bounceLabel] {
+        for label in [dimLabel, litLabel] {
             label.numberOfLines = 0
             label.textAlignment = .left
             label.lineBreakMode = .byWordWrapping
@@ -108,21 +104,8 @@ class KaraokeLineLabel: UIView {
         // 亮层初始全暗：由填充决定露出多少。
         litLabel.layer.opacity = 0
         dimLabel.layer.opacity = Float(dimOpacity)
-
-        // 跳动层：同样初始透明，只在建立跳动关键帧时才点亮。
-        bounceLabel.layer.opacity = 0
-        let mask = CALayer()
-        mask.backgroundColor = UIColor.white.cgColor
-        bounceMask = mask
-        bounceLabel.layer.mask = mask
     }
 
-    /// 逐词跳动幅度（pt）。0 = 关闭。
-    ///
-    /// 22pt 字号下 1.1pt = 0.05em，对齐参考实现：AMLL `float` 0.05em、
-    /// HyperLyrics 0.05/0.06em、am-lyrics 0.033em；Lyricify 出厂
-    /// `karaoke_style_float_height` = 2.0。
-    /// 旧的 3pt = 0.136em，是全簇的 2.3–4 倍 —— 那是「像抽搐」的来源。
     /// 逐词动效的开关。参考实现没有开关、每个词都做；这里保留一个可以
     /// 一键关掉的杠杆，方便在真机上对比"有动效 / 无动效"。
     var wordMotionEnabled = true
@@ -136,14 +119,12 @@ class KaraokeLineLabel: UIView {
         wordNSRanges = wordRanges
         dimLabel.text = text
         litLabel.text = text
-        bounceLabel.text = text
         invalidateAxis()
     }
 
     func setColors(lit: UIColor, dim: UIColor) {
         litLabel.textColor = lit
         dimLabel.textColor = dim
-        bounceLabel.textColor = lit
     }
 
     /// 未唱部分的透明度。由 overlay 传入，保证「观感参数」集中在一处可调。
@@ -157,7 +138,6 @@ class KaraokeLineLabel: UIView {
         guard dimLabel.font != font else { return }
         dimLabel.font = font
         litLabel.font = font
-        bounceLabel.font = font
         invalidateAxis()
     }
 
@@ -173,9 +153,7 @@ class KaraokeLineLabel: UIView {
         variantFastKey = nil
         variantKey = nil
         anchor = nil
-        bounceLabel.layer.removeAnimation(forKey: KaraokeLineLabel.bounceAnimationKey)
-        bounceLabel.layer.opacity = 0
-        bounceMask?.frame = .zero
+        clearBounce()
         setNeedsLayout()
     }
 
@@ -198,11 +176,12 @@ class KaraokeLineLabel: UIView {
         CATransaction.commit()
     }
 
-    /// 每一行铺满时的遮罩宽度（= 行宽本身）。
-    /// 硬边遮罩下，宽度等于行宽即整行纯白 —— **行尾必然满亮**。
+    /// 每一行铺满时的遮罩宽度（= 行宽 + 两侧横向余量）。
+    /// 硬边遮罩下，盖满行宽即整行纯白 —— **行尾必然满亮**。
     private func fullWidths() -> [CGFloat] {
         guard let axis else { return [] }
-        return axis.rowWidths
+        let bleed = KaraokeMaskGeometry.horizontalBleed
+        return axis.rowWidths.map { $0 + bleed * 2 }
     }
 
     /// 每一行的隐藏态宽度。
@@ -421,13 +400,17 @@ class KaraokeLineLabel: UIView {
             for (row, layer) in rowMasks.enumerated() {
                 layer.removeAnimation(forKey: KaraokeLineLabel.fillAnimationKey)
 
+                // 硬边遮罩贴 x = -bleed，因此**宽度 = 推进宽度 + 两侧余量**。
+                // 余量保证行尾最后一个字形的墨水边界也被盖满
+                // （`boundingRect` 的宽度可能比它窄一线）。
+                let bleed = KaraokeMaskGeometry.horizontalBleed
                 let widths = stops.stops.map { stop -> CGFloat in
                     KaraokeMaskGeometry.maskWidth(
                         unrolled: stop.sweep,
                         row: row,
                         rowStarts: stops.rowStarts,
                         rowWidths: stops.rowWidths
-                    )
+                    ) + bleed * 2
                 }
                 let keyTimes = stops.stops.map { NSNumber(value: $0.keyTime) }
                 guard widths.count >= 2, widths.count == keyTimes.count else { continue }
@@ -449,22 +432,23 @@ class KaraokeLineLabel: UIView {
 
         anchor = (stops.anchorPosition, stops.anchorWallTime, stops.duration)
 
-        // 逐词动效（缩放 / 上浮 / 辉光）：逐帧写入跳动层。
+        // 逐词动效（缩放 / 上浮 / 辉光）：逐帧写入容器。
         applyWordMotion(timing: cachedTiming, currentTime: currentTime)
     }
 
-    // MARK: 跳动层状态
+    // MARK: 逐词动效状态
 
-    /// 撤掉跳动层（词间空档 / 无可用几何）。
+    /// 撤掉逐词动效（词间空档 / 无可用几何）。
+    ///
+    /// 变换作用在**容器**上，所以这里把容器自身的 transform / shadow 复位。
+    /// 注意 `setLineEmphasis` 也会写 `transform`（非活动行缩放）——
+    /// 两者都在行切换时重新建立，不会长期互相覆盖。
     private func clearBounce() {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        bounceLabel.layer.removeAnimation(forKey: KaraokeLineLabel.bounceAnimationKey)
-        bounceLabel.layer.transform = CATransform3DIdentity
-        bounceLabel.layer.shadowOpacity = 0
-        bounceLabel.layer.shadowRadius = 0
-        bounceLabel.layer.opacity = 0
-        bounceMask?.frame = .zero
+        layer.transform = CATransform3DIdentity
+        layer.shadowOpacity = 0
+        layer.shadowRadius = 0
         CATransaction.commit()
     }
 
@@ -474,8 +458,6 @@ class KaraokeLineLabel: UIView {
         activeBounceWord = -1
         clearBounce()
     }
-
-    private static let bounceAnimationKey = "WordByWordBounce"
 
     // MARK: 逐词动效曲线（缩放 / 辉光 / 上浮）
     //
@@ -538,15 +520,13 @@ class KaraokeLineLabel: UIView {
         }
         guard !bounceSpans.isEmpty, let stops = cachedVariant?.stops else { return }
 
-        let ms = currentTime * 1000
-        let active = timing.firstIndex {
-            ms >= Double($0.startMs) && ms < Double($0.endMs)
-        } ?? -1
-
-        guard active >= 0, timing.indices.contains(active),
-              let span = bounceSpans.indices.contains(active)
-                  ? bounceSpans[active].first
-                  : nil else {
+        // 取「最后一个已开始的词」，而不是「落在 start..end 窗口内的词」——
+        // yrc 的音节大量是零时长，后者会永远匹配不到（实测日志里
+        // progress 全程 0.00、动效一次都没触发，就是这个原因）。
+        guard let active = stops.activeWordIndex(timing: timing, atTime: currentTime),
+              timing.indices.contains(active),
+              bounceSpans.indices.contains(active),
+              let span = bounceSpans[active].first else {
             clearBounceIfNeeded()
             return
         }
@@ -554,7 +534,7 @@ class KaraokeLineLabel: UIView {
         let word = timing[active]
         let progress = stops.wordProgress(
             startMs: word.startMs,
-            endMs: word.endMs,
+            endMs: word.endMs > word.startMs ? word.endMs : nil,
             atTime: currentTime
         )
         lastWordProgress = progress
@@ -565,13 +545,19 @@ class KaraokeLineLabel: UIView {
         let yFraction = MotionCurve.value(MotionCurve.yOffset, at: progress)
         let pointOffset = CGFloat(yFraction) * motionFontSize
 
-        updateBounceMask(span: span)
-
+        // ⚠️ 变换施加在**容器**上，而不是某一个文字层。
+        //
+        // 之前把缩放加在独立的 `bounceLabel`（第三份文字副本）上，导致
+        // 同一批字形被画两遍且缩放后错位半个像素 —— 观感就是"第一个字母
+        // 被重影挡住"。参考实现之所以没有这个问题，是因为它
+        // `Text(syllable.text).foregroundStyle(LinearGradient(...))`
+        // **每个音节只画一次**，亮暗是同一段文本的填充色；
+        // 而它是把 `scaleEffect` 包住整词，不是只包亮色部分。
+        //
+        // 缩放到容器上以后，dim / lit 两层共用同一个变换矩阵，
+        // 结构上不可能错位；辉光也可以用容器自己的 shadow 表达。
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        bounceLabel.layer.opacity = 1
-        // 先平移到词中心 → 以该点缩放 → 再平移回去，等价于"围绕词中心缩放"。
-        // 直接改 anchorPoint 会连带移动 position，换算容易出错，这样更稳。
         let height = lineHeight()
         let centerX = span.x + span.width / 2
         let centerY = CGFloat(span.row) * height + height / 2
@@ -579,32 +565,19 @@ class KaraokeLineLabel: UIView {
         let toCenter = CATransform3DMakeTranslation(-centerX, -centerY, 0)
         let scaleUp = CATransform3DMakeScale(s, s, 1)
         let back = CATransform3DMakeTranslation(centerX, centerY + pointOffset, 0)
-        bounceLabel.layer.transform = CATransform3DConcat(toCenter, CATransform3DConcat(scaleUp, back))
-        bounceLabel.layer.shadowColor = UIColor.white.cgColor
-        bounceLabel.layer.shadowOpacity = Float(glow * 0.8)
-        bounceLabel.layer.shadowRadius = CGFloat(glow * 8)
-        bounceLabel.layer.shadowOffset = .zero
+        layer.transform = CATransform3DConcat(toCenter, CATransform3DConcat(scaleUp, back))
+        layer.shadowColor = UIColor.white.cgColor
+        layer.shadowOpacity = Float(glow * 0.8)
+        layer.shadowRadius = CGFloat(glow * 8)
+        layer.shadowOffset = .zero
         CATransaction.commit()
     }
 
     /// 逐词动效里"字号"的基准（参考实现用 28pt，本项目歌词字号 22pt）。
     private var motionFontSize: CGFloat { dimLabel.font?.pointSize ?? 22 }
 
-    private func lineHeight() -> CGFloat { max(1, dimLabel.font?.lineHeight ?? 20) }
-
-    /// 把跳动层裁到当前词的矩形上（跨行的词取第一段）。
-    ///
-    /// 遮罩保持**静止**，缩放只作用于被裁出来的内容 —— 与参考实现的
-    /// `scaleEffect` 包住整词一致。
-    private func updateBounceMask(span: WordByWordAxis.WordSpan) {
-        let height = lineHeight()
-        let padding: CGFloat = 1
-        bounceMask?.frame = CGRect(
-            x: max(0, span.x - padding),
-            y: CGFloat(span.row) * height,
-            width: span.width + padding * 2,
-            height: height
-        )
+    private func lineHeight() -> CGFloat {
+        KaraokeMaskGeometry.layerHeight(for: dimLabel.font)
     }
 
     // MARK: 行级视觉（缩放 / 模糊）
@@ -684,9 +657,7 @@ class KaraokeLineLabel: UIView {
         cachedTiming = []
         bounceSpans = []
         activeBounceWord = -1
-        bounceLabel.layer.removeAnimation(forKey: KaraokeLineLabel.bounceAnimationKey)
-        bounceLabel.layer.opacity = 0
-        bounceMask?.frame = .zero
+        clearBounce()
 
         let newAxis = WordByWordAxis(
             displayText: text,
@@ -735,7 +706,7 @@ class KaraokeLineLabel: UIView {
         }
 
         let rowWidths = axis.rowWidths
-        let lineHeight = max(1, dimLabel.font?.lineHeight ?? 20)
+        let lineHeight = KaraokeMaskGeometry.layerHeight(for: dimLabel.font)
         let rowCount = axis.rowOffsets.starts.count
         let container = CALayer()
 
@@ -744,8 +715,22 @@ class KaraokeLineLabel: UIView {
             layer.backgroundColor = UIColor.white.cgColor
             layer.anchorPoint = CGPoint(x: 0, y: 0.5)
             // 贴 x = 0，初始宽度 0（未唱）。宽度由关键帧驱动。
-            layer.position = CGPoint(x: 0, y: CGFloat(row) * lineHeight + lineHeight / 2)
-            layer.bounds = CGRect(x: 0, y: 0, width: 0, height: lineHeight)
+            //
+            // 纵向用 layerHeight（比 lineHeight 高一点），避免字形的降部/
+            // 重音被裁掉；横向也一样要留余量：行的测量宽度来自
+            // `boundingRect`，它可能比最后一个字形的**墨水边界**窄一线，
+            // 结果就是"最后一个字母差一点没被盖满"。
+            // 往外多盖几 pt 只会盖到空白像素，没有副作用。
+            layer.position = CGPoint(
+                x: -KaraokeMaskGeometry.horizontalBleed,
+                y: CGFloat(row) * lineHeight + lineHeight / 2
+            )
+            layer.bounds = CGRect(
+                x: 0,
+                y: 0,
+                width: KaraokeMaskGeometry.horizontalBleed * 2,
+                height: lineHeight
+            )
 
             container.addSublayer(layer)
             rowMasks.append(layer)
