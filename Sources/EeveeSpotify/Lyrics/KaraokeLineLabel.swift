@@ -496,23 +496,25 @@ class KaraokeLineLabel: UIView {
     // 而且做到 3pt，方向和权重都错了。
 
     private enum MotionCurve {
-        static let scale: [(Double, Double)] = [(0, 0.95), (0.7, 1.0505), (1, 1.0)]
-        static let glow: [(Double, Double)] = [(0, 0), (0.15, 1), (0.6, 1), (1, 0)]
-        static let yOffset: [(Double, Double)] = [(0, 1.0 / 100), (0.9, -(1.0 / 60)), (1, 0)]
+        typealias Point = (time: Double, value: Double)
+
+        static let scale: [Point] = [(0, 0.95), (0.7, 1.0505), (1, 1.0)]
+        static let glow: [Point] = [(0, 0), (0.15, 1), (0.6, 1), (1, 0)]
+        static let yOffset: [Point] = [(0, 1.0 / 100), (0.9, -(1.0 / 60.0)), (1, 0)]
 
         /// 分段线性插值，`progress` 应落在 0...1。
-        static func value(_ points: [(Double, Double)], at progress: Double) -> Double {
+        static func value(_ points: [Point], at progress: Double) -> Double {
             let p = min(1, max(0, progress))
-            guard points.count > 1 else { return points.first?.1 ?? 0 }
+            guard points.count > 1 else { return points.first?.value ?? 0 }
             for index in 0..<(points.count - 1) {
                 let a = points[index]
                 let b = points[index + 1]
-                guard p >= a.0 && p <= b.0 else { continue }
-                guard b.0 > a.0 else { return a.1 }
-                let local = (p - a.0) / (b.0 - a.0)
-                return a.1 + (b.1 - a.1) * local
+                guard p >= a.time && p <= b.time else { continue }
+                guard b.time > a.time else { return a.value }
+                let local = (p - a.time) / (b.time - a.time)
+                return a.value + (b.value - a.value) * local
             }
-            return points.last?.1 ?? 0
+            return points.last?.value ?? 0
         }
     }
 
@@ -534,7 +536,7 @@ class KaraokeLineLabel: UIView {
             clearBounceIfNeeded()
             return
         }
-        guard let axis, !bounceSpans.isEmpty, let stops = cachedVariant?.stops else { return }
+        guard !bounceSpans.isEmpty, let stops = cachedVariant?.stops else { return }
 
         let ms = currentTime * 1000
         let active = timing.firstIndex {
@@ -563,23 +565,21 @@ class KaraokeLineLabel: UIView {
         let yFraction = MotionCurve.value(MotionCurve.yOffset, at: progress)
         let pointOffset = CGFloat(yFraction) * motionFontSize
 
-        updateBounceMask(span: span, axis: axis)
+        updateBounceMask(span: span)
 
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         bounceLabel.layer.opacity = 1
         // 先平移到词中心 → 以该点缩放 → 再平移回去，等价于"围绕词中心缩放"。
         // 直接改 anchorPoint 会连带移动 position，换算容易出错，这样更稳。
+        let height = lineHeight()
         let centerX = span.x + span.width / 2
-        let centerY = CGFloat(span.row) * lineHeight() + lineHeight() / 2
+        let centerY = CGFloat(span.row) * height + height / 2
         let s = CGFloat(scale)
-        bounceLabel.layer.transform = CATransform3DConcat(
-            CATransform3DMakeTranslation(-centerX, -centerY, 0),
-            CATransform3DConcat(
-                CATransform3DMakeScale(s, s, 1),
-                CATransform3DMakeTranslation(centerX, centerY + pointOffset, 0)
-            )
-        )
+        let toCenter = CATransform3DMakeTranslation(-centerX, -centerY, 0)
+        let scaleUp = CATransform3DMakeScale(s, s, 1)
+        let back = CATransform3DMakeTranslation(centerX, centerY + pointOffset, 0)
+        bounceLabel.layer.transform = CATransform3DConcat(toCenter, CATransform3DConcat(scaleUp, back))
         bounceLabel.layer.shadowColor = UIColor.white.cgColor
         bounceLabel.layer.shadowOpacity = Float(glow * 0.8)
         bounceLabel.layer.shadowRadius = CGFloat(glow * 8)
@@ -596,7 +596,7 @@ class KaraokeLineLabel: UIView {
     ///
     /// 遮罩保持**静止**，缩放只作用于被裁出来的内容 —— 与参考实现的
     /// `scaleEffect` 包住整词一致。
-    private func updateBounceMask(span: WordByWordAxis.WordSpan, axis: WordByWordAxis) {
+    private func updateBounceMask(span: WordByWordAxis.WordSpan) {
         let height = lineHeight()
         let padding: CGFloat = 1
         bounceMask?.frame = CGRect(
@@ -750,14 +750,6 @@ class KaraokeLineLabel: UIView {
             container.addSublayer(layer)
             rowMasks.append(layer)
         }
-
-        // 行数一致性：轴的行数、行宽数量、行偏移数量必须对齐，
-        // 否则遮罩子层会与关键帧的 widths 数量错位。
-        assert(rowCount == rowWidths.count, "axis row count mismatch")
-
-        litLabel.layer.mask = container
-        maskContainer = container
-    }
 
         // 行数一致性：轴的行数、行宽数量、行偏移数量必须对齐，
         // 否则遮罩子层会与关键帧的 widths 数量错位。
