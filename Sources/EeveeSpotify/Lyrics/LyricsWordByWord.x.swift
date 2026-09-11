@@ -180,18 +180,17 @@ final class WordByWordPlaybackClock {
 
 // MARK: - 叠加视图
 
-/// 歌词行：逐词填充标签 + 所属行下标（`lineIndex` 定义在 `KaraokeLineLabel` 上，
-/// 仅用于日志定位）。
-/// 填充机制见 `KaraokeLineLabel`（双层文字 + 逐行渐变遮罩 + CAKeyframeAnimation）。
-private final class LineLabel: KaraokeLineLabel {}
+private final class LineLabel: UILabel {
+    var lineIndex = -1
+}
 
 final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
 
     private let scrollView = UIScrollView()
     private let stackView = UIStackView()
-    private var lineLabels: [LineLabel] = []
+    private var lineLabels: [UILabel] = []
     private var displayTexts: [String] = []
-    private var wordNSRanges: [[NSRange]] = []
+    private var wordRanges: [[Range<String.Index>]] = []
     private var wordIndices: [[Int]] = []
     private var providerLabel: UILabel?
     /// 是否在底部显示「歌词提供者」（全屏显示，内嵌不显示）。
@@ -205,13 +204,6 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
     private var dtoVersion = -1
     private var activeLineIndex = -1
     private var activeWordIndex = -1
-    /// 上一次喂进来的播放进度（毫秒）。用于识别「暂停 / 进度未变」，
-    /// 跳过整段行-词扫描 —— 但填充的漂移看门狗仍要走（见 setCurrentTime）。
-    private var lastSeenMs: Double = .nan
-    /// 最近一次扫描到的行/词下标，供进度未变时复用。
-    private var bestIndexCache: (line: Int, word: Int) = (-1, -1)
-    /// 歌词数据或行标签被重建后置位，强制下一帧重新扫描。
-    private var lineIndicesMayHaveChanged = true
 
     private let lineColor = UIColor.black
     private let activeLineColorValue = UIColor.white
@@ -219,10 +211,8 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
     private let translationFontSize: CGFloat = 16
     /// 行级译文颜色：与未唱歌词（其余行）一致的黑色。
     private let translationColor = UIColor.black
-    /// 当前行内「未唱」部分的透明度。对齐参考实现
-    /// （`KaraokeLineView.swift` 用 `white.opacity(0.35)`）：已唱纯白、
-    /// 未唱 35%，对比度 2.86:1。原来取 0.45 偏亮，层次不够。
-    private let unsungWordOpacity: CGFloat = 0.35
+    /// 当前行内「未唱」词的透明度（已唱/正在唱为全白）。
+    private let unsungWordOpacity: CGFloat = 0.45
     /// 背景色缓存：每次 rebuild（换歌/换数据）后按「定制」选项重新计算一次。
     private var resolvedBackgroundColor: UIColor?
     /// 顶部渐隐层（scrim）：背景色 → 透明，让上滚的歌词在顶部渐隐退出。
@@ -237,22 +227,12 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
     private var autoScrollPauseUntil: Date = .distantPast
     /// 诊断：节流打印当前高亮状态
     private var lastDiagnosticLog: Date = .distantPast
-    /// 当前行在视口中的目标位置（距顶部比例）。
-    ///
-    /// 取值依据：SPlayer 默认 `lyricsScrollOffset = 0.25`（锚点为 top）、
-    /// Apple 自己 dex 里读出的 `APPLE_LYRICS_INITIAL_ANCHOR_Y_FRACTION ≈ 0.22`、
-    /// AMLL 核心 0.35（锚点为 center，换算到 top 约 0.4）。
-    /// 原来取 0.40，比 SPlayer 和 Apple 都偏下近 20 个百分点。
-    private let activeLineViewportFraction: CGFloat = 0.25
+    /// 当前行在视口中的目标位置（距顶部比例）：0.40 = 视口上方约 40% 处。
+    private let activeLineViewportFraction: CGFloat = 0.40
     /// 自动滚动动画时长（秒），越小越「干脆」。
     private let scrollAnimationDuration: TimeInterval = 0.20
     /// 歌词行字号（对照 Spotify 原生歌词放大）。
     private let lyricsFontSize: CGFloat = 22
-    /// 歌词行字体。填充用的轴向测量必须和 label 用同一字体，
-    /// 因此统一从这里取，避免两处各写一份 systemFont 参数。
-    private var lyricsFont: UIFont {
-        .systemFont(ofSize: lyricsFontSize, weight: .semibold)
-    }
     /// 歌词行左右内边距（对照「歌词」标题的左缩进）；全屏歌词可单独调大。
     private var lyricsSideInset: CGFloat = 16
     /// 歌词块顶部留白（未滚动时第一行的起始高度）。
@@ -378,33 +358,37 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
             updateFadeVisibility()
         }
 
-        // 播放暂停时进度不再变化：整段重算（含行/词扫描与滚动态）都没有意义，
-        // 但漂移看门狗仍需要跑 —— 否则 seek 后恢复会停在旧位置。
-        if ms == lastSeenMs, !lineIndicesMayHaveChanged, bestIndexCache.line >= 0 {
-            writeThrottledDiagnostic(ms: ms, line: bestIndexCache.line, word: bestIndexCache.word, dto: dto)
-            pushFill(lineIndex: bestIndexCache.line, ms: ms, dto: dto)
-            return
-        }
-        lastSeenMs = ms
-        lineIndicesMayHaveChanged = false
-
-        // 当前行 = 最后一个 offsetMs <= 当前进度 的行，因此从后往前找，
-        // 命中即可跳出（长歌词也是 O(行数) 的最坏情况，但平均远小于此）。
         var bestLine = -1
         var bestWord = -1
-        for index in stride(from: dto.lines.count - 1, through: 0, by: -1) {
-            guard let offset = dto.lines[index].offsetMs, Double(offset) <= ms else { continue }
-            bestLine = index
-            if let words = dto.lines[index].words {
+        for (i, line) in dto.lines.enumerated() {
+            guard let offset = line.offsetMs, Double(offset) <= ms else { continue }
+            bestLine = i
+            if let words = line.words {
                 for j in words.indices where Double(words[j].startMs) <= ms {
                     bestWord = j
                 }
             }
-            break
         }
-        bestIndexCache = (line: bestLine, word: bestWord)
 
-        writeThrottledDiagnostic(ms: ms, line: bestLine, word: bestWord, dto: dto)
+        // 诊断：节流打印当前高亮状态（每 1s 一次），用于对比数据时间轴与实际渲染
+        if Date().timeIntervalSince(lastDiagnosticLog) > 1.0 {
+            lastDiagnosticLog = Date()
+            var wordInfo = "no-line"
+            if bestLine >= 0, bestLine < dto.lines.count {
+                if let words = dto.lines[bestLine].words, !words.isEmpty {
+                    if bestWord >= 0, bestWord < words.count {
+                        wordInfo = "w\(bestWord)=\"\(words[bestWord].text)\"@\(words[bestWord].startMs)ms"
+                    } else {
+                        wordInfo = "w=none-yet"
+                    }
+                } else {
+                    wordInfo = "words=nil"
+                }
+            }
+            writeDebugLog("[WordByWord] t=\(Int(ms))ms line=\(bestLine) \(wordInfo)")
+        }
+
+        if bestLine == activeLineIndex && bestWord == activeWordIndex { return }
 
         let lineChanged = bestLine != activeLineIndex
 
@@ -413,19 +397,12 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
             activeLineIndex = bestLine
 
             if bestLine == oldIndex + 1 {
-                // 正常前进：旧行补完并淡出到暗，新行从暗淡入。
+                // 正常前进：只更新旧/新两行，crossfade 平滑黑白切换，消除闪烁
                 if oldIndex >= 0, oldIndex < lineLabels.count {
-                    let previous = lineLabels[oldIndex]
-                    previous.setFullyLit(true)
-                    previous.fade(toLit: false)
-                }
-                if bestLine >= 0, bestLine < lineLabels.count {
-                    let current = lineLabels[bestLine]
-                    current.setFullyLit(false)
-                    current.fade(toLit: true)
+                    crossfade(lineLabels[oldIndex]) { self.applyPlain(to: oldIndex) }
                 }
             } else {
-                // 跳转/回退：整列表重涂 —— 已唱过行亮、当前行暗等填充、未到行暗。
+                // 跳转/回退：整列表重涂 —— 已唱过/当前行白、未到行黑
                 repaintAllLines(upTo: bestLine)
             }
 
@@ -439,96 +416,13 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
         }
 
         activeWordIndex = bestWord
-
-        // 已唱过的行保持满亮（新行从暗淡入期间重叠一行，保证不闪）。
-        if lineChanged {
-            for index in 0..<max(0, bestLine) where index < lineLabels.count {
-                lineLabels[index].setFullyLit(true)
-            }
-            // 行级层次：AMLL 在逐词模式下**不靠透明度区分非活动行**，
-            // 区分全靠缩放（0.97）与模糊。这里按「距当前行几行」设置。
-            applyLineEmphasis(activeLine: bestLine)
-        }
-
-        pushFill(lineIndex: bestLine, ms: ms, dto: dto)
-    }
-
-    /// 按「距当前行几行」给每行设置缩放与透明度层次。
-    ///
-    /// AMLL 的做法：非活动行 `scale = 0.97`，透明度在逐词模式下**不变**，
-    /// 层次感主要来自缩放与模糊梯度。这里只做缩放 + 轻度透明度衰减
-    /// （模糊逐行动画在 iOS 上代价太高，暂不接）。
-    private func applyLineEmphasis(activeLine: Int) {
-        guard !lineLabels.isEmpty else { return }
-        let focus = max(0, activeLine)
-        for (index, label) in lineLabels.enumerated() {
-            label.setLineEmphasis(distance: abs(index - focus))
-        }
-    }
-
-    /// 把播放进度喂给当前行的填充。
-    ///
-    /// 词级数据是否可用由 `KaraokeLineLabel` 内部统一判定
-    /// （见 `WordTimingResolver.isUsableForFill`）：不可用时它自动退化成
-    /// 行级填充基例，这里不再重复判定一次，避免阈值散落在两处。
-    private func pushFill(lineIndex: Int, ms: Double, dto: LyricsDto) {
-        guard lineIndex >= 0, lineIndex < lineLabels.count else { return }
-        guard let offset = dto.lines[lineIndex].offsetMs else { return }
-
-        // 时间窗：本行 offsetMs → 下一行 offsetMs（末行用 +8s 兜底，
-        // 保证最后一个词始终有一个上界可用）。
-        let segmentEnd = (lineIndex + 1 < dto.lines.count
-            ? dto.lines[lineIndex + 1].offsetMs
-            : nil) ?? (offset + 8000)
-
-        lineLabels[lineIndex].setFill(
-            words: dto.lines[lineIndex].words ?? [],
-            segmentStartMs: offset,
-            segmentEndMs: segmentEnd,
-            currentTime: ms / 1000
-        )
-    }
-
-    /// 诊断：节流打印当前高亮状态（每 1s 一次），用于对比数据时间轴与实际渲染。
-    private func writeThrottledDiagnostic(
-        ms: Double,
-        line: Int,
-        word: Int,
-        dto: LyricsDto
-    ) {
-        guard Date().timeIntervalSince(lastDiagnosticLog) > 1.0 else { return }
-        lastDiagnosticLog = Date()
-
-        var wordInfo = "no-line"
-        if line >= 0, line < dto.lines.count {
-            if let words = dto.lines[line].words, !words.isEmpty {
-                if word >= 0, word < words.count {
-                    wordInfo = "w\(word)=\"\(words[word].text)\"@\(words[word].startMs)ms"
-                } else {
-                    wordInfo = "w=none-yet"
-                }
+        if bestLine >= 0 {
+            if lineChanged {
+                crossfade(lineLabels[bestLine]) { self.applyHighlight(to: bestLine, wordIndex: bestWord) }
             } else {
-                wordInfo = "words=nil"
+                applyHighlight(to: bestLine, wordIndex: bestWord)
             }
         }
-
-        // 填充链路自检：轴算错、或「某些词不亮」这类问题，都靠这里定位。
-        // `rowW` 与 `fullW` 必须相等 —— 硬边遮罩铺满时宽度就是行宽，
-        // 不等就说明几何算错了。
-        var fillInfo = "no-fill"
-        if line >= 0, line < lineLabels.count {
-            let label = lineLabels[line]
-            fillInfo = "\(label.axisDiagnostics) fill=\(label.lastVariantSummary) | \(label.fillDiagnostics)"
-        }
-
-        // 逐词动效自检：span 为空就是「某个词不动」的原因；
-        // progress 应该随着词内推进从 0 走到 1。
-        var motionInfo = "no-motion"
-        if line >= 0, line < lineLabels.count {
-            motionInfo = lineLabels[line].bounceDiagnostics
-        }
-
-        writeDebugLog("[WordByWord] t=\(Int(ms))ms line=\(line) \(wordInfo) | \(fillInfo) | \(motionInfo)")
     }
 
     /// 逐字数据是否可用：至少一半行有「多词」级时间轴（words.count >= 2）。
@@ -548,27 +442,23 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
         providerLabel?.removeFromSuperview()
         providerLabel = nil
         displayTexts = []
-        wordNSRanges = []
+        wordRanges = []
         wordIndices = []
         activeLineIndex = -1
         activeWordIndex = -1
         resolvedBackgroundColor = nil
-        lastSeenMs = .nan
-        bestIndexCache = (-1, -1)
-        lineIndicesMayHaveChanged = true
 
         guard let dto else { return }
 
         for (index, line) in dto.lines.enumerated() {
-            let built = buildDisplayText(for: line)
+            let (text, ranges, indices) = buildDisplayText(for: line)
             let label = LineLabel()
             label.lineIndex = index
-            label.setColors(lit: activeLineColorValue, dim: activeLineColorValue)
-            label.setDimOpacity(unsungWordOpacity)
-            label.setFont(lyricsFont)
-            label.setLyric(built.text, wordRanges: built.nsRanges)
-            // 初始全部为暗：由 setCurrentTime 按播放进度点亮。
-            label.setFullyLit(false)
+            label.numberOfLines = 0
+            label.textAlignment = .left
+            label.font = .systemFont(ofSize: lyricsFontSize, weight: .semibold)
+            label.text = text
+            label.textColor = lineColor
             label.isUserInteractionEnabled = true
             label.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(handleLineTap(_:))))
 
@@ -595,9 +485,9 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
 
             stackView.addArrangedSubview(lineStack)
             lineLabels.append(label)
-            displayTexts.append(built.text)
-            wordNSRanges.append(built.nsRanges)
-            wordIndices.append(built.indices)
+            displayTexts.append(text)
+            wordRanges.append(ranges)
+            wordIndices.append(indices)
         }
 
         // 底部：歌词提供者（仅全屏显示；原生歌词表格 footer 里的信息，overlay 覆盖后补出来）
@@ -611,49 +501,91 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
             stackView.addArrangedSubview(footer)
             providerLabel = footer
         }
-
-        // 先把布局跑完：轴向测量依赖 label 的**已布局宽度**，
-        // 否则首帧起 `KaraokeLineLabel` 拿不到可用几何，填充会晚一帧才出现。
-        layoutIfNeeded()
     }
 
-    /// 由词文本拼出行显示文本，并记录每个词在文本中的 NSRange。
-    ///
-    /// 空格 token 保留、空文本词跳过 —— 与旧的 `buildDisplayText` 完全一致，
-    /// 保证 label.text 与喂给轴向测量的字符串逐字符相同。
-    /// NSRange 直接交给 `KaraokeLineLabel` 换算成展平轴边界，
-    /// 因此这里不再需要 `Range<String.Index>`。
-    private func buildDisplayText(
-        for line: LyricsLineDto
-    ) -> (text: String, nsRanges: [NSRange], indices: [Int]) {
-        guard let words = line.words, !words.isEmpty else {
-            return (line.content, [], [])
-        }
+    /// 由词文本拼出行显示文本，并记录每个词在文本中的范围（空格 token 保留，空文本词跳过）。
+    private func buildDisplayText(for line: LyricsLineDto) -> (String, [Range<String.Index>], [Int]) {
+        guard let words = line.words, !words.isEmpty else { return (line.content, [], []) }
 
         var text = ""
-        var ranges: [NSRange] = []
+        var ranges: [Range<String.Index>] = []
         var indices: [Int] = []
         for (index, word) in words.enumerated() {
             guard !word.text.isEmpty else { continue }
-            let start = (text as NSString).length
+            let start = text.endIndex
             text += word.text
-            let end = (text as NSString).length
-            guard end > start else { continue }
-            ranges.append(NSRange(location: start, length: end - start))
+            ranges.append(start..<text.endIndex)
             indices.append(index)
         }
         guard !text.isEmpty else { return (line.content, [], []) }
         return (text, ranges, indices)
     }
 
-    /// 行级重涂（跳转/回退时用）：已唱过的行满亮，其余全暗。
-    /// 当前行由随后的 `setFill` 接管 —— 它会从暗重新扫到当前进度。
+    /// 行切换时整列表重涂：已唱过/当前行白、未到行黑（Spotify 原生样式）。
     private func repaintAllLines(upTo activeIndex: Int) {
         for (index, label) in lineLabels.enumerated() {
-            let isPast = index < activeIndex
-            label.setFullyLit(isPast)
-            label.fade(toLit: isPast)
+            label.attributedText = nil
+            label.text = displayTexts[index]
+            label.textColor = index <= activeIndex ? activeLineColorValue : lineColor
         }
+    }
+
+    /// 把某一行重置为纯白（已唱状态）。
+    private func applyPlain(to lineIndex: Int) {
+        guard lineIndex >= 0, lineIndex < lineLabels.count else { return }
+        let label = lineLabels[lineIndex]
+        label.attributedText = nil
+        label.text = displayTexts[lineIndex]
+        label.textColor = activeLineColorValue
+    }
+
+    /// 用 crossfade 平滑某个 label 的外观切换（消除行切换时的整行闪烁）。
+    private func crossfade(_ label: UILabel, _ update: @escaping () -> Void) {
+        UIView.transition(with: label, duration: 0.15, options: [.transitionCrossDissolve], animations: update)
+    }
+
+    /// 当前行内部按「已唱/正在唱/未唱」上色（Apple Music 式行内点亮）：
+    /// 已唱全白（普通）、正在唱全白加粗、未唱降透明度。
+    private func applyHighlight(to lineIndex: Int, wordIndex: Int) {
+        guard lineIndex >= 0, lineIndex < lineLabels.count else { return }
+        let label = lineLabels[lineIndex]
+        let text = displayTexts[lineIndex]
+
+        let regularFont = UIFont.systemFont(ofSize: lyricsFontSize, weight: .semibold)
+
+        // 整行默认全白（没有词级数据的行也保持全白）
+        let highlighted = NSMutableAttributedString(string: text, attributes: [
+            .foregroundColor: activeLineColorValue,
+            .font: regularFont,
+        ])
+
+        let ranges = wordRanges[lineIndex]
+        let indices = wordIndices[lineIndex]
+        let activePos = wordIndex >= 0 ? indices.firstIndex(of: wordIndex) : nil
+
+        for (pos, _) in indices.enumerated() {
+            guard pos < ranges.count else { continue }
+            let nsRange = NSRange(ranges[pos], in: text)
+
+            let isSung = activePos.map { pos < $0 } ?? false
+            if pos == activePos {
+                // 正在唱：全白 + 描边"加粗"（负 strokeWidth 叠在填充上，不改变字形宽度，
+                // 避免日文逐字加粗导致换行重排的闪烁）
+                highlighted.addAttributes([
+                    .strokeWidth: -2.0,
+                    .strokeColor: activeLineColorValue,
+                ], range: nsRange)
+            } else if activePos != nil, !isSung {
+                // 未唱：仅当已有正在唱的词时才降透明度；
+                // 一行还没唱到第一个词时整行保持全白，避免「整行突然变灰」的闪烁
+                highlighted.addAttributes([
+                    .foregroundColor: activeLineColorValue.withAlphaComponent(unsungWordOpacity),
+                ], range: nsRange)
+            }
+            // 已唱（pos < activePos）：保持整行默认的全白
+        }
+
+        label.attributedText = highlighted
     }
 
     // MARK: 背景取色（跟随「定制」选项）
