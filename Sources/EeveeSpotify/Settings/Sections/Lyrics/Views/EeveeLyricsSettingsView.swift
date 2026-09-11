@@ -6,8 +6,14 @@ struct EeveeLyricsSettingsView: View {
     var body: some View {
         List {
             wordByWordLyricsSection()
-            disableLyricsSection()
             lyricsSourceSection()
+            
+            // 「禁用歌词功能」作为「禁用歌词替换功能」的二级菜单：
+            // 仅当「禁用歌词替换功能」开启（lyricsSource == .notReplaced）时显示，
+            // 写法与下方两个 NetEase 设置的条件显示一致。
+            if viewModel.lyricsSource == .notReplaced {
+                disableLyricsSection()
+            }
             
             if viewModel.lyricsSource == .netease {
                 neteaseRomajiLocalSection()
