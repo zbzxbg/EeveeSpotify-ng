@@ -8,7 +8,11 @@ struct AnonymousTokenHelper {
         let url = URL(string: "\(apiUrl)/ws/1.1/token.get?app_id=\(UIDevice.current.musixmatchAppId)")!
         writeDebugLog("[Musixmatch] Requesting anonymous token: \(url.absoluteString)")
 
-        return URLSession.shared.dataTaskPublisher(for: url)
+        // 和 MusixmatchLyricsRepository 一样补上 Safari 形态的 UA，否则同一 host 同样会被 nginx 挡住。
+        var request = URLRequest(url: url)
+        request.setValue(UIDevice.current.safariUserAgent, forHTTPHeaderField: "User-Agent")
+
+        return URLSession.shared.dataTaskPublisher(for: request)
             .map(\.data)
             .tryMap { data in
                 guard let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],

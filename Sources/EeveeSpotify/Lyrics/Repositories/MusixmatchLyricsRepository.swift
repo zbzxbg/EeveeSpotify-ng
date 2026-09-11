@@ -80,13 +80,33 @@ class MusixmatchLyricsRepository: LyricsRepository {
         var stringUrl = "\(apiUrl)\(path)"
         var finalQuery = query
 
-        finalQuery["usertoken"] = UserDefaults.musixmatchToken
-        finalQuery["app_id"] = UIDevice.current.musixmatchAppId
+        let userToken = UserDefaults.musixmatchToken
+        let appId = UIDevice.current.musixmatchAppId
+
+        finalQuery["usertoken"] = userToken
+        finalQuery["app_id"] = appId
 
         let queryString = finalQuery.queryString
         stringUrl += "?\(queryString)"
 
-        let request = URLRequest(url: URL(string: stringUrl)!)
+        var request = URLRequest(url: URL(string: stringUrl)!)
+
+        // 按 Safari 的形态补齐请求头（见 UIDevice.safariUserAgent 注释）。
+        request.setValue(UIDevice.current.safariUserAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue("*/*", forHTTPHeaderField: "Accept")
+        request.setValue(
+            Locale.preferredLanguages.prefix(3).joined(separator: ","),
+            forHTTPHeaderField: "Accept-Language"
+        )
+
+        // 只记 token 长度不记内容：token 为空是 403 的疑似原因之一，长度直接回答「到底发出去了没有」。
+        // 其余 query 原样记录，便于和「Safari 能通过」的那条 URL 逐字对比。
+        var loggedQuery = finalQuery
+        loggedQuery["usertoken"] = "REDACTED"
+        writeDebugLog(
+            "[Musixmatch] request \(path)?\(loggedQuery.queryString) "
+                + "— usertokenLen=\(userToken.count), ua=\(UIDevice.current.safariUserAgent)"
+        )
 
         let semaphore = DispatchSemaphore(value: 0)
         var data: Data?
@@ -104,6 +124,15 @@ class MusixmatchLyricsRepository: LyricsRepository {
         semaphore.wait()
 
         let httpStatus = httpResponse?.statusCode ?? -1
+
+        // 非 200 时把响应头打出来（Server / Content-Type 等），用于判断是 nginx 哪一类规则在拦。
+        if httpStatus != 200, let httpResponse = httpResponse {
+            let headers = httpResponse.allHeaderFields
+                .map { "\($0.key)=\($0.value)" }
+                .sorted()
+                .joined(separator: ", ")
+            writeDebugLog("[Musixmatch] \(path) — http \(httpStatus) response headers: \(headers)")
+        }
 
         if let error = error {
             // 传输层失败（DNS / 连接 / TLS / 取消）以前完全没有日志，

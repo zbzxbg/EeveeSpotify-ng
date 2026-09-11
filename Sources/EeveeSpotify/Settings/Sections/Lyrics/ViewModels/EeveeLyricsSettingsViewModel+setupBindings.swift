@@ -56,6 +56,13 @@ extension EeveeLyricsSettingsViewModel {
                 
                 if let token = self.getMusixmatchToken(tokenString) {
                     UserDefaults.musixmatchToken = token
+                    writeDebugLog("[Musixmatch] token saved (length \(token.count))")
+                } else if !tokenString.isEmpty {
+                    // 以前这里是静默失败：输入框显示你粘的内容，UserDefaults 里却仍是旧值（可能是空的），
+                    // 于是请求带着空 usertoken 出去，在 Musixmatch 边缘就被拒。
+                    writeDebugLog(
+                        "[Musixmatch] token rejected — 需要 54 位小写十六进制，实际长度 \(tokenString.count)"
+                    )
                 }
             }
             .store(in: &cancellables)
