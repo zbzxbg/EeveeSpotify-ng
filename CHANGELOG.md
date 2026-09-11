@@ -8,7 +8,8 @@
 <details>
 <summary><b>v6.0.0-beta.2</b></summary>
 
-* Changed: The “Disable Lyrics Replacement” option is now displayed as a submenu under “Disable Lyrics Function” in the EeveeSpotify menu.
+- Changed: The “Disable Lyrics Replacement” option is now displayed as a submenu under “Disable Lyrics Function” in the EeveeSpotify menu.
+- Add more log.
 
 </details>
 
