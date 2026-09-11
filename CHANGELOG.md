@@ -8,7 +8,7 @@
 <details>
 <summary><b>v6.0.0-beta.2</b></summary>
 
-- Test better word-by-word lyrics. 
+* Changed: The “Disable Lyrics Replacement” option is now displayed as a submenu under “Disable Lyrics Function” in the EeveeSpotify menu.
 
 </details>
 
