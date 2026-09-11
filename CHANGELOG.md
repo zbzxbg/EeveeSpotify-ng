@@ -10,6 +10,7 @@
 
 - Changed: The “Disable Lyrics Replacement” option is now displayed as a submenu under “Disable Lyrics Function” in the EeveeSpotify menu.
 - Add more log.
+- Fixed an issue where Musixmatch was unavailable on Spotify 9.1.0.
 
 </details>
 
