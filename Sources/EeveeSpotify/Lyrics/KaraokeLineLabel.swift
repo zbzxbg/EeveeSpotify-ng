@@ -489,11 +489,16 @@ class KaraokeLineLabel: UIView {
         let ms = currentTime * 1000
 
         // 正在唱 = 有词满足 start <= now < end。
-        let active = timing.firstIndex { ms >= Double($0.startMs) && ms < Double($0.endMs) }
+        // `firstIndex(where:)` 返回 Int?：没有词在唱（词间空档）时为 nil，
+        // 因此统一用 -1 作为「无活动词」的哨兵，避免可选值来回解包。
+        let active = timing.firstIndex {
+            ms >= Double($0.startMs) && ms < Double($0.endMs)
+        } ?? -1
+
         guard active != activeBounceWord else { return }
         activeBounceWord = active
 
-        guard let index = active else {
+        guard active >= 0, timing.indices.contains(active) else {
             // 词间空档：撤掉跳动层，唱针停在原处。
             CATransaction.begin()
             CATransaction.setDisableActions(true)
@@ -508,16 +513,16 @@ class KaraokeLineLabel: UIView {
         // 必须在事务之外挂上去，否则会被这里的 setDisableActions 影响。
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        updateBounceMask(wordIndex: index, axis: axis, currentTime: currentTime, timing: timing)
+        updateBounceMask(wordIndex: active, axis: axis, currentTime: currentTime, timing: timing)
         CATransaction.commit()
 
         writeDebugLog(
-            "[WordByWord/Bounce] word=\(index) \"\(timing[index].text)\" "
-                + "span=\(bounceSpanDescription(index)) "
-                + "start=\(timing[index].startMs)ms end=\(timing[index].endMs)ms"
+            "[WordByWord/Bounce] word=\(active) \"\(timing[active].text)\" "
+                + "span=\(bounceSpanDescription(active)) "
+                + "start=\(timing[active].startMs)ms end=\(timing[active].endMs)ms"
         )
 
-        addBounceAnimation(wordIndex: index, timing: timing, axis: axis)
+        addBounceAnimation(wordIndex: active, timing: timing, axis: axis)
     }
 
     private func bounceSpanDescription(_ wordIndex: Int) -> String {
