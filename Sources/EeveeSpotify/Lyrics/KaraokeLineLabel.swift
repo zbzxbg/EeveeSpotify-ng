@@ -24,8 +24,10 @@ import UIKit
 //
 // ⚠️ 长度单位全部是**秒**（与 CAAnimation 一致）。本模块唯一的毫秒来源是
 //    `LyricsDto` / `LyricsWordDto`，换算只发生在调用方传入处。
+//
+// 非 final：overlay 通过 `LineLabel` 子类持有它（见 LyricsWordByWord.x.swift）。
 
-final class KaraokeLineLabel: UIView {
+class KaraokeLineLabel: UIView {
 
     /// 行内羽化边宽度（pt）。参考 KaraokeText 的 `feather` 默认
     /// `min(width × 0.6, 34)`；这里取固定 16pt，因为歌词字号固定，

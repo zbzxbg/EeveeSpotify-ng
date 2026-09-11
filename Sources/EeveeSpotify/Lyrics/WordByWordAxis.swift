@@ -25,7 +25,12 @@ import UIKit
 // 定位断行，再逐行取 width。这一点与 KaraokeText 用 TextRenderer
 // 直接拿 SwiftUI layout 不同——那边不需要还原，我们这边必须还原。
 
-struct WordByWordAxis {
+/// 展平轴：把一行（可能换行的）歌词映射到一条单调递增的一维标量轴上。
+///
+/// 用 `final class` 而不是 `struct`：它带有 CTLine 缓存与自检状态，
+/// 需要在非 mutating 的查询方法里改写。做成值类型会强迫所有调用点
+/// 变成 `var` + `mutating`，而轴一旦建好就是只读查询的对象。
+final class WordByWordAxis {
 
     /// 轴合法性自检结果（打日志用）。
     struct Diagnostics {
