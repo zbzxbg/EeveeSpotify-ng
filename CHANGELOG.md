@@ -6,20 +6,6 @@
 ### 09.11
 
 <details>
-<summary><b>v6.0.0-beta.5</b></summary>
-
-* Improved testing for Better Word-by-Word Lyrics.
-
-</details>
-
-<details>
-<summary><b>v6.0.0-beta.4</b></summary>
-
-* Improved testing for Better Word-by-Word Lyrics.
-
-</details>
-
-<details>
 <summary><b>v6.0.0-demo.1</b></summary>
 
 * Developed an improved word-by-word lyrics UI.
