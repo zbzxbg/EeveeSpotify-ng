@@ -3,6 +3,15 @@
 <details open>
 <summary><b>2026</b> </summary>
 
+### 09.11
+
+<details>
+<summary><b>v6.0.0-beta.2</b></summary>
+
+- Test better word-by-word lyrics. 
+
+</details>
+
 ### 09.06
 
 <details>
