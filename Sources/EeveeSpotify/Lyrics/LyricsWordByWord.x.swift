@@ -490,14 +490,21 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
             }
         }
 
-        // 轴向自检：轴算错时不会崩、也不会报错，只会「位置偏一点」，
-        // 所以必须能把它的几何打出来和设备上的渲染对照。
+        // 填充链路自检：轴算错、或「某些词不亮」这类问题，都靠这里定位。
+        // `tailCovered=false` 是行尾不亮的直接证据；`boundaries` 是每个词的落点。
         var fillInfo = "no-fill"
         if line >= 0, line < lineLabels.count {
-            fillInfo = "\(lineLabels[line].axisDiagnostics) fill=\(lineLabels[line].lastVariantSummary)"
+            let label = lineLabels[line]
+            fillInfo = "\(label.axisDiagnostics) fill=\(label.lastVariantSummary) | \(label.fillDiagnostics)"
         }
 
-        writeDebugLog("[WordByWord] t=\(Int(ms))ms line=\(line) \(wordInfo) | \(fillInfo)")
+        // 跳动层自检：span 为空 / 宽度为 0 就是「某个词不跳」的原因。
+        var bounceInfo = "no-bounce"
+        if line >= 0, line < lineLabels.count {
+            bounceInfo = lineLabels[line].bounceDiagnostics
+        }
+
+        writeDebugLog("[WordByWord] t=\(Int(ms))ms line=\(line) \(wordInfo) | \(fillInfo) | \(bounceInfo)")
     }
 
     /// 逐字数据是否可用：至少一半行有「多词」级时间轴（words.count >= 2）。

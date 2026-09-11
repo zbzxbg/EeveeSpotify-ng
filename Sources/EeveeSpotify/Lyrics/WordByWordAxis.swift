@@ -197,6 +197,44 @@ final class WordByWordAxis {
         return result
     }
 
+    // MARK: 词的矩形区域（供逐词跳动用）
+
+    /// 一个词在**某一行内**的水平范围。
+    /// 跨行的词会返回多段，调用方按需合并。
+    struct WordSpan {
+        var row: Int
+        var x: CGFloat
+        var width: CGFloat
+    }
+
+    /// 把词边界换算成「行 + 行内 x 范围」。
+    ///
+    /// 跳动效果需要把某个词单独拎出来做变换，而变换是二维的
+    /// （遮罩只能表达一维的展平轴推进），所以必须有真实的矩形。
+    func wordSpans(boundaries: [CGFloat], words: [LyricsWordDto]) -> [[WordSpan]] {
+        guard boundaries.count == words.count + 1 else { return [] }
+        var result: [[WordSpan]] = []
+
+        for index in words.indices {
+            let unrolledStart = min(max(0, boundaries[index]), totalWidth)
+            let unrolledEnd = min(max(unrolledStart, boundaries[index + 1]), totalWidth)
+            var spans: [WordSpan] = []
+
+            for row in rowAdvance.indices {
+                let rowLeft = rowStart[row]
+                let rowRight = rowLeft + measuredRowWidths[row]
+                let left = max(unrolledStart, rowLeft)
+                let right = min(unrolledEnd, rowRight)
+                guard right > left else { continue }
+                spans.append(WordSpan(row: row, x: left - rowLeft, width: right - left))
+            }
+
+            // 零宽度的词（空 token）给一个 1pt 的哨兵，避免调用方拿到空数组。
+            result.append(spans)
+        }
+        return result
+    }
+
     // MARK: 字符 ↔ 展平轴 互转
     //
     // 用 Core Text 的 `CTLineGetOffsetForStringIndex` 取字符**左缘**，
@@ -353,44 +391,103 @@ final class WordByWordAxis {
 /// 一行歌词的填充关键帧数据，直接喂给 `CAKeyframeAnimation`。
 struct WordByWordFillStops {
 
-    /// 单个停靠点：keyTime 是相对**本段填充时长**的 0...1 比例，
-    /// widths 是每一行遮罩子层在该时刻应达到的宽度。
+    /// 单个停靠点。
     struct Stop {
+        /// 相对**本段填充时长**的 0...1 比例。
         var keyTime: Double
-        var widths: [CGFloat]
+        /// 每一行遮罩子层在该时刻的 frame。
+        var frames: [WordByWordMaskFrame]
     }
 
     var stops: [Stop]
-    /// 每行遮罩的最大宽度（动画终点）。
+    /// 每一行遮罩子层的最大宽度（动画终点）。
     var rowWidths: [CGFloat]
+    /// 展平轴的行起点，与 `rowWidths` 一一对应。
+    var rowStarts: [CGFloat]
+    /// 展平轴总长度（最后一行的右端）。
+    var unrolledWidth: CGFloat
     var duration: TimeInterval
     var anchorPosition: TimeInterval
     var anchorWallTime: CFTimeInterval
 
-    /// 在给定 keyTime 处的每行宽度（线性插值）——
-    /// 用于「立即冻结在当前位置」以及降级到行级时的定位。
-    func widths(atKeyTime keyTime: Double) -> [CGFloat] {
-        guard let first = stops.first else {
-            return [CGFloat](repeating: 0, count: rowWidths.count)
+    /// 展平轴坐标 → 每一行的遮罩 frame。
+    /// 用于「立即铺满」这类不需要动画的场景。
+    func frames(atUnrolled value: CGFloat) -> [WordByWordMaskFrame] {
+        rowWidths.indices.map { row in
+            KaraokeMaskGeometry.frame(
+                unrolled: value,
+                row: row,
+                rowStarts: rowStarts,
+                rowWidths: rowWidths
+            )
         }
-        let clamped = min(1, max(0, keyTime))
+    }
+}
 
-        var previous = first
-        for stop in stops {
-            guard stop.keyTime <= clamped + 1e-9 else {
-                let span = stop.keyTime - previous.keyTime
-                let ratio = span > 1e-9 ? (clamped - previous.keyTime) / span : 1
-                return (0..<rowWidths.count).map { row in
-                    let from = previous.widths.indices.contains(row) ? previous.widths[row] : 0
-                    let to = stop.widths.indices.contains(row) ? stop.widths[row] : from
-                    return from + (to - from) * CGFloat(ratio)
-                }
-            }
-            previous = stop
+/// 单行遮罩子层的 frame。
+struct WordByWordMaskFrame {
+    var x: CGFloat
+    var width: CGFloat
+}
+
+enum KaraokeMaskGeometry {
+
+    /// 遮罩向右多出的余量（pt）。
+    ///
+    /// 这是修「行尾不亮」的关键：遮罩用的渐变是「不透明 → 完全透明」，
+    /// 若遮罩固定贴 x = 0、铺满时右端正好落在渐变末端，则**每一个铺满的行的
+    /// 最后一段永远是半透明的**（300pt 行约最后 16pt 只有一半亮度，60pt 短行
+    /// 更暗）。让不透明区越过行尾，才能真正整行点亮。
+    /// 取值必须显著大于羽化宽度，否则又退回到行尾不亮。
+    static let trail: CGFloat = 40
+
+    /// 遮罩在当前行内的 x 范围。
+    ///
+    /// 三种状态：
+    /// - **前缘未到本行**（`visibleX <= 0`）：宽度 0，整行隐藏。
+    /// - **前缘在本行内**：从 0 一直延伸到 `rowWidth + trail`，
+    ///   因此行尾永远落在不透明区，不会出现行尾半透明。
+    /// - **前缘已过本行**（铺满）：从 `rowWidth` 延伸到 `rowWidth + trail`，
+    ///   起点已在行尾之外，所以整行都处于不透明区 —— 这才是「整行点亮」。
+    ///
+    /// 前缘刚进入本行时遮罩宽度即 `rowWidth + trail`，看似"整行瞬间可见"，
+    /// 但渐变从左侧约 15% 处才开始衰减，所以观感仍是自左向右擦除。
+    static func frame(
+        unrolled: CGFloat,
+        row: Int,
+        rowStarts: [CGFloat],
+        rowWidths: [CGFloat]
+    ) -> WordByWordMaskFrame {
+        guard rowWidths.indices.contains(row), rowStarts.indices.contains(row) else {
+            return WordByWordMaskFrame(x: 0, width: 0)
         }
-        return (0..<rowWidths.count).map { row in
-            previous.widths.indices.contains(row) ? previous.widths[row] : 0
-        }
+        let rowWidth = max(0, rowWidths[row])
+        let visibleX = min(max(0, unrolled - rowStarts[row]), rowWidth)
+
+        // 未推进到本行：完全隐藏。宽度必须真的是 0，
+        // 否则渐变在窄遮罩上会退化成"半透明块"，让下一行的开头漏出来。
+        guard visibleX > 0 else { return WordByWordMaskFrame(x: 0, width: 0) }
+
+        let start = min(visibleX, rowWidth)
+        let width = max(0, rowWidth + trail - start)
+        return WordByWordMaskFrame(x: start, width: width)
+    }
+
+    /// 渐变 stop 的位置数组。
+    ///
+    /// `fade` 是羽化长度占遮罩宽度的比例，而**遮罩宽度会随时间增长**，
+    /// 因此 `locations` 只在铺满/隐藏这类终态设置一次 —— 动画过程中比例
+    /// 本身在变，但视觉上是"遮罩从左侧长出来"，效果正确。
+    ///
+    /// 羽化长度优先用调用方给的 `feather`（pt）；未指定时取遮罩宽度的 15%。
+    /// 夹在 [8pt, 45%] 之间：下限避免长行上羽化细到看不见（硬边），
+    /// 上限避免极短行上羽化吃掉整行。
+    static func locations(maskWidth: CGFloat, feather: CGFloat? = nil) -> [NSNumber] {
+        let width = max(1, maskWidth)
+        let preferred = feather ?? (width * 0.15)
+        let fadePoints = min(max(8, preferred), width * 0.45)
+        let fade = min(0.45, max(0, fadePoints / width))
+        return [0, NSNumber(value: 1 - Double(fade)), 1]
     }
 }
 
@@ -420,40 +517,43 @@ enum WordByWordKeyframes {
         let duration = Double(durationMs) / 1000
         // 行偏移直接取轴的权威数据（见 rowOffsets 的说明）。
         let rowStarts = axis.rowOffsets.starts
+        let unrolledWidth = axis.totalWidth
 
-        /// 展平轴坐标 → 每一行应达到的宽度。
-        func widths(atUnrolled value: CGFloat) -> [CGFloat] {
-            let clamped = min(max(0, value), axis.totalWidth)
+        /// 展平轴坐标 → 每一行的遮罩 frame。
+        func frames(atUnrolled value: CGFloat) -> [WordByWordMaskFrame] {
+            let clamped = min(max(0, value), unrolledWidth)
             return rowWidths.indices.map { row in
-                let width = clamped - rowStarts[row]
-                if width <= 0 { return 0 }
-                if width >= rowWidths[row] { return rowWidths[row] }
-                return width
+                KaraokeMaskGeometry.frame(
+                    unrolled: clamped,
+                    row: row,
+                    rowStarts: rowStarts,
+                    rowWidths: rowWidths
+                )
             }
         }
 
-        var raw: [(time: Double, order: Int, widths: [CGFloat])] = []
+        var raw: [(time: Double, order: Int, frames: [WordByWordMaskFrame])] = []
         var order = 0
 
-        func append(_ time: Double, _ widths: [CGFloat]) {
-            raw.append((min(max(0, time), 1), order, widths))
+        func append(_ time: Double, _ frames: [WordByWordMaskFrame]) {
+            raw.append((min(max(0, time), 1), order, frames))
             order += 1
         }
 
-        append(0, widths(atUnrolled: boundaries[0]))
+        append(0, frames(atUnrolled: boundaries[0]))
 
         for index in timing.indices {
             let word = timing[index]
-            let unrolledStart = min(max(0, boundaries[index]), axis.totalWidth)
-            let unrolledEnd = min(max(unrolledStart, boundaries[index + 1]), axis.totalWidth)
+            let unrolledStart = min(max(0, boundaries[index]), unrolledWidth)
+            let unrolledEnd = min(max(unrolledStart, boundaries[index + 1]), unrolledWidth)
 
             append(
                 Double(word.startMs - segmentStartMs) / Double(durationMs),
-                widths(atUnrolled: unrolledStart)
+                frames(atUnrolled: unrolledStart)
             )
             append(
                 Double(word.endMs - segmentStartMs) / Double(durationMs),
-                widths(atUnrolled: unrolledEnd)
+                frames(atUnrolled: unrolledEnd)
             )
         }
 
@@ -462,13 +562,13 @@ enum WordByWordKeyframes {
             lhs.time == rhs.time ? lhs.order < rhs.order : lhs.time < rhs.time
         }
 
-        // keyTimes 必须严格递增：相同时间合并，只保留最后（最完整）的宽度状态。
-        var merged: [(time: Double, widths: [CGFloat])] = []
+        // keyTimes 必须严格递增：相同时间合并，只保留最后（最完整）的状态。
+        var merged: [(time: Double, frames: [WordByWordMaskFrame])] = []
         for entry in sorted {
             if let last = merged.last, abs(last.time - entry.time) < 1e-9 {
-                merged[merged.count - 1].widths = entry.widths
+                merged[merged.count - 1].frames = entry.frames
             } else {
-                merged.append((entry.time, entry.widths))
+                merged.append((entry.time, entry.frames))
             }
         }
 
@@ -479,8 +579,10 @@ enum WordByWordKeyframes {
         guard merged.count >= 2 else { return nil }
 
         return WordByWordFillStops(
-            stops: merged.map { WordByWordFillStops.Stop(keyTime: $0.time, widths: $0.widths) },
+            stops: merged.map { WordByWordFillStops.Stop(keyTime: $0.time, frames: $0.frames) },
             rowWidths: rowWidths,
+            rowStarts: rowStarts,
+            unrolledWidth: unrolledWidth,
             duration: duration,
             anchorPosition: anchorPosition,
             anchorWallTime: CACurrentMediaTime()
@@ -495,21 +597,39 @@ enum WordByWordKeyframes {
     /// 半拍的单字行看起来像被拖长了 —— 比直接切换更不诚实。
     /// 单个词的词级数据同理（`isUsableForFill` 要求 >= 2 个词）。
     static func discrete(
-        rowWidths: [CGFloat],
+        axis: WordByWordAxis,
         keyTime: Double,
         duration: TimeInterval,
         anchorPosition: TimeInterval
     ) -> WordByWordFillStops {
-        let empty = [CGFloat](repeating: 0, count: rowWidths.count)
+        let rowWidths = axis.rowWidths
+        let rowStarts = axis.rowOffsets.starts
+        let unrolledWidth = axis.totalWidth
         let clamped = min(max(0, keyTime), 1)
-        // 两个停靠点之间的默认线性插值会让 0→满宽 在 (clamped - 0.02, clamped + 0.02)
-        // 内完成，视觉上等同一个快速的横向擦除"snap"，而不是缓慢扫描。
+
+        /// 整行从「全暗」到「全亮」。
+        func frames(dark: Bool) -> [WordByWordMaskFrame] {
+            let position: CGFloat = dark ? 0 : unrolledWidth
+            return rowWidths.indices.map { row in
+                KaraokeMaskGeometry.frame(
+                    unrolled: position,
+                    row: row,
+                    rowStarts: rowStarts,
+                    rowWidths: rowWidths
+                )
+            }
+        }
+
+        // 两个停靠点挨得很近（2% 时长），视觉上等同一次快速擦除式的"snap"，
+        // 而不是缓慢扫描。
         return WordByWordFillStops(
             stops: [
-                WordByWordFillStops.Stop(keyTime: max(0, clamped - 0.02), widths: empty),
-                WordByWordFillStops.Stop(keyTime: clamped, widths: rowWidths),
+                WordByWordFillStops.Stop(keyTime: max(0, clamped - 0.02), frames: frames(dark: true)),
+                WordByWordFillStops.Stop(keyTime: clamped, frames: frames(dark: false)),
             ],
             rowWidths: rowWidths,
+            rowStarts: rowStarts,
+            unrolledWidth: unrolledWidth,
             duration: max(0.001, duration),
             anchorPosition: anchorPosition,
             anchorWallTime: CACurrentMediaTime()
