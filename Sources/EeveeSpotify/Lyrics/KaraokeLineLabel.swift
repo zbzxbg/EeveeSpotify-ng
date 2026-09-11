@@ -636,9 +636,9 @@ class KaraokeLineLabel: UIView {
         // 会被 Core Animation 合并掉，回落那一段就不存在了。
         animation.keyTimes = [0, NSNumber(value: riseEnd), NSNumber(value: 0.999), 1]
         animation.timingFunctions = [
-            CAMediaTimingFunction(name: .easeOut),   // 抬起：先快后慢，无过冲
-            CAMediaTimingFunction(name: .linear),    // 保持：单调，不做振荡
-            CAMediaTimingFunction(name: .easeInOut), // 回落：对称收尾
+            CAMediaTimingFunction(name: .easeOut),      // 抬起：先快后慢，无过冲
+            CAMediaTimingFunction(name: .linear),       // 保持：单调，不做振荡
+            CAMediaTimingFunction(name: .easeInEaseOut), // 回落：对称收尾
         ]
         animation.duration = total
         animation.calculationMode = .cubic

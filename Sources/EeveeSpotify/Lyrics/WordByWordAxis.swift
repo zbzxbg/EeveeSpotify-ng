@@ -158,6 +158,21 @@ final class WordByWordAxis {
         return lastStart + lastAdvance
     }
 
+    /// 展平轴坐标 → 每一行的遮罩 frame。
+    /// 用于「立即铺满 / 立即隐藏」这类不需要动画的场景。
+    func frames(atUnrolled value: CGFloat, feather: CGFloat) -> [WordByWordMaskFrame] {
+        let rowStarts = rowOffsets.starts
+        return measuredRowWidths.indices.map { row in
+            KaraokeMaskGeometry.frame(
+                unrolled: value,
+                row: row,
+                rowStarts: rowStarts,
+                rowWidths: measuredRowWidths,
+                feather: feather
+            )
+        }
+    }
+
     // MARK: 词边界
 
     /// 把「每个词在 displayText 里的 NSRange」换算成展平轴上的边界。
@@ -409,20 +424,6 @@ struct WordByWordFillStops {
     var duration: TimeInterval
     var anchorPosition: TimeInterval
     var anchorWallTime: CFTimeInterval
-
-    /// 展平轴坐标 → 每一行的遮罩 frame。
-    /// 用于「立即铺满」这类不需要动画的场景。
-    func frames(atUnrolled value: CGFloat, feather: CGFloat) -> [WordByWordMaskFrame] {
-        rowWidths.indices.map { row in
-            KaraokeMaskGeometry.frame(
-                unrolled: value,
-                row: row,
-                rowStarts: rowStarts,
-                rowWidths: rowWidths,
-                feather: feather
-            )
-        }
-    }
 }
 
 /// 单行遮罩子层的 frame。
