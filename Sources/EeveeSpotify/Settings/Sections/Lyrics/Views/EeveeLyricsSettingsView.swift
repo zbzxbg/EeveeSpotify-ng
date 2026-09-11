@@ -21,14 +21,16 @@ struct EeveeLyricsSettingsView: View {
             }
             
             if viewModel.lyricsSource != .notReplaced {
-                if viewModel.lyricsSource != .genius {
+                // 多级回退链路本身以 Genius 收尾，不再重复提供 Genius 兜底开关。
+                if viewModel.lyricsSource != .genius && viewModel.lyricsSource != .multiLevel {
                     geniusFallbackSection()
                 }
                 
                 hideOnErrorSection()
                 romanizationSection()
                 
-                if viewModel.lyricsSource == .musixmatch {
+                // 多级回退链路包含 Musixmatch，其语言项同样可配置。
+                if viewModel.lyricsSource == .musixmatch || viewModel.lyricsSource == .multiLevel {
                     musixmatchLanguageSection()
                 }
             }

@@ -69,17 +69,6 @@ class EeveeLyricsSettingsViewModel: ObservableObject {
         }
     }
     
-    @Published var multiLevelFallback = UserDefaults.standard.bool(
-        forKey: "ngzhwm_multiLevelLyricsFallback"
-    ) {
-        didSet {
-            UserDefaults.standard.set(
-                multiLevelFallback,
-                forKey: "ngzhwm_multiLevelLyricsFallback"
-            )
-        }
-    }
-    
     @Published var musixmatchToken = UserDefaults.musixmatchToken
     @Published var isRequestingMusixmatchToken = false
     @Published var musixmatchTokenInputAlertPublisher = PassthroughSubject<Bool, Never>()
@@ -97,7 +86,6 @@ class EeveeLyricsSettingsViewModel: ObservableObject {
             removeMxmInterludeSymbol,
             neteaseRomajiLocal,
             neteaseHideTranslation,
-            multiLevelFallback,
             isMusixmatchTokenValid,
             isRequestingMusixmatchToken,
             lrclibURLState,

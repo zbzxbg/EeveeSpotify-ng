@@ -12,6 +12,9 @@ extension EeveeLyricsSettingsView {
 
         text.append("\n")
         text.append("netease_description".localized)
+
+        text.append("\n")
+        text.append("ngzhwm_multi_level_fallback_description".localized)
         
         text.append("\n\n")
         text.append("lyrics_additional_info".localized)
@@ -37,8 +40,6 @@ extension EeveeLyricsSettingsView {
         }
         
         if viewModel.lyricsSource.isReplacingLyrics {
-            multiLevelFallbackSection()
-            
             Section(footer: lyricsSourceFooter()) {
                 Picker(
                     "lyrics_source".localized,
@@ -49,25 +50,15 @@ extension EeveeLyricsSettingsView {
                     }
                 }
 
-                if viewModel.lyricsSource == .musixmatch {
+                // 多级回退链路包含 Musixmatch / LRCLIB，所以这两项也要能配置。
+                if viewModel.lyricsSource == .musixmatch || viewModel.lyricsSource == .multiLevel {
                     musixmatchTokenField()
                 }
                 
-                if viewModel.lyricsSource == .lrclib {
+                if viewModel.lyricsSource == .lrclib || viewModel.lyricsSource == .multiLevel {
                     lrclibURLField()
                 }
             }
-        }
-    }
-    
-    @ViewBuilder private func multiLevelFallbackSection() -> some View {
-        Section(
-            footer: Text("ngzhwm_multi_level_fallback_description".localized)
-        ) {
-            Toggle(
-                "ngzhwm_multi_level_fallback".localized,
-                isOn: $viewModel.multiLevelFallback
-            )
         }
     }
     

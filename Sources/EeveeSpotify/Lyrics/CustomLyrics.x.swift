@@ -21,8 +21,8 @@ private func lyricsRepository(for source: LyricsSource) -> LyricsRepository {
     case .spicy: return SpicyLyricsRepository.shared
     case .netease:
         return NeteaseLyricsRepository.shared
-    case .notReplaced:
-        // Never actually reached — callers filter this out beforehand.
+    case .notReplaced, .multiLevel:
+        // Never actually reached — callers filter these out beforehand.
         return geniusLyricsRepository
     }
 }
@@ -74,9 +74,10 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
         writeDebugLog("[Lyrics] Track duration unavailable — NetEase duration gate skipped")
     }
 
-    // ngzhwm_multiLevelLyricsFallback 开启 -> 固定顺序多级回退（并发 + 超时）
-    // ngzhwm_multiLevelLyricsFallback 关闭（默认）-> 用户选择的单一源 + 可选 Genius 回退
-    if UserDefaults.standard.bool(forKey: "ngzhwm_multiLevelLyricsFallback") {
+    // lyricsSource == .multiLevel -> 固定顺序多级回退（并发 + 超时）
+    // 其它来源 -> 用户选择的单一源 + 可选 Genius 回退
+    var source = UserDefaults.lyricsSource
+    if source == .multiLevel {
 
         writeDebugLog("[Lyrics] Multi-level fallback enabled")
         let attempts: [LyricsSource] = [.musixmatch, .petit, .lrclib, .genius]
@@ -150,7 +151,6 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
 
     } else {
 
-        var source = UserDefaults.lyricsSource
         writeDebugLog("[Lyrics] Single source: \(source.description)")
 
         if source == .notReplaced {
