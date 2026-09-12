@@ -36,20 +36,20 @@ lyrics_additional_info = "Genius，NetEase和PetitLyrics的搜索方式是模糊
 petitlyrics_description = "PetitLyrics：提供日语歌词。";
 spicylyrics_description = "SpicyLyrics：提供逐词歌词及部分其他歌词来源没有的歌词。具体介绍可前往spicylyrics.org查看。";
 netease_description = "NetEase：歌词大部分带时间轴。但对非中国大陆用户的支持较差，且可能出现时间轴不对齐等情况。";
-amll_ttml_description = "AMLL TTML：提供高质量逐词歌词和丰富的歌词结构。具体介绍可前往amll.dev查看。";
+amll_description = "AMLL：提供高质量逐词歌词和丰富的歌词结构。具体介绍可前往amll.dev查看。";
 
 musixmatch_user_token = "Musixmatch 用户令牌";
 user_token_placeholder = "输入用户令牌或粘贴调试信息";
 
 
-ngzhwm_amll_preferred = "AMLL TTML优先";
-ngzhwm_amll_preferred_description = "选项生效需要开启逐词歌词。选项开启后会优先向AMLL TTML请求逐词歌词。如果AMLL的歌词未正常返回。则回退到用用户自己选择的歌词来源和相关设置进行请求。";
+ngzhwm_amll_preferred = "AMLL优先";
+ngzhwm_amll_preferred_description = "选项生效需要开启逐词歌词。选项开启后会优先向AMLL请求逐词歌词。如果AMLL未返回逐词歌词，则回退用户自己选择的歌词来源和相关设置进行请求。";
 
 genius_fallback = "Genius回退";
 genius_fallback_description = "如果 %@ 有问题，将使用 Genius 加载歌词。";
 
 hide_lyrics_on_error = "隐藏歌词模块";
-hide_lyrics_on_error_description = "如果歌词加载失败，则删除歌词模块。";
+hide_lyrics_on_error_description = "如果歌词加载失败，则隐藏歌词模块。";
 
 
 musixmatch_language = "Musixmatch 歌词语言";
@@ -128,7 +128,7 @@ ngzhwm_disable_lyrics_feature_description = "选项开启后会禁用有关于�
 ngzhwm_word_by_word_lyrics = "开启逐词歌词";
 ngzhwm_word_by_word_lyrics_description = "Musixmatch，PetitLyrics，SpicyLyrics，NetEase，AMLL提供逐词歌词服务。";
 ngzhwm_better_word_by_word_lyrics = "更好的逐词歌词";
-ngzhwm_better_word_by_word_lyrics_description = "像Apple Music那样，最低要求iOS26(实验性功能)。开启后不展示歌词翻译。";
+ngzhwm_better_word_by_word_lyrics_description = "像Apple Music那样，最低要求iOS26。开启后不展示歌词翻译。";
 ngzhwm_better_word_by_word_lyrics_footer = "开启后自动启用模糊封面背景与系统材质，并隐藏歌词翻译。最低要求iOS26；当前歌曲需有逐字时间轴（网易云/Musixmatch/SpicyLyrics/AMLL）。";
 word_by_word_lyrics_provider = "逐词歌词提供者：%@";
 ngzhwm_multi_level_fallback = "多级回退";
