@@ -39,9 +39,14 @@ struct AppleMusicLyricsOverlayView: View {
     /// 背景（模糊封面等），由外部提供。
     let background: AnyView
     /// 是否显示底部「歌词提供者」。
-    let showsProviderFooter: Bool
-    /// 左右内边距。
-    let sideInset: CGFloat
+    ///
+    /// ⚠️ 故意是 `var` 而不是 `let`：全屏 ↔ 预览切换时只改这个值 + `sideInset`，
+    /// 由 SwiftUI 就地更新布局，**不重建 hosting controller**。
+    /// 之前是 `let` + 在 host 里重建 rootView，代价是整页状态（滚动位置）被丢掉，
+    /// 于是切屏后歌词回到顶部、不再居中于当前行。
+    var showsProviderFooter: Bool
+    /// 左右内边距。同样是 `var`，理由见上。
+    var sideInset: CGFloat
     /// 点行跳转。
     let onSeek: ((TimeInterval) -> Void)?
 
@@ -127,29 +132,27 @@ final class AppleMusicLyricsOverlayHost {
             return
         }
 
-        // 只在布局参数变化时重建 rootView。
-        // 每帧重建虽然不会丢 @ObservedObject 身份（结构一致），但纯属浪费。
-        let needsRebuild = sideInset != currentSideInset
-            || showsProviderFooter != currentShowsProviderFooter
+        // 布局参数变化时**就地改属性**，不重建 hosting controller。
+        //
+        // 之前这里重建 rootView：代价是整页 SwiftUI 状态（滚动位置）被丢掉，
+        // 于是全屏 ↔ 预览切换后歌词回到顶部、不再居中于当前行。
+        // 改成 var 属性写入后，SwiftUI 只重新计算布局，页面身份与滚动位置都保留。
+        if let hostingController, hostingController.view.superview === view {
+            let insetChanged = sideInset != currentSideInset
+            let footerChanged = showsProviderFooter != currentShowsProviderFooter
 
-        if let hostingController,
-           hostingController.view.superview === view,
-           !needsRebuild {
+            currentSideInset = sideInset
+            currentShowsProviderFooter = showsProviderFooter
+
+            if insetChanged || footerChanged {
+                hostingController.rootView.sideInset = sideInset
+                hostingController.rootView.showsProviderFooter = showsProviderFooter
+            }
             return
         }
 
         currentSideInset = sideInset
         currentShowsProviderFooter = showsProviderFooter
-
-        if let hostingController, hostingController.view.superview === view {
-            hostingController.rootView = makeRootView(
-                lines: lines,
-                sideInset: sideInset,
-                showsProviderFooter: showsProviderFooter
-            )
-            return
-        }
-
         detach()
 
         let hosting = UIHostingController(

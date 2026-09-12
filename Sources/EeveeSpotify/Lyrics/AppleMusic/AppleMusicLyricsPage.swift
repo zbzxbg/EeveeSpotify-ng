@@ -117,6 +117,22 @@ struct AppleMusicLyricsPage: View {
 
     private static var profile: AppleMusicLyricsMotionProfile { .iOS26_6 }
 
+    /// 用户滚动后暂停自动跟随的截止时间。
+    ///
+    /// 这套机制是从旧 overlay（`LyricsWordByWordOverlayView.autoScrollPauseUntil`）
+    /// 搬过来的——新层最初漏了它，表现为"手指一离开就被拉回当前行"。
+    /// 旧实现的取值：拖动中 3s、松手/减速结束各 2s；SwiftUI 这边只能拿到
+    /// "正在拖动"，所以用一个足够长的窗口覆盖松手后的惯性滚动。
+    @State private var autoScrollPauseUntil: Date = .distantPast
+    /// 拖动手势上一次活跃的时间，用来判断"用户刚松手"。
+    @State private var lastDragTime: Date = .distantPast
+    /// 上一次自动滚动的时间，用于给连续点击节流（避免多段动画互相打断）。
+    @State private var lastAutoScrollTime: Date = .distantPast
+    /// 用户松手后继续暂停自动跟随的时长。
+    private let postDragPauseDuration: TimeInterval = 2
+    /// 两次自动滚动之间的最小间隔。
+    private let minimumAutoScrollInterval: TimeInterval = 0.35
+
     /// 当前播放位置（由纯逻辑时间轴给出，不在这里自己算）。
     private var position: LyricPlaybackPosition {
         LyricPlaybackTimeline.position(at: playbackTime, in: lines)
@@ -162,8 +178,27 @@ struct AppleMusicLyricsPage: View {
                         .padding(.bottom, contentInsets.bottom)
                         .padding(.horizontal, contentInsets.leading)
                     }
+                    // ⚠️ 进入时必须**无条件**定位一次。
+                    //
+                    // `onChange` 只在值**变化**时触发：首次渲染时当前行已经就是高亮行，
+                    // 所以它永远不会为"初始这一行"跑一次 —— 结果全屏打开、或从预览切回全屏
+                    // 时，歌词停在最顶上而不是当前行。
+                    // 旧 overlay 没这个问题：它首帧 `activeLineIndex = -1`，
+                    // 必然走一次 `scrollToLine`。
+                    .onAppear {
+                        guard let id = position.highlightedLyricID else { return }
+                        // 延后一帧再滚：`LazyVStack` 是先物化可见区域再响应 scrollTo 的，
+                        // 在 onAppear 里立刻调用时目标行往往还没生成，会静默失效。
+                        // 延后一帧仍然是不带动画的落位。
+                        Task { @MainActor in
+                            proxy.scrollTo(id, anchor: .center)
+                            lastAutoScrollTime = Date()
+                        }
+                    }
                     .onChange(of: position.highlightedLyricID) { _, newValue in
                         guard let newValue else { return }
+                        guard shouldAutoScroll() else { return }
+                        lastAutoScrollTime = Date()
                         withAnimation(
                             .spring(
                                 duration: 0.5,
@@ -174,6 +209,24 @@ struct AppleMusicLyricsPage: View {
                             proxy.scrollTo(newValue, anchor: .center)
                         }
                     }
+                    // 滚动打断保护：用户一碰就暂停自动跟随。
+                    //
+                    // SwiftUI 的 DragGesture 只有 onChanged/onEnded，拿不到
+                    // UIScrollView 那套 willBeginDragging / didEndDecelerating，
+                    // 所以用"最后一次拖动时间 + 固定窗口"近似覆盖惯性滚动阶段。
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 6)
+                            .onChanged { _ in
+                                lastDragTime = Date()
+                                autoScrollPauseUntil = Date()
+                                    .addingTimeInterval(postDragPauseDuration)
+                            }
+                            .onEnded { _ in
+                                lastDragTime = Date()
+                                autoScrollPauseUntil = Date()
+                                    .addingTimeInterval(postDragPauseDuration)
+                            }
+                    )
                 }
 
                 if let onClose {
@@ -181,6 +234,25 @@ struct AppleMusicLyricsPage: View {
                 }
             }
         }
+    }
+
+    /// 是否允许此刻自动滚动。
+    ///
+    /// 两道闸门，都是从旧 overlay 的行为反推的：
+    ///   1. **用户滚动暂停窗口**（对应旧的 `autoScrollPauseUntil`）：
+    ///      拖动中与松手后的窗口期内绝不自动滚动，否则手感是"被拽回去"。
+    ///   2. **自动滚动节流**（旧的 0.2s 定长动画隐含了这个效果）：
+    ///      新层用 0.5s spring，若位置每帧更新都触发一次，多段动画会互相打断，
+    ///      最终停在不确定的位置——表现为"点下一行却停在上一行附近"。
+    private func shouldAutoScroll() -> Bool {
+        let now = Date()
+        guard now >= autoScrollPauseUntil else { return false }
+        // 还在拖动中（上一次拖动时间非常近）也不要动。
+        guard now.timeIntervalSince(lastDragTime) > 0.15 else { return false }
+        guard now.timeIntervalSince(lastAutoScrollTime) >= minimumAutoScrollInterval else {
+            return false
+        }
+        return true
     }
 
     // MARK: 单行
@@ -238,6 +310,11 @@ struct AppleMusicLyricsPage: View {
         .blur(radius: blurRadius(focusStrength: focusStrength))
         .contentShape(Rectangle())
         .onTapGesture {
+            // 点行跳转：与旧 overlay 走同一个 seeker（statefulPlayer.seekTo:）。
+            // 跳转后位置会异步更新，随之而来的是 `onChange` 里的自动滚动；
+            // 这里顺带把节流时间戳推后一点，避免"点击的那一帧 + seek 生效的那一帧"
+            // 连续触发两段滚动动画。
+            lastAutoScrollTime = Date()
             onSeek?(line.time)
         }
         .animation(
