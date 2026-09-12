@@ -312,13 +312,48 @@ enum TimedLyricTextBuilder {
             .map(String.init)
             .joined(separator: ",")
 
+        // 未折行时整段文本的实际排版宽度。
+        //
+        // 这是判断"该不该折"的唯一硬指标 —— 比按字符数估算可靠：
+        //   text < layout 却折了  → 折行器有问题
+        //   text ≈ w 却折了       → 余量把预算砍过头（就是之前那个 18.3pt）
+        //   text > w              → 折得理所当然
+        let textWidth = String(
+            format: "%.1f",
+            measuredTextWidth(
+                source: source,
+                fontSize: fontSize,
+                fontWeight: fontWeight
+            )
+        )
+
         writeDebugLog(
             "[LyricWrap] fs=\(String(format: "%.1f", fontSize))"
                 + " w=\(constrainedWidth.map { String(format: "%.1f", $0) } ?? "nil")"
                 + " layout=\(layoutWidth)"
+                + " text=\(textWidth)"
                 + " breaks=[\(breaks)]"
                 + " \"\(marked(source, at: lineBreakOffsets))\""
         )
+    }
+
+    /// 整段文本（不折行）的排版宽度，用于诊断。
+    private static func measuredTextWidth(
+        source: String,
+        fontSize: CGFloat,
+        fontWeight: LyricsFontWeight
+    ) -> CGFloat {
+        guard !source.isEmpty, fontSize > 0 else { return 0 }
+        let font = UIFont.systemFont(
+            ofSize: fontSize,
+            weight: fontWeight.uiKitWeight
+        )
+        let attributed = NSAttributedString(
+            string: source,
+            attributes: [.font: font]
+        )
+        let line = CTLineCreateWithAttributedString(attributed)
+        return CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
     }
 
     /// 在断点处插入 `↵` 便于肉眼核对。
@@ -561,13 +596,23 @@ enum TimedLyricTextBuilder {
         let containsWordSpacing = source.contains { $0.isWhitespace }
         let safetyMargin: CGFloat
         if usesTimedRunBoundaries, containsLatinText, containsWordSpacing {
-            // ⚠️ 必须与 MeloX 原版一致：5%。
+            // ⚠️ 这里曾经照抄 MeloX 的 `max(w * 0.05, fs * 0.5)` → 366 × 5% = 18.3pt。
             //
-            // 这里曾被改成 3%，理由是"逐字属性化后 SwiftUI 测得偏宽，余量小一点更敢放"。
-            // 那个改动是错的 —— 它让测量宽度变大 7pt，折行点却没随之前移，
-            // 结果是每行的第二行都明显偏短（"…and a brand ↵new wagon" 这种）。
-            // MeloX 用 5% 是被它的逐字 Text 拼接形状验证过的，不要凭感觉调。
-            safetyMargin = max(constrainedWidth * 0.05, fontSize * 0.5)
+            // 那个余量在 MeloX 里有意义：它**测量**用的是带「每字一个 run」的字符串
+            // （测得偏宽），而**渲染**交给 SwiftUI 的是干净的逐字 Text 拼接。
+            // 余量是拿测量的虚高去补贴渲染，方向正确。
+            //
+            // 但本项目的移植把那一处改掉了（改成"先拼字符串、再一次性写属性"），
+            // 于是**测量与渲染变成同一个字符串** —— 余量不再补贴任何东西，
+            // 只是净砍掉 18.3pt 真实可用宽度。
+            // 而 18.3pt ≈ 一个短词的宽度，结果就是每一行的最后一个词被挤下去：
+            //   "Twenty racks a table cut from ↵ebony"（剩 ~30pt 却放不下 ebony）
+            //   "Bought Mama a crib and a brand ↵new wagon"（剩 ~19pt 却放不下 new）
+            //
+            // 所以这里把余量降到「只够吸收舍入误差」的量级，把"放不放得下"的判断权
+            // 还给真实字体度量。若实测出现长行右侧轻微溢出，用 `LyricLineFitting`
+            // 的超宽缩放兜（那条路径是 MeloX 验证过的，本就是这套设计的配套件）。
+            safetyMargin = max(fontSize * 0.1, 0.5)
         } else {
             safetyMargin = max(fontSize * 0.02, 0.5)
         }
