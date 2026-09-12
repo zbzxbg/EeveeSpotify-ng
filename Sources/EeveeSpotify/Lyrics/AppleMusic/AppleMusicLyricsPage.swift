@@ -84,12 +84,6 @@ struct AppleMusicLyricsPage: View {
     let onClose: (() -> Void)?
     /// 点某一行跳转（为 nil 时不可点）。
     let onSeek: ((TimeInterval) -> Void)?
-    /// 用户碰了这一页（拖动 / 点击）时回调。
-    ///
-    /// 用途：全屏页"停留一会儿就淡掉 Spotify 界面"的沉浸模式 —— 任何交互都要把
-    /// 界面唤回来并重新计时（见 `LyricsChromeVisibilityController`）。
-    /// **自动跟随滚动不走这里**：那是播放驱动的，不算用户交互。
-    let onUserInteraction: (() -> Void)?
     /// 顶部/底部无障碍内边距。
     let contentInsets: EdgeInsets
     /// 排版分档（全屏 / 预览两种尺度）。
@@ -107,6 +101,19 @@ struct AppleMusicLyricsPage: View {
     /// 每一行会把它继续传给 `SynchronizedLyricText`；页脚也用它（取一个低不透明度），
     /// 这样"页脚"和"歌词"在同一个色系里，换主题色时不会漏掉页脚。
     let primaryColor: Color
+    /// 顶部固定内容（自绘的标题栏）。全屏时传入，内嵌预览为 nil。
+    ///
+    /// 为什么是内容而不是写死在这里：内嵌预览**没有壳**（那一块小卡片不该出现
+    /// 标题栏和播放键），全屏才有。用 `AnyView` 而不是泛型参数，是为了不给
+    /// `AppleMusicLyricsPage` 加第二个泛型参数（它已经被 `SomeView` 各处引用）。
+    let headerContent: AnyView?
+    /// 底部固定内容（自绘的进度条 + 播放控制）。全屏时传入，内嵌预览为 nil。
+    let footerContent: AnyView?
+    /// 右上角的自绘关闭键。给了它就顶掉内置的 `onClose` 圆按钮。
+    ///
+    /// 复用这个位置而不是另起一个浮层：它本来就在页面右上角、已经算过安全区，
+    /// 再叠一层只会多一份要维护的坐标。
+    let closeContent: AnyView?
 
     init(
         lines: [LyricLine],
@@ -114,21 +121,22 @@ struct AppleMusicLyricsPage: View {
         background: AnyView,
         onClose: (() -> Void)? = nil,
         onSeek: ((TimeInterval) -> Void)? = nil,
-        onUserInteraction: (() -> Void)? = nil,
         contentInsets: EdgeInsets = EdgeInsets(top: 60, leading: 24, bottom: 120, trailing: 24),
         typography: LyricsTypographyScale = .fullscreen,
         showsBackgroundVocals: Bool = true,
         showsTranslation: Bool = false,
         provider: String = "",
         showsProviderFooter: Bool = false,
-        primaryColor: Color = .white
+        primaryColor: Color = .white,
+        headerContent: AnyView? = nil,
+        footerContent: AnyView? = nil,
+        closeContent: AnyView? = nil
     ) {
         self.lines = lines
         self.playbackTime = playbackTime
         self.background = background
         self.onClose = onClose
         self.onSeek = onSeek
-        self.onUserInteraction = onUserInteraction
         self.contentInsets = contentInsets
         self.typography = typography
         self.showsBackgroundVocals = showsBackgroundVocals
@@ -136,6 +144,9 @@ struct AppleMusicLyricsPage: View {
         self.provider = provider
         self.showsProviderFooter = showsProviderFooter
         self.primaryColor = primaryColor
+        self.headerContent = headerContent
+        self.footerContent = footerContent
+        self.closeContent = closeContent
     }
 
     private static var profile: AppleMusicLyricsMotionProfile { .iOS26_6 }
@@ -181,23 +192,25 @@ struct AppleMusicLyricsPage: View {
                     - contentInsets.trailing,
                 1
             )
+            // 自绘壳占掉的高度：从安全区再往里让，避免歌词钻到标题栏/控件栏底下。
+            //
+            // 62 / 116 是量出来的，不是拍的：
+            //   顶部 = 标题(15pt 一行) + 歌手(12pt 一行) + 间距 ≈ 40，再留 22 呼吸
+            //   底部 = 进度条(11) + 时间行(11+3) + 间距(12) + 三键(56) ≈ 100，再留 16
+            // 这两块**不参与滚动**，所以它们的高度必须在这里一次性让出来。
+            let safeArea = geometry.safeAreaInsets
+            let scrollInsets = EdgeInsets(
+                top: (headerContent == nil ? contentInsets.top : safeArea.top + 62)
+                    + contentInsets.top,
+                leading: contentInsets.leading,
+                bottom: (footerContent == nil ? contentInsets.bottom : safeArea.bottom + 116)
+                    + contentInsets.bottom,
+                trailing: contentInsets.trailing
+            )
 
             ZStack {
                 background
                     .ignoresSafeArea()
-
-                // 背景层的点击 = "点空白处唤回界面"。
-                //
-                // 界面淡出后它自己就点不到了（alpha 0 的视图不接收触摸），所以"再点一下
-                // 唤回来"这件事必须由我们来接。挂在这一层是安全的：它是 ZStack 最底层，
-                // 歌词行自己的点击（seek）和 ScrollView 的拖动都在它上面，不会被抢走。
-                //
-                // 只有全屏需要（onUserInteraction 由宿主注入）——
-                // 内嵌预览那块小卡片没有可隐藏的界面。
-                Color.clear
-                    .contentShape(Rectangle())
-                    .onTapGesture { onUserInteraction?() }
-                    .allowsHitTesting(onUserInteraction != nil)
 
                 ScrollViewReader { proxy in
                     ScrollView(.vertical, showsIndicators: false) {
@@ -231,9 +244,9 @@ struct AppleMusicLyricsPage: View {
                                 providerFooter
                             }
                         }
-                        .padding(.top, contentInsets.top)
-                        .padding(.bottom, contentInsets.bottom)
-                        .padding(.horizontal, contentInsets.leading)
+                        .padding(.top, scrollInsets.top)
+                        .padding(.bottom, scrollInsets.bottom)
+                        .padding(.horizontal, scrollInsets.leading)
                     }
                     // ⚠️ 进入时必须**无条件**定位一次。
                     //
@@ -277,15 +290,11 @@ struct AppleMusicLyricsPage: View {
                                 lastDragTime = Date()
                                 autoScrollPauseUntil = Date()
                                     .addingTimeInterval(postDragPauseDuration)
-                                // 沉浸模式：拖动中要一直看得见界面（每次 onChanged 都会
-                                // 把淡出的截止时间往后推，所以拖动期间不可能藏）。
-                                onUserInteraction?()
                             }
                             .onEnded { _ in
                                 lastDragTime = Date()
                                 autoScrollPauseUntil = Date()
                                     .addingTimeInterval(postDragPauseDuration)
-                                onUserInteraction?()
                             }
                     )
                     // 上下边缘淡出。
@@ -316,8 +325,35 @@ struct AppleMusicLyricsPage: View {
                     )
                 }
 
-                if let onClose {
+                // 右上角：自绘关闭键优先，其次才是内置的圆按钮。
+                if let closeContent {
+                    VStack {
+                        HStack {
+                            Spacer()
+                            closeContent
+                        }
+                        Spacer()
+                    }
+                    .padding(.top, safeArea.top + 6)
+                    .padding(.trailing, 12)
+                } else if let onClose {
                     closeButton(onClose)
+                }
+
+                // 自绘的壳：标题栏固定在顶部、播放控制固定在底部。
+                //
+                // 这两块**不参与滚动**，所以它们不走 `scrollInsets`，而是直接贴在
+                // 安全区边缘；歌词的留白由 `scrollInsets` 负责让出来。
+                VStack(spacing: 0) {
+                    if let headerContent {
+                        headerContent
+                            .padding(.top, safeArea.top + 6)
+                    }
+                    Spacer(minLength: 0)
+                    if let footerContent {
+                        footerContent
+                            .padding(.bottom, max(safeArea.bottom, 8))
+                    }
                 }
             }
         }
@@ -377,8 +413,6 @@ struct AppleMusicLyricsPage: View {
         autoScrollPauseUntil = .distantPast
         lastDragTime = .distantPast
         lastAutoScrollTime = .distantPast
-        // 沉浸模式：点了屏幕就把界面唤回来并重新计时。
-        onUserInteraction?()
 
         var transaction = Transaction()
         transaction.disablesAnimations = true

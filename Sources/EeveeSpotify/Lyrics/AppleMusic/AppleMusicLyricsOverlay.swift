@@ -55,12 +55,28 @@ struct AppleMusicLyricsOverlayView: View {
     var sideInset: CGFloat
     /// 点行跳转。
     let onSeek: ((TimeInterval) -> Void)?
-    /// 用户碰了歌词页（拖动 / 点击）时回调 —— 沉浸模式用它唤回 Spotify 界面。
-    let onUserInteraction: (() -> Void)?
+    /// 曲名 / 歌手 —— 自绘壳的标题栏用。
+    ///
+    /// 不再依赖原生那一页的标题视图（我们连它长什么样都读不到），直接取
+    /// `SPTPlayerTrack`。换歌时由宿主重建 rootView 时一起更新。
+    let trackTitle: String
+    let trackArtist: String
 
     @ObservedObject var clock: AppleMusicLyricsClock
+    /// 播放状态投影（当前时间 / 总时长 / 是否在播放），自绘壳的进度条与播放键用它。
+    @ObservedObject var projection: AppleMusicLyricsPlaybackProjection
 
     private static var profile: AppleMusicLyricsMotionProfile { .iOS26_6 }
+
+    /// 全屏（有壳）时才显示自绘标题栏与播放控制；内嵌预览那一小块不显示。
+    private var showsShell: Bool { showsProviderFooter }
+
+    /// 主色：**白色**。
+    ///
+    /// 与改动前一致（`AppleMusicLyricsPage` 的 `primaryColor` 参数此前没被传过，
+    /// 用的就是它的默认值 `.white`）。背景是"模糊封面 + 黑色暗化"，白字是唯一
+    /// 在各封面上都稳的选择；歌词、页脚、自绘壳全部共用它，换色时不会漏。
+    private let primaryColor: Color = .white
 
     var body: some View {
         ZStack {
@@ -80,7 +96,6 @@ struct AppleMusicLyricsOverlayView: View {
                     background: AnyView(Color.clear),
                     onClose: nil,
                     onSeek: onSeek,
-                    onUserInteraction: onUserInteraction,
                     contentInsets: EdgeInsets(
                         top: showsProviderFooter ? 8 : 6,
                         leading: sideInset,
@@ -101,10 +116,55 @@ struct AppleMusicLyricsOverlayView: View {
                     // 所以任何存在 view 里、由 host 推入的值在换歌时都会变成陈旧的。
                     // `currentLyricsProvider` 是全局，按需读取天然最新。
                     provider: currentLyricsProvider,
-                    showsProviderFooter: showsProviderFooter
+                    showsProviderFooter: showsProviderFooter,
+                    primaryColor: primaryColor,
+                    headerContent: showsShell ? AnyView(shellHeader) : nil,
+                    footerContent: showsShell ? AnyView(shellFooter) : nil,
+                    closeContent: showsShell ? AnyView(shellClose) : nil
                 )
             }
         }
+    }
+
+    // MARK: 自绘壳
+
+    /// 顶部：曲名 + 歌手（居中，与 Spotify 原生一致）。
+    private var shellHeader: some View {
+        VStack(spacing: 2) {
+            Text(trackTitle)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(primaryColor)
+                .lineLimit(1)
+            Text(trackArtist)
+                .font(.system(size: 12))
+                .foregroundStyle(primaryColor.opacity(0.72))
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 56)
+        .frame(maxWidth: .infinity)
+    }
+
+    /// 底部：进度条 + 时间 + 播放控制。
+    private var shellFooter: some View {
+        AppleMusicLyricsControls(
+            projection: projection,
+            primaryColor: primaryColor,
+            onSeek: { onSeek?($0) }
+        )
+    }
+
+    /// 右上角：关闭全屏页（原生那个 chevron 被我们的背景盖住了，所以自己画一个）。
+    private var shellClose: some View {
+        Button {
+            WordByWordPlaybackControl.dismissFullscreen()
+        } label: {
+            Image(systemName: "chevron.down")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(primaryColor)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -119,12 +179,22 @@ final class AppleMusicLyricsOverlayHost {
     private var hostingController: UIHostingController<AppleMusicLyricsOverlayView>?
     private weak var hostView: UIView?
     private let clock = AppleMusicLyricsClock()
+    /// 播放状态投影（自绘壳用）。
+    ///
+    /// 位置来源故意**复用** `WordByWordPositionResolver`，与歌词高亮同一个数据源 ——
+    /// 两处各读一次播放器很容易错拍（进度条和歌词差半秒那种）。
+    private lazy var projection = AppleMusicLyricsPlaybackProjection {
+        WordByWordPositionResolver.shared.currentPositionSeconds()
+    }
     private var currentLines: [LyricLine] = []
     private var currentVersion: Int = -1
     private var currentSideInset: CGFloat = -1
     private var currentShowsProviderFooter: Bool = false
     /// 当前背景是不是"实心"档（全屏用）。变了要就地更新 rootView。
     private var currentSolidBackdrop: Bool = false
+    /// 换歌时要跟着变的壳文本。
+    private var currentTrackTitle: String = ""
+    private var currentTrackArtist: String = ""
 
     private init() {}
 
@@ -162,6 +232,7 @@ final class AppleMusicLyricsOverlayHost {
         if currentVersion != currentLyricsVersion {
             currentVersion = currentLyricsVersion
             currentLines = (currentLyricsDto?.toAppleMusicLyricLines()) ?? []
+            refreshShellMetadata()
             writeDebugLog("[AppleMusicLyrics] rebuilt with \(currentLines.count) line(s)")
             dumpLinesIfDebugEnabled(currentLines)
         }
@@ -196,6 +267,13 @@ final class AppleMusicLyricsOverlayHost {
             if insetChanged || footerChanged {
                 hostingController.rootView.sideInset = sideInset
                 hostingController.rootView.showsProviderFooter = showsProviderFooter
+            }
+            // 换歌时壳上的曲名 / 歌手也要跟着换（歌词数据变了就说明换歌了）。
+            if hostingController.rootView.trackTitle != currentTrackTitle {
+                hostingController.rootView.trackTitle = currentTrackTitle
+            }
+            if hostingController.rootView.trackArtist != currentTrackArtist {
+                hostingController.rootView.trackArtist = currentTrackArtist
             }
             return
         }
@@ -244,37 +322,30 @@ final class AppleMusicLyricsOverlayHost {
             "[AppleMusicLyrics] overlay attached (Apple Music path)"
                 + " host=\(NSStringFromClass(type(of: view)))"
                 + " solidBackdrop=\(solidBackdrop)"
+                + " shell=\(showsProviderFooter)"
         )
-
-        // 沉浸模式：全屏时接管"停留一会儿就淡掉 Spotify 界面"。
-        //
-        // 只在全屏（solidBackdrop == true）启用 —— 内嵌预览那一小块不该把整页界面藏了。
-        // 这一句放在最后：此时 overlay 已经挂好，淡出后露出来的是我们的歌词，不是空白。
-        if solidBackdrop {
-            // ⚠️ 不能写 `controller.…`：`update(in:sideInset:showsProviderFooter:solidBackdrop:)`
-            // 收的是 **UIView**，手里根本没有 VC。VC 从视图反查（next-responder 链，
-            // 项目里既有 helper，`DarkPopUps.x.swift` 也这么用）。
-            if let controller = WindowHelper.shared.viewController(for: view) {
-                let lyricsContent = WindowHelper.shared.findFirstSubview(
-                    "Lyrics_FullscreenElementPageImpl.LyricsView", in: view
-                )
-                LyricsChromeVisibilityController.shared.adopt(
-                    controller.fullscreenChromeCandidates(lyricsContent: lyricsContent)
-                )
-            } else {
-                writeDebugLog("[ChromeVisibility] ⚠️ no view controller for host — auto-hide disabled")
-            }
-        }
     }
 
     func detach() {
-        // 界面 alpha 必须还回去：它是 Spotify 自己的视图，我们只是借用期间调暗。
-        LyricsChromeVisibilityController.shared.restore()
         guard hostingController != nil else { return }
         hostingController?.view.removeFromSuperview()
         hostingController = nil
         hostView = nil
         writeDebugLog("[AppleMusicLyrics] overlay detached")
+    }
+
+    /// 换歌时更新壳上的曲名 / 歌手。
+    ///
+    /// 为什么从 `SPTPlayerTrack` 取而不是从歌词数据：歌词里没有歌手名，
+    /// 而曲名在 TTML 里也不一定准（`musicName` 可能是别的语言写法）。
+    /// 直接问播放器拿，和手机其他界面显示的一致。
+    private func refreshShellMetadata() {
+        let track = statefulPlayer?.currentTrack() ?? nowPlayingScrollViewController?.loadedTrack
+        currentTrackTitle = track?.trackTitle() ?? ""
+        currentTrackArtist = (EeveeSpotify.hookTarget == .lastAvailableiOS14
+            ? track?.artistTitle()
+            : track?.artistName()) ?? ""
+        writeDebugLog("[Shell] metadata \"\(currentTrackTitle)\" — \"\(currentTrackArtist)\"")
     }
 
     // MARK: 为什么不"接管"原生视图
@@ -298,6 +369,8 @@ final class AppleMusicLyricsOverlayHost {
     func tick(ms: Double) {
         guard hostView != nil, !currentLines.isEmpty else { return }
         clock.submit(seconds: ms / 1000)
+        // 自绘壳的进度条 / 时间 / 播放键状态也走同一个时钟。
+        projection.refresh()
     }
 
     /// 逐行打印时间戳与文本，**只在 rebuild 时各打一次**。
@@ -348,12 +421,10 @@ final class AppleMusicLyricsOverlayHost {
                 let ms = Int((time * 1000).rounded()) + 5
                 WordByWordSeeker.seek(toMs: ms)
             },
-            // 显式 `@MainActor`：目标（`LyricsChromeVisibilityController`）是
-            // main-actor 隔离的，而在方法体里创建的闭包不会自动继承隔离。
-            onUserInteraction: { @MainActor in
-                LyricsChromeVisibilityController.shared.noteUserInteraction()
-            },
-            clock: clock
+            trackTitle: currentTrackTitle,
+            trackArtist: currentTrackArtist,
+            clock: clock,
+            projection: projection
         )
     }
 }
