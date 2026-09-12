@@ -32,17 +32,22 @@ enum AmllLyricsMapper {
         var lines: [LyricsLineDto] = []
         var translations: [String] = []
 
-        // ── 逐行：先建词序列，再由词序列反推 content ──────────────────────
+        // ── 逐行：先建主词序列，再挂上（独立的）背景人声 ──────────────────
         var wordLines: [[LyricsWordDto]?] = []
+        var backgroundVocals: [LyricsBackgroundVocalDto?] = []
         for line in parsed.lines {
             let tokens = wordTokens(for: line)
-            let content = tokens.map { $0.map(\.text).joined() } ?? line.primaryText
+            // 行文本直接用 primaryText（解析层保证它**不含** x-bg），
+            // 与 wordTokens 的自检口径一致：主词的拼接结果 == primaryText。
+            let content = line.primaryText
             let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+            let background = backgroundVocalDto(for: line)
 
-            // 空行（只有背景人声/翻译的行）与结构标注行不收录。
-            // 注意：解析层已过滤过一轮，这里防的是「背景人声拼出来后为空」的情况。
-            guard !trimmed.isEmpty else {
+            // 主词与副唱都空的行才丢弃 —— 只有副唱的行要保留，
+            // 否则会丢掉"纯副唱"那几行的内容。
+            guard !trimmed.isEmpty || background != nil else {
                 wordLines.append(nil)
+                backgroundVocals.append(nil)
                 continue
             }
 
@@ -51,10 +56,16 @@ enum AmllLyricsMapper {
             )
             translations.append(line.translation ?? "")
             wordLines.append(tokens)
+            backgroundVocals.append(background)
         }
 
         guard !lines.isEmpty else {
             return LyricsDto(lines: [], timeSynced: true, romanization: .original)
+        }
+
+        // 背景人声与 words 一样，只有整体判定为「逐词可用」时才挂上去。
+        for index in lines.indices {
+            lines[index].backgroundVocal = backgroundVocals[index]
         }
 
         // ── 逐词覆盖率闸门 ────────────────────────────────────────────────
@@ -112,23 +123,18 @@ enum AmllLyricsMapper {
 
     // MARK: - 词序列
 
-    /// 主词 + 背景人声合并成一个词序列。
+    /// 主词序列（**不含**背景人声）。
     /// 返回 nil 表示该行没有可用逐词数据（退回行级）。
     ///
-    /// 背景人声（ttm:role="x-bg"）与主词时间重叠，而本项目渲染层是单列单行模型，
-    /// 表达不了行内子行，因此合并到行尾：`主词 (背景人声)`。内容不丢、不变量成立、
-    /// 高亮不错位；代价是背景人声从「同时」退化为「顺序」点亮。
+    /// 背景人声（`ttm:role="x-bg"`）曾经被合并成 `主词 (背景人声)` 一行，理由是
+    /// 「渲染层是单列单行模型，表达不了行内子行」。现在渲染层用的 `SynchronizedLyricText`
+    /// 已经支持把副唱画成主歌下方的一小行，所以这里改为**分离**输出
+    /// （见 `backgroundVocalDto(for:)`）：
+    ///   · 副唱与主词时间重叠 → 两者**同时**点亮，而不是顺序点亮
+    ///   · 副唱里那些零时长 token（括号等）不再混进主词序列
+    ///     —— 那正是「带括号的行整行降级为逐行」的根因
     private static func wordTokens(for line: AmllTtmlLine) -> [LyricsWordDto]? {
         var tokens: [LyricsWordDto] = []
-        let background = line.backgroundVocal
-        let backgroundSyllables = background?.syllables ?? []
-
-        if let background, background.isBeforePrimary, !backgroundSyllables.isEmpty {
-            tokens.append(contentsOf: parenthesized(backgroundSyllables))
-            if !line.syllables.isEmpty, !endsWithWhitespace(tokens) {
-                tokens.append(LyricsWordDto(text: " ", startMs: line.syllables[0].startMs))
-            }
-        }
 
         for syllable in line.syllables where !syllable.text.isEmpty {
             tokens.append(
@@ -140,22 +146,14 @@ enum AmllLyricsMapper {
             )
         }
 
-        if let background, !background.isBeforePrimary, !backgroundSyllables.isEmpty {
-            if !tokens.isEmpty, !endsWithWhitespace(tokens) {
-                tokens.append(
-                    LyricsWordDto(text: " ", startMs: backgroundSyllables[0].startMs)
-                )
-            }
-            tokens.append(contentsOf: parenthesized(backgroundSyllables))
-        }
-
         guard !tokens.isEmpty else { return nil }
 
-        // 不变量自检：拼出来的文本必须与解析出的行文本一致，否则宁可退回行级，
+        // 不变量自检：主词拼出来的文本必须与解析出的主词文本一致，否则宁可退回行级，
         // 也不要带着错位的词级数据去喂渲染层。
         let joined = tokens.map(\.text).joined()
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let expected = expectedText(for: line)
+        let expected = line.primaryText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         guard joined == expected else {
             writeDebugLog(
                 "[AMLL] content mismatch — tokens=\"\(joined.prefix(60))\" expected=\"\(expected.prefix(60))\" — dropping words for this line"
@@ -166,42 +164,31 @@ enum AmllLyricsMapper {
         return tokens
     }
 
-    /// 该行「应该」长什么样（主词 + 背景人声按位置拼接，trim 后）。
-    private static func expectedText(for line: AmllTtmlLine) -> String {
-        var text = ""
-        let backgroundSyllables = line.backgroundVocal?.syllables ?? []
+    /// 背景人声 → 独立 DTO。返回 nil 表示该行没有副唱。
+    ///
+    /// 原始音节直接顺序拼接（不额外插空格、不加括号）：解析层给出的音节文本里
+    /// 已经包含词间空白，与主词序列的口径一致。
+    private static func backgroundVocalDto(
+        for line: AmllTtmlLine
+    ) -> LyricsBackgroundVocalDto? {
+        guard let background = line.backgroundVocal else { return nil }
 
-        if let background = line.backgroundVocal,
-           background.isBeforePrimary, !backgroundSyllables.isEmpty {
-            text += "(\(backgroundSyllables.map(\.text).joined()))"
-            if !line.syllables.isEmpty { text += " " }
-        }
+        let tokens = background.syllables
+            .filter { !$0.text.isEmpty }
+            .map {
+                LyricsWordDto(
+                    text: $0.text,
+                    startMs: $0.startMs,
+                    endMs: $0.endMs
+                )
+            }
+        guard !tokens.isEmpty else { return nil }
 
-        text += line.syllables.map(\.text).joined()
-
-        if let background = line.backgroundVocal,
-           !background.isBeforePrimary, !backgroundSyllables.isEmpty {
-            if !text.isEmpty, !text.hasSuffix(" ") { text += " " }
-            text += "(\(backgroundSyllables.map(\.text).joined()))"
-        }
-
-        return text.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private static func parenthesized(_ syllables: [AmllTtmlSyllable]) -> [LyricsWordDto] {
-        guard let first = syllables.first, let last = syllables.last else { return [] }
-        var tokens: [LyricsWordDto] = [
-            LyricsWordDto(text: "(", startMs: first.startMs, endMs: first.startMs)
-        ]
-        tokens.append(contentsOf: syllables.map {
-            LyricsWordDto(text: $0.text, startMs: $0.startMs, endMs: $0.endMs)
-        })
-        tokens.append(LyricsWordDto(text: ")", startMs: last.endMs, endMs: last.endMs))
-        return tokens
-    }
-
-    private static func endsWithWhitespace(_ tokens: [LyricsWordDto]) -> Bool {
-        tokens.last.map { $0.text.last?.isWhitespace ?? false } ?? false
+        let dto = LyricsBackgroundVocalDto(
+            syllables: tokens,
+            isBeforePrimary: background.isBeforePrimary
+        )
+        return dto.isEmpty ? nil : dto
     }
 
     // MARK: - 官方罗马音

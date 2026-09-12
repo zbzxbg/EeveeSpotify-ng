@@ -73,7 +73,10 @@ struct AppleMusicLyricsOverlayView: View {
                     // 分档按「是不是全屏」决定：
                     // showsProviderFooter 只在全屏页为 true（内嵌预览不显示提供者），
                     // 所以直接拿它当尺度判据，不必再往下传一个额外参数。
-                    typography: showsProviderFooter ? .fullscreen : .preview
+                    typography: showsProviderFooter ? .fullscreen : .preview,
+                    // 副唱只在全屏页显示：预览是 17pt 的小卡片，
+                    // 副唱按 0.63 缩到约 11pt 看不清，还白占一行高度。
+                    showsBackgroundVocals: showsProviderFooter
                 )
             }
         }

@@ -88,6 +88,8 @@ struct AppleMusicLyricsPage: View {
     let contentInsets: EdgeInsets
     /// 排版分档（全屏 / 预览两种尺度）。
     let typography: LyricsTypographyScale
+    /// 是否显示副唱（背景人声）。预览模式传 false。
+    let showsBackgroundVocals: Bool
 
     init(
         lines: [LyricLine],
@@ -96,7 +98,8 @@ struct AppleMusicLyricsPage: View {
         onClose: (() -> Void)? = nil,
         onSeek: ((TimeInterval) -> Void)? = nil,
         contentInsets: EdgeInsets = EdgeInsets(top: 60, leading: 24, bottom: 120, trailing: 24),
-        typography: LyricsTypographyScale = .fullscreen
+        typography: LyricsTypographyScale = .fullscreen,
+        showsBackgroundVocals: Bool = true
     ) {
         self.lines = lines
         self.playbackTime = playbackTime
@@ -105,6 +108,7 @@ struct AppleMusicLyricsPage: View {
         self.onSeek = onSeek
         self.contentInsets = contentInsets
         self.typography = typography
+        self.showsBackgroundVocals = showsBackgroundVocals
     }
 
     private static var profile: AppleMusicLyricsMotionProfile { .iOS26_6 }
@@ -197,11 +201,13 @@ struct AppleMusicLyricsPage: View {
             isFocused: isFocused,
             focusStrength: focusStrength,
             translation: line.translation,
+            backgroundVocal: line.backgroundVocal,
             // 显式传真实宽度，不要再依赖 SwiftUI 推断（那正是文字溢出的原因）。
             constrainedWidth: availableWidth,
             alignment: .leading,
             typography: typography,
-            appliesTimingEffects: isActive
+            appliesTimingEffects: isActive,
+            showsBackgroundVocals: showsBackgroundVocals
         )
         // 焦点态：缩放 + 透明度 + 模糊。三者都跟随 focusStrength，所以
         // 行切换时是同一条曲线，不会各走各的。

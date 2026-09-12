@@ -57,7 +57,10 @@ struct AppleMusicLyricsSupplementalTextProfile: Equatable, Sendable {
 ///
 /// 「仿 Apple Music」的部分是**运动**（填充前沿、长音强调、焦点弹簧、级联），
 /// 排版则跟随本项目原有 overlay 的比例，这样它嵌在 Spotify 页面里不违和。
-enum LyricsTypographyScale {
+///
+/// 注意这里是 `struct` 而不是 `enum`：它带存储属性、用成员逐一初始化器构造，
+/// 写成 `enum` 会同时报"存储属性不允许"和"没有 Self(...) 初始化器"两个错。
+struct LyricsTypographyScale {
 
     /// 主歌词字号
     let primaryFontSize: CGFloat
@@ -86,4 +89,20 @@ enum LyricsTypographyScale {
         lineSpacing: 8,
         supplementalSpacing: 3
     )
+
+    /// 按系数派生一档，用于副唱（背景人声）这种"同一行里更小的一层"。
+    ///
+    /// 行距**不缩放**：它是绝对值（pt），跟着字号等比缩会算出 4~5pt 这种
+    /// 明显过小的值；小字号本身不需要那么大的行距，沿用父级即可。
+    func scaled(
+        primaryBy primaryFactor: Double,
+        supplementalBy supplementalFactor: Double
+    ) -> Self {
+        Self(
+            primaryFontSize: primaryFontSize * CGFloat(primaryFactor),
+            supplementalFontSize: supplementalFontSize * CGFloat(supplementalFactor),
+            lineSpacing: lineSpacing,
+            supplementalSpacing: supplementalSpacing
+        )
+    }
 }

@@ -31,6 +31,8 @@ struct SynchronizedLyricText: View {
     let focusStrength: Double
     /// 行译文（可选），显示在原文下方。
     let translation: String?
+    /// 副唱/背景人声（可选），按位置画在主歌上方或下方。
+    let backgroundVocal: LyricBackgroundVocal?
     /// 文本最大宽度（决定折行）。
     let constrainedWidth: CGFloat?
     /// 对齐方式。
@@ -43,6 +45,12 @@ struct SynchronizedLyricText: View {
     let primaryColor: Color
     /// 是否应用时间轴特效（未聚焦的行传 false，直接静态绘制，省掉每帧开销）。
     let appliesTimingEffects: Bool
+    /// 是否显示副唱（背景人声）。
+    ///
+    /// 内嵌「预览歌词」传 false：预览只有约 200pt 高、主字号 17pt，
+    /// 副唱按 0.63 系数缩到约 11pt 基本看不清，还白占一行高度。
+    /// 只让全屏页承担这个信息层级。
+    let showsBackgroundVocals: Bool
 
     init(
         syllables: [LyricSyllable],
@@ -51,12 +59,14 @@ struct SynchronizedLyricText: View {
         isFocused: Bool,
         focusStrength: Double,
         translation: String? = nil,
+        backgroundVocal: LyricBackgroundVocal? = nil,
         constrainedWidth: CGFloat?,
         alignment: SynchronizedLyricTextAlignment = .leading,
         typography: LyricsTypographyScale = .fullscreen,
         fontWeight: LyricsFontWeight = .semibold,
         primaryColor: Color = .white,
-        appliesTimingEffects: Bool = true
+        appliesTimingEffects: Bool = true,
+        showsBackgroundVocals: Bool = true
     ) {
         self.syllables = syllables
         self.text = text
@@ -64,12 +74,14 @@ struct SynchronizedLyricText: View {
         self.isFocused = isFocused
         self.focusStrength = focusStrength
         self.translation = translation
+        self.backgroundVocal = backgroundVocal
         self.constrainedWidth = constrainedWidth
         self.alignment = alignment
         self.typography = typography
         self.fontWeight = fontWeight
         self.primaryColor = primaryColor
         self.appliesTimingEffects = appliesTimingEffects
+        self.showsBackgroundVocals = showsBackgroundVocals
     }
 
     // MARK: 常量（来自 Apple Music 26.6 profile）
@@ -91,7 +103,23 @@ struct SynchronizedLyricText: View {
             alignment: alignment.stackAlignment,
             spacing: 0
         ) {
+            // 副唱画在主歌的**上方或下方**，取决于它在 TTML 里的位置；
+            // 它是独立的一小行，而不是拼进主歌文本（那样会把"同时演唱"
+            // 退化成"先唱完主歌再唱副唱"）。预览模式下整块不显示。
+            if showsBackgroundVocals,
+               let backgroundVocal,
+               backgroundVocal.position == .beforePrimary {
+                backgroundVocalRow(backgroundVocal)
+            }
+
             lyricText
+
+            if showsBackgroundVocals,
+               let backgroundVocal,
+               backgroundVocal.position == .afterPrimary {
+                backgroundVocalRow(backgroundVocal)
+            }
+
             if let translation, !translation.isEmpty {
                 translationText(translation)
             }
@@ -99,6 +127,42 @@ struct SynchronizedLyricText: View {
         .frame(
             maxWidth: .infinity,
             alignment: alignment.frameAlignment
+        )
+    }
+
+    // MARK: 副唱（背景人声）
+
+    /// 副唱行：同一个渲染器、更小的字号、更弱的视觉权重。
+    ///
+    /// 参数取自 Apple Music 26.6（`AppleMusicLyricsMotionProfile`）：
+    /// 字号 ×0.63、非播放行再 ×0.9、与主歌的间距 15pt。
+    /// 时间轴是它**自己的**（与主词重叠），所以填充动画也是独立走的。
+    @ViewBuilder
+    private func backgroundVocalRow(
+        _ backgroundVocal: LyricBackgroundVocal
+    ) -> some View {
+        let scale = CGFloat(Self.profile.backgroundVocalsDeselectedScale)
+        SynchronizedLyricText(
+            syllables: backgroundVocal.syllables,
+            text: backgroundVocal.text,
+            playbackTime: playbackTime,
+            isFocused: false,
+            focusStrength: focusStrength,
+            translation: backgroundVocal.translation,
+            constrainedWidth: constrainedWidth,
+            alignment: alignment,
+            typography: typography.scaled(
+                primaryBy: Self.profile.backgroundVocalsFontCoefficient,
+                supplementalBy: Self.profile.translationBackgroundVocalsFontCoefficient
+            ),
+            fontWeight: fontWeight,
+            primaryColor: primaryColor,
+            appliesTimingEffects: appliesTimingEffects
+        )
+        .scaleEffect(scale, anchor: alignment == .trailing ? .trailing : .leading)
+        .padding(
+            backgroundVocal.position == .beforePrimary ? .bottom : .top,
+            CGFloat(Self.profile.backgroundVocalsTopSpacing)
         )
     }
 
