@@ -122,7 +122,8 @@ enum TimedLyricTextBuilder {
             source: source,
             lineBreakOffsets: lineBreakOffsets,
             constrainedWidth: constrainedWidth,
-            fontSize: fontSize
+            fontSize: fontSize,
+            fontWeight: fontWeight
         )
         let horizontalOffsetByCharacterOffset = Dictionary(
             uniqueKeysWithValues: forcedHorizontalOffsets.map {
@@ -274,13 +275,15 @@ enum TimedLyricTextBuilder {
     /// ```
     /// - `w`：传进来的可用宽度（应该等于容器宽 − 左右内边距）
     /// - `layout`：实际用于测量的宽度（`w` 减去安全余量）
+    /// - `text`：**整段文本不折行时的真实宽度** —— 判断"该不该折"的硬指标
     /// - `breaks`：CoreText 给出的折行字符下标
     /// - 引号里的 `↵` 就是断点位置
     private static func logWrapDecisionIfUseful(
         source: String,
         lineBreakOffsets: Set<Int>,
         constrainedWidth: CGFloat?,
-        fontSize: CGFloat
+        fontSize: CGFloat,
+        fontWeight: LyricsFontWeight
     ) {
         let hasBreaks = !lineBreakOffsets.isEmpty
 
