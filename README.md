@@ -9,8 +9,8 @@ Due to school commitments, the update frequency will be reduced for the time bei
 | | Version |
 | --- | --- |
 | Latest public release | v5.1.2 |
-| Current development version | [v6.0.0-demo.1](CHANGELOG.md)|
-| Development version last updated | 2026/09/11 |
+| Current development version | [v6.0.0-demo.2](CHANGELOG.md)|
+| Development version last updated | 2026/09/12 |
 
 ## 🔧 Modifications
 
