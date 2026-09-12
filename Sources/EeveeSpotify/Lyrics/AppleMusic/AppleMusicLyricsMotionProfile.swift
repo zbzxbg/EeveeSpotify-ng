@@ -6,7 +6,7 @@ import Foundation
 // 不是公开 API。**它们是这套观感的核心**，改动前请先想清楚影响面。
 
 /// Apple Music 歌词运动参数。
-nonisolated struct AppleMusicLyricsMotionProfile: Equatable, Sendable {
+struct AppleMusicLyricsMotionProfile: Equatable, Sendable {
     let firstLineStartOffset: Double
     /// 同步模式下，焦点行顶部相对视口高度的百分比（减去字体 ascender 之前）。
     let selectedLineTopRelativePercent: Double

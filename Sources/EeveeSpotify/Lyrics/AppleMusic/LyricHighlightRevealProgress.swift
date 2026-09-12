@@ -10,6 +10,7 @@ import Foundation
 /// 普通字形按自身时间轴连续推进。长音字形会**先快速揭示大部分**、在尾缘附近
 /// 继续缓慢漂移，再在下一个字形到来前收尾——这样避免一个慢音节在大部分时间里
 /// 看起来被劈成两半或卡住不动。
+@available(iOS 18.0, *)
 enum LyricHighlightRevealProgress {
     static func progress(
         playbackTime: TimeInterval,
@@ -86,6 +87,7 @@ enum LyricHighlightRevealProgress {
     }
 }
 
+@available(iOS 18.0, *)
 private extension LyricHighlightRevealProgress {
     enum Metrics {
         static let attackDuration: TimeInterval = 0.3

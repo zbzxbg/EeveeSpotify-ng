@@ -6,7 +6,7 @@ import Foundation
 // contentEndTime 估算、policy 过滤）等接入间奏功能时再补——现在先把渲染链路跑通，
 // 避免一次性搬入没人调用的死代码。
 
-nonisolated enum LyricInterludeTimingSource: Hashable, Sendable {
+enum LyricInterludeTimingSource: Hashable, Sendable {
     /// YRC 提供了作者标注的行/音节结束时间。
     case precise
 
@@ -14,7 +14,7 @@ nonisolated enum LyricInterludeTimingSource: Hashable, Sendable {
     case lineSynchronized
 }
 
-nonisolated enum LyricInterludeDetectionPolicy: Hashable, Sendable {
+enum LyricInterludeDetectionPolicy: Hashable, Sendable {
     /// 对齐 Apple Music 的作者时间轴路径，忽略推断出来的 LRC 间隙。
     case preciseTiming
 

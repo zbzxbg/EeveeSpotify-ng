@@ -11,7 +11,7 @@ import SwiftUI
 /// 挂在每个**字**上的时间轴信息。渲染器通过它取到这个字的起止时间、
 /// 所属音节/词的范围，从而算出填充前沿与长音强调。
 @available(iOS 18.0, *)
-nonisolated struct LyricTimingTextAttribute: TextAttribute, Hashable, Sendable {
+struct LyricTimingTextAttribute: TextAttribute, Hashable, Sendable {
     let startTime: TimeInterval
     let endTime: TimeInterval
     let syllableStartTime: TimeInterval
@@ -68,6 +68,6 @@ struct LyricFocusOpacityEndpoints: Equatable, Sendable {
 /// ruby（音译）排版用的水平偏移。MeloX 不往字符串里插占位空白，
 /// 而是在绘制时按字符平移，避免改变文本本身的换行行为。
 @available(iOS 18.0, *)
-nonisolated struct LyricRubyPlacementTextAttribute: TextAttribute, Hashable, Sendable {
+struct LyricRubyPlacementTextAttribute: TextAttribute, Hashable, Sendable {
     let horizontalOffset: CGFloat
 }

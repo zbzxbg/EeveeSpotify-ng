@@ -933,7 +933,7 @@ final class WordByWordHost {
         overlayView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         overlayView.showsProviderFooter = showsProviderFooter
         overlayView.showsTranslation = showsTranslation
-        if let sideInset { overlayView.setSideInset(sideInset) }
+        overlayView.setSideInset(sideInset)
         view.addSubview(overlayView)
         if let keepAboveView, keepAboveView.superview === view {
             // 保留原生控件栏在 overlay 之上（按钮仍可见可点）

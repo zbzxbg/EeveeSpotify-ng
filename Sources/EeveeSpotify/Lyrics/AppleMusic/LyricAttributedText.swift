@@ -2,8 +2,14 @@ import SwiftUI
 
 // 移植自 MeloX `MeloX/Features/Player/Lyrics/Shared/LyricAttributedText.swift`（GPL-3.0）。
 //
-// 属性名从 "MeloX.lyricTiming" / "MeloX.lyricPlacement" 改为 "EeveeSpotify.*"，
-// 避免与其它 tweak 冲突；其余保持原样（含 iOS 26 的 AttributedTextFormattingDefinition 分支）。
+// 与 MeloX 原版的**有意差异**：
+//   1. 删掉了 `AttributedTextFormattingDefinition` / `attributedTextFormattingDefinition`
+//      那段（MeloX 用 `@available(iOS 26)` 包着，且它自己的注释说明那是个**空的定义、
+//      只为满足 iOS 26 的 API 形状**）。本项目 CI 用 iOS 18 SDK，那个符号不存在；
+//      删掉不影响自定义属性在 `Text.Layout.Run` 上的读取。
+//   2. 去掉 `nonisolated`（本项目以 Swift 5 语言模式编译，该修饰符会报
+//      "'nonisolated' modifier cannot be applied to this declaration"）。
+//   3. 属性名前缀改为 "EeveeSpotify."，避免与其它 tweak 冲突。
 
 /// 把运行期的歌词字形保存在**一个** attributed string 里。
 /// 逐字 `Text` 插值会把本地化工作嵌进每个字符里，长行会拖死布局。
@@ -29,39 +35,20 @@ struct LyricAttributedText {
 }
 
 @available(iOS 18.0, *)
-nonisolated enum LyricTimingAttributeKey: AttributedStringKey {
-    public typealias Value = LyricTimingTextAttribute
-    public static let name = "EeveeSpotify.lyricTiming"
+enum LyricTimingAttributeKey: AttributedStringKey {
+    typealias Value = LyricTimingTextAttribute
+    static let name = "EeveeSpotify.lyricTiming"
 }
 
 @available(iOS 18.0, *)
-nonisolated enum LyricPlacementAttributeKey: AttributedStringKey {
-    public typealias Value = LyricRubyPlacementTextAttribute
-    public static let name = "EeveeSpotify.lyricPlacement"
+enum LyricPlacementAttributeKey: AttributedStringKey {
+    typealias Value = LyricRubyPlacementTextAttribute
+    static let name = "EeveeSpotify.lyricPlacement"
 }
 
 @available(iOS 18.0, *)
-nonisolated struct LyricAttributeScope: AttributeScope {
+struct LyricAttributeScope: AttributeScope {
     let timing: LyricTimingAttributeKey
     let placement: LyricPlacementAttributeKey
     let swiftUI: AttributeScopes.SwiftUIAttributes
-}
-
-@available(iOS 26.0, *)
-private struct LyricTextFormatting: AttributedTextFormattingDefinition {
-    var body: some AttributedTextFormattingDefinition<LyricAttributeScope> {}
-}
-
-@available(iOS 18.0, *)
-extension View {
-    /// 把自定义属性作用域注册给 SwiftUI 的文本布局引擎。
-    /// 缺了这一步，`Text.Layout.Run` 上取不到 `LyricTimingTextAttribute`，填充前沿就无从计算。
-    @ViewBuilder
-    func lyricTextAttributes() -> some View {
-        if #available(iOS 26, *) {
-            attributedTextFormattingDefinition(LyricTextFormatting())
-        } else {
-            self
-        }
-    }
 }

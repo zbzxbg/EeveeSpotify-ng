@@ -3,7 +3,7 @@ import Foundation
 // 移植自 MeloX `MeloX/Core/Lyrics/LyricPhysicalSpringParameters.swift`（GPL-3.0）。
 
 /// 物理弹簧的求解输入。构造时归一化，保证动画代码永远拿不到非有限/非物理的值。
-nonisolated struct LyricPhysicalSpringParameters: Equatable, Sendable {
+struct LyricPhysicalSpringParameters: Equatable, Sendable {
     let mass: Double
     let stiffness: Double
     let damping: Double

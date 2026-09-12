@@ -4,7 +4,7 @@ import Foundation
 
 /// 依赖时长的弹簧参数重建（观察自 Apple Music 的歌词行切换求解器）。
 /// 短过渡用更硬的弹簧、长过渡用更软的，避免「快速切行时晃、慢速切行时僵」。
-nonisolated enum AppleMusicLyricsDynamicSpring {
+enum AppleMusicLyricsDynamicSpring {
     private static let minimumSourceDuration: TimeInterval = 0.20
     private static let maximumSourceDuration: TimeInterval = 0.75
     private static let sourceDurationRange: TimeInterval = 0.55

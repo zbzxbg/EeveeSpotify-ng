@@ -3,6 +3,10 @@ import SwiftUI
 // 移植自 MeloX `MeloX/Features/Player/Lyrics/Shared/LyricLineFitting.swift`（GPL-3.0）。
 
 /// 单行超宽时的缩放修正：让过长的行缩到可用宽度内，而不是溢出被裁掉。
+///
+/// 标注 iOS 18 而不是技术上够用的 17：唯一调用方是同样 18+ 的
+/// `LyricGlowTextRenderer`，统一门槛可以少一层嵌套判断。
+@available(iOS 18.0, *)
 enum LyricLineFitting {
     static func validWidth(_ width: CGFloat?) -> CGFloat? {
         guard let width, width.isFinite, width > 0 else {
