@@ -129,7 +129,6 @@ ngzhwm_word_by_word_lyrics = "开启逐词歌词";
 ngzhwm_word_by_word_lyrics_description = "Musixmatch，PetitLyrics，SpicyLyrics，NetEase，AMLL提供逐词歌词服务。";
 ngzhwm_better_word_by_word_lyrics = "更好的逐词歌词";
 ngzhwm_better_word_by_word_lyrics_description = "像Apple Music那样，最低要求iOS26。开启后不展示歌词翻译。";
-ngzhwm_better_word_by_word_lyrics_footer = "开启后自动启用模糊封面背景与系统材质，并隐藏歌词翻译。最低要求iOS26；当前歌曲需有逐字时间轴（网易云/Musixmatch/SpicyLyrics/AMLL）。";
 word_by_word_lyrics_provider = "逐词歌词提供者：%@";
 ngzhwm_multi_level_fallback = "多级回退";
 ngzhwm_multi_level_fallback_description = "多级回退:歌词将按照Mxm-PL-LRC-Gen的方式多级回退查询(Mxm和PL最长等待5秒，LRCLIB和Genius最长等待3秒；如果某个来源在对应时间内仍未返回有效歌词，则查询下一个来源)。";

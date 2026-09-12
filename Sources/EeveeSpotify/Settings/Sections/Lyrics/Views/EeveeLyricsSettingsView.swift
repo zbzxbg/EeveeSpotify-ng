@@ -84,9 +84,15 @@ struct EeveeLyricsSettingsView: View {
     ///
     /// 页脚里把"开启后自动带上什么"说清楚，免得用户去找已经不存在的
     /// 模糊封面 / 系统材质开关（那两个已改为跟随本项自动启用）。
+    ///
+    /// ⚠️ 文案 key 是 `_description` 而不是 `_footer`：本文件里所有页脚都用
+    /// `<开关名>_description`（逐词歌词、AMLL 优先、禁用歌词、多级回退……一致）。
+    /// 这里曾经多出一个 `ngzhwm_better_word_by_word_lyrics_footer`，是**同一个开关
+    /// 两份文案** —— 改文案时只改一处、另一处悄悄过期，正是那种"看起来改过了、
+    /// 界面上还是旧话"的坑。现在合并成一条。
     @ViewBuilder private func betterWordByWordLyricsSection() -> some View {
         Section(
-            footer: Text("ngzhwm_better_word_by_word_lyrics_footer".localized)
+            footer: Text("ngzhwm_better_word_by_word_lyrics_description".localized)
         ) {
             Toggle(
                 "ngzhwm_better_word_by_word_lyrics".localized,

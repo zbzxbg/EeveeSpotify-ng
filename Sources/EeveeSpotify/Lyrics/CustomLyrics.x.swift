@@ -160,8 +160,8 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
             throw LyricsError.invalidSource
         }
 
-        // 「AMLL 优先」：先向 AMLL 要逐词歌词，没正常返回再回退到用户在来源
-        // 选择器里设置的那个源（连同它的相关设置）。
+        // 「AMLL 优先」：先向 AMLL 要逐词歌词，**只接受逐词歌词**，
+        // 拿不到就回退到用户在来源选择器里设置的那个源（连同它的相关设置）。
         //
         // 回退目标刻意不是硬编码的：哪个源适合兜底完全取决于地区与语言 ——
         // 日本用户设 PetitLyrics、大陆用户设网易云、其它地区设 SpicyLyrics，
@@ -182,14 +182,35 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
                 recordFallbackError: true
             )
 
-            if let dto = amllDto, !dto.lines.isEmpty {
+            // ⚠️ 判据是**逐词可用**，不是「有行」。
+            //
+            // AMLL 的 TTML 里两种数据都可能出现：
+            //   · 有 `<span>` 逐词时间轴 → 逐词歌词（要的）
+            //   · 只有 `<p begin=...>` 行级时间轴 → 就是一行一句的普通同步歌词
+            // 以前这里只判 `!lines.isEmpty`，于是第二种也被当成"AMLL 成功"直接采用：
+            // 用户明明开了「AMLL 优先」（只想要逐词），结果拿到一份逐行歌词，
+            // 而且它的排版/来源和用户自己设的那个源完全不同 —— 看起来就像"设置没生效"。
+            //
+            // 现在把判定口径与渲染层对齐（同一个 `hasUsableWordLevelData`）：
+            // 行级数据在这里就被判为"不合格"，交给下面用户设置的源去处理。
+            // 无时间轴的数据同样过不了这一关（`timeSynced == false`），一并回退。
+            if let dto = amllDto, hasUsableWordLevelData(dto) {
                 writeDebugLog("[Lyrics] AMLL succeeded — using it (\(dto.lines.count) line(s))")
                 return makeLyrics(from: dto, source: .amllTtml)
             }
 
-            writeDebugLog(
-                "[Lyrics] AMLL unavailable — falling back to \(source.description) with its own settings"
-            )
+            // 分开报两种失败原因：日志里能立刻分清是"请求失败"还是"拿到了但不够逐词"。
+            if let dto = amllDto {
+                let timeline = dto.timeSynced ? "line-or-word timeline" : "no timeline"
+                writeDebugLog(
+                    "[Lyrics] AMLL returned \(dto.lines.count) line(s) but not word-by-word"
+                        + " (\(timeline)) — falling back to \(source.description)"
+                )
+            } else {
+                writeDebugLog(
+                    "[Lyrics] AMLL unavailable — falling back to \(source.description) with its own settings"
+                )
+            }
             // 用户设置的就是 Genius 时不必再走下面的 geniusFallback，否则会重复请求一次。
             let dto = try requestSingleSource(
                 source,

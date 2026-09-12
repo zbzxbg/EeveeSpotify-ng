@@ -48,7 +48,7 @@ musixmatch_user_token = "Musixmatch User Token";
 user_token_placeholder = "Enter User Token or Paste Debug Info";
 
 ngzhwm_amll_preferred = "Prefer AMLL";
-ngzhwm_amll_preferred_description = "Requires word-by-word lyrics to be enabled. When on, word-by-word lyrics are requested from AMLL first. If AMLL does not return lyrics normally, playback falls back to your selected lyrics source and its related settings.";
+ngzhwm_amll_preferred_description = "For this option to take effect, word-by-word lyrics must be enabled. When enabled, word-by-word lyrics are requested from AMLL first. If AMLL does not return word-by-word lyrics, it falls back to the lyrics source you selected yourself and that source's related settings. With this option enabled, lyrics no longer show lyric translations or romanization converted locally.";
 
 genius_fallback = "Genius Fallback";
 genius_fallback_description = "Load lyrics from Genius if there is a problem with %@.";
@@ -128,19 +128,18 @@ payment_notice = "EeveeSpotify applies patches to unlock certain Premium feature
 
 // ngzhwm
 
-ngzhwm_title = "ngzhwm Features";
+ngzhwm_title = "ngzhwm's Exclusive Features";
 ngzhwm_disable_lyrics_feature = "Disable Lyrics Function";
-ngzhwm_disable_lyrics_feature_description = "When enabled, this disables all functions related to custom lyrics. It also prevents Spotify from returning its own lyrics.";
+ngzhwm_disable_lyrics_feature_description = "When this option is enabled, all features related to custom lyrics are disabled. It also prevents Spotify from returning its built-in lyrics.";
 ngzhwm_word_by_word_lyrics = "Enable Word-by-Word Lyrics";
 ngzhwm_word_by_word_lyrics_description = "Musixmatch, PetitLyrics, SpicyLyrics, NetEase, and AMLL provide word-by-word lyrics services.";
 ngzhwm_better_word_by_word_lyrics = "Better Word-by-Word Lyrics";
-ngzhwm_better_word_by_word_lyrics_description = "Just like Apple Music. Requires iOS 26 or later (experimental feature). Lyric translations are hidden when enabled.";
-ngzhwm_better_word_by_word_lyrics_footer = "Turning this on also enables the blurred artwork backdrop and the system material overlay, and hides lyric translations. Requires iOS 26 or later; the current song needs syllable timing (NetEase / Musixmatch / SpicyLyrics / AMLL).";
+ngzhwm_better_word_by_word_lyrics_description = "Just like Apple Music, requires iOS 26 at minimum. Lyric translations are not shown when enabled.";
 word_by_word_lyrics_provider = "Word-by-word Lyrics provider: %@";
 ngzhwm_multi_level_fallback = "Multi-level Fallback";
-ngzhwm_multi_level_fallback_description = "Multi-level Fallback: lyrics are searched through multiple providers in this order: Musixmatch → PetitLyrics → LRCLIB → Genius. Musixmatch and PetitLyrics are given up to 5 seconds each, while LRCLIB and Genius are given up to 3 seconds each; if a provider doesn't return valid lyrics within its time limit, the next provider is queried.";
-ngzhwm_netease_romaji_local = "Modify NetEase Japanese Romaji Display";
-ngzhwm_netease_romaji_local_description = "Taking effect requires \"Romanize Japanese Lyrics\" to be enabled in the whoeevee menu. When enabled, NetEase's Japanese romaji is processed by local Japanese romanization instead of NetEase. If NetEase returns word-by-word lyrics, this option has no effect.";
+ngzhwm_multi_level_fallback_description = "Multi-level Fallback: lyrics are searched through multiple providers in this order: Musixmatch → PetitLyrics → LRCLIB → Genius. Musixmatch and PetitLyrics are given up to 5 seconds each, while LRCLIB and Genius are given up to 3 seconds each; if a provider has not returned lyrics within its time limit, the next provider is queried.";
+ngzhwm_netease_romaji_local = "Modify How NetEase Japanese Romaji Is Displayed";
+ngzhwm_netease_romaji_local_description = "For this option to take effect, \"Romanize Japanese Lyrics\" must be enabled. When this option is enabled, NetEase's Japanese romaji is handled by local Japanese romanization instead of being handed to NetEase. If NetEase returns word-by-word lyrics, this option has no effect.";
 ngzhwm_netease_hide_translation = "Hide NetEase Translation Button";
 ngzhwm_netease_hide_translation_description = "When enabled, the NetEase lyrics source will not display the lyrics translation button.";
 ngzhwm_romanization_description = "Configure romanization separately for each language. If romanization is not enabled for a language, its lyrics are displayed as-is without romanization.";
