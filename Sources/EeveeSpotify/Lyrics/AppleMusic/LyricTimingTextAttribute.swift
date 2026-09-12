@@ -5,12 +5,14 @@ import SwiftUI
 //
 // 拆成独立文件是因为这些类型被渲染器、视觉强调、ruby 排版、文本构建器共同引用。
 //
-// ⚠️ 整个文件必须 iOS 18+：`TextAttribute` 协议本身就是 iOS 18 引入的。
-// 这也是「最低要求 iOS 18」这条线的来源之一。
+// ⚠️ 整个文件标注 iOS 26+：`TextAttribute` 协议本身 iOS 18 就有，
+// 但让它在 `Text.Layout.Run` 上被读到，依赖 iOS 26 的
+// `attributedTextFormattingDefinition(_:)` 注册（见 `LyricAttributedText.swift`）。
+// 统一按 26 标注，避免"编译能过、运行时静默取不到值"这种最难查的状态。
 
 /// 挂在每个**字**上的时间轴信息。渲染器通过它取到这个字的起止时间、
 /// 所属音节/词的范围，从而算出填充前沿与长音强调。
-@available(iOS 18.0, *)
+@available(iOS 26.0, *)
 struct LyricTimingTextAttribute: TextAttribute, Hashable, Sendable {
     let startTime: TimeInterval
     let endTime: TimeInterval
@@ -67,7 +69,7 @@ struct LyricFocusOpacityEndpoints: Equatable, Sendable {
 
 /// ruby（音译）排版用的水平偏移。MeloX 不往字符串里插占位空白，
 /// 而是在绘制时按字符平移，避免改变文本本身的换行行为。
-@available(iOS 18.0, *)
+@available(iOS 26.0, *)
 struct LyricRubyPlacementTextAttribute: TextAttribute, Hashable, Sendable {
     let horizontalOffset: CGFloat
 }

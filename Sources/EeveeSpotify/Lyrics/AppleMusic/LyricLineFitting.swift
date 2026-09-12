@@ -6,7 +6,7 @@ import SwiftUI
 ///
 /// 标注 iOS 18 而不是技术上够用的 17：唯一调用方是同样 18+ 的
 /// `LyricGlowTextRenderer`，统一门槛可以少一层嵌套判断。
-@available(iOS 18.0, *)
+@available(iOS 26.0, *)
 enum LyricLineFitting {
     static func validWidth(_ width: CGFloat?) -> CGFloat? {
         guard let width, width.isFinite, width > 0 else {

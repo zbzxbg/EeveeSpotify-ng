@@ -16,7 +16,7 @@ import UIKit
 // MARK: - 播放时间驱动
 
 /// 固定频率重绘的宿主视图。`onTick` 在每帧被调用，参数为当前播放秒数。
-@available(iOS 18.0, *)
+@available(iOS 26.0, *)
 final class AppleMusicLyricsTickView: UIView {
 
     private var displayLink: CADisplayLink?
@@ -72,7 +72,7 @@ final class AppleMusicLyricsTickView: UIView {
 
 // MARK: - 全屏歌词页
 
-@available(iOS 18.0, *)
+@available(iOS 26.0, *)
 struct AppleMusicLyricsPage: View {
 
     let lines: [LyricLine]

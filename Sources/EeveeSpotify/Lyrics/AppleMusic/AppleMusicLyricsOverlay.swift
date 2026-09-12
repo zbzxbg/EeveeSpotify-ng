@@ -3,8 +3,9 @@ import UIKit
 
 // 本项目新增（非 MeloX 移植件）：把 Apple Music 风格歌词页接进 Spotify 的歌词容器。
 //
-// 门禁：整层 iOS 18+。老系统上 `WordByWordHost` 会走原来的 UIKit overlay，
-// 行为与改动前完全一致。
+// 门禁：整层 iOS 26+（唯一硬性原因见 `LyricAttributedText.swift` 的说明 ——
+// 注册自定义 TextAttribute 需要 iOS 26 的 `attributedTextFormattingDefinition`）。
+// 老系统上 `WordByWordHost` 会走原来的 UIKit overlay，行为与改动前完全一致。
 
 // MARK: - 每帧时间源
 
@@ -12,7 +13,7 @@ import UIKit
 ///
 /// **不自带 CADisplayLink**：由宿主（`WordByWordPlaybackClock`）每帧调用 `submit`，
 /// 这样新渲染层和旧 overlay 共用同一个时钟，不存在两套时钟互相错拍的问题。
-@available(iOS 18.0, *)
+@available(iOS 26.0, *)
 final class AppleMusicLyricsClock: ObservableObject {
     /// 当前播放时间（秒）。每帧更新，驱动整页重绘。
     @Published var playbackTime: TimeInterval = 0
@@ -30,7 +31,7 @@ final class AppleMusicLyricsClock: ObservableObject {
 
 // MARK: - SwiftUI 视图
 
-@available(iOS 18.0, *)
+@available(iOS 26.0, *)
 struct AppleMusicLyricsOverlayView: View {
 
     /// 行模型。换歌时由外部替换。
@@ -77,7 +78,7 @@ struct AppleMusicLyricsOverlayView: View {
 
 // MARK: - 挂载管理
 
-@available(iOS 18.0, *)
+@available(iOS 26.0, *)
 final class AppleMusicLyricsOverlayHost {
 
     static let shared = AppleMusicLyricsOverlayHost()
@@ -94,7 +95,7 @@ final class AppleMusicLyricsOverlayHost {
 
     /// 是否应该由本层接管（开关开启 + 系统版本够 + 有词级时间轴）。
     static var isAvailable: Bool {
-        guard #available(iOS 18.0, *) else { return false }
+        guard #available(iOS 26.0, *) else { return false }
         guard NgzhwmSettingsViewModel.isBetterWordByWordLyricsEnabled else { return false }
         return true
     }
@@ -203,7 +204,7 @@ final class AppleMusicLyricsOverlayHost {
 
 // MARK: - 背景
 
-@available(iOS 18.0, *)
+@available(iOS 26.0, *)
 enum AppleMusicLyricsBackdrop {
     /// 背景：优先模糊封面（复用已实现的 `LyricsBackdropView` 的取图与缓存逻辑），
     /// 拿不到就退回底色。
@@ -218,7 +219,7 @@ enum AppleMusicLyricsBackdrop {
 
 /// 把已有的 UIKit `LyricsBackdropView` 包进 SwiftUI。复用它的取图/模糊/缓存/材质，
 /// 避免同一套封面逻辑存在两份实现。
-@available(iOS 18.0, *)
+@available(iOS 26.0, *)
 private struct LyricsBackdropRepresentable: UIViewRepresentable {
 
     func makeUIView(context: Context) -> LyricsBackdropView {

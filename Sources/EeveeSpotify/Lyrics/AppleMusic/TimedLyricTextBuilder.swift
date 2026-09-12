@@ -14,7 +14,7 @@ private struct LyricTextHorizontalOffset: Hashable {
     let horizontalOffset: CGFloat
 }
 
-@available(iOS 18.0, *)
+@available(iOS 26.0, *)
 @MainActor
 enum TimedLyricTextBuilder {
     private static let cache = LyricTextCache()
@@ -527,7 +527,7 @@ enum TimedLyricTextBuilder {
 
 // MARK: - 缓存
 
-@available(iOS 18.0, *)
+@available(iOS 26.0, *)
 @MainActor
 private final class LyricTextCache {
     enum Key: Hashable {
@@ -573,7 +573,7 @@ private final class LyricTextCache {
 
 // MARK: - 内部类型
 
-@available(iOS 18.0, *)
+@available(iOS 26.0, *)
 private extension TimedLyricTextBuilder {
     struct WordTiming {
         let startTime: TimeInterval

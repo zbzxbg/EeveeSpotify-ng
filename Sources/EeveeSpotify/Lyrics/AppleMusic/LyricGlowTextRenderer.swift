@@ -20,7 +20,7 @@ import SwiftUI
 /// 每个字形在「已唱」样式横向揭开的过程中保持自己的「未唱」样式。
 /// 长音使用逐字错开的强调包络：每个字形围绕自身中心膨胀、绽放、回落，
 /// 同时后续字形进入同一动画。所有变换过程中光晕与文字保持同一合成层。
-@available(iOS 18.0, *)
+@available(iOS 26.0, *)
 struct LyricGlowTextRenderer: TextRenderer {
     struct Style: Equatable, Sendable {
         let glowRadius: CGFloat
@@ -620,7 +620,7 @@ struct LyricGlowTextRenderer: TextRenderer {
     }
 }
 
-@available(iOS 18.0, *)
+@available(iOS 26.0, *)
 private extension LyricGlowTextRenderer {
     struct RevealMask {
         let frontX: CGFloat

@@ -901,7 +901,7 @@ final class WordByWordHost {
 
         // iOS 18+ 且开关打开且数据可用 → 走 Apple Music 渲染层。
         // 三个条件缺一就走下面的 UIKit 旧实现，行为与改动前完全一致。
-        if #available(iOS 18.0, *),
+        if #available(iOS 26.0, *),
            usable,
            NgzhwmSettingsViewModel.isBetterWordByWordLyricsEnabled {
             AppleMusicLyricsOverlayHost.shared.update(
@@ -921,7 +921,7 @@ final class WordByWordHost {
         }
 
         // 用不上新层就把它摘掉（例如从有逐字的歌切到纯 LRC 的歌）。
-        if #available(iOS 18.0, *) {
+        if #available(iOS 26.0, *) {
             AppleMusicLyricsOverlayHost.shared.detach()
         }
 
@@ -960,7 +960,7 @@ final class WordByWordHost {
         WordByWordPlaybackClock.shared.stop()
         WordByWordPlaybackClock.shared.onChange = nil
         WordByWordPlaybackClock.shared.tickHandler = nil
-        if #available(iOS 18.0, *) {
+        if #available(iOS 26.0, *) {
             AppleMusicLyricsOverlayHost.shared.detach()
         }
         overlay?.removeFromSuperview()

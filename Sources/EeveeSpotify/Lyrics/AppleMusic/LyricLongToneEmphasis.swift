@@ -8,7 +8,7 @@ import SwiftUI
 ///
 /// 同一音节/词内的字形共享时间轴，但**动画起始时间相互错开**：最后一个字形
 /// 恰好在第一个字形越过峰值之后进入，形成连续涌动，而不是整词同步脉冲。
-@available(iOS 18.0, *)
+@available(iOS 26.0, *)
 enum LyricLongToneEmphasis {
     struct State {
         let isLongTone: Bool
@@ -253,7 +253,7 @@ enum LyricLongToneEmphasis {
     }
 }
 
-@available(iOS 18.0, *)
+@available(iOS 26.0, *)
 private extension LyricLongToneEmphasis {
     struct TimingGroup {
         let startTime: TimeInterval

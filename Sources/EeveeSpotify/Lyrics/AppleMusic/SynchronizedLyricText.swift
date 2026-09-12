@@ -14,7 +14,7 @@ import SwiftUI
 //
 // 这个视图本身不持有时钟：`playbackTime` 由外部每帧传入（本项目走 CADisplayLink）。
 
-@available(iOS 18.0, *)
+@available(iOS 26.0, *)
 struct SynchronizedLyricText: View {
 
     // MARK: 输入
@@ -111,6 +111,10 @@ struct SynchronizedLyricText: View {
             .foregroundStyle(primaryColor)
             .multilineTextAlignment(alignment.textAlignment)
             .lineSpacing(CGFloat(Self.profile.lineSpacing))
+            // ⚠️ 顺序要紧：先注册属性作用域，再挂渲染器。
+            // 少了 `lyricTextAttributes()`，渲染器在 run 上取不到逐字时间轴，
+            // 表现为文字正常但完全不亮（且不报错）。
+            .lyricTextAttributes()
             .textRenderer(
                 LyricGlowTextRenderer(
                     playbackTime: playbackTime,
@@ -211,7 +215,7 @@ struct SynchronizedLyricText: View {
 
 // MARK: - 对齐
 
-@available(iOS 18.0, *)
+@available(iOS 26.0, *)
 enum SynchronizedLyricTextAlignment: Equatable {
     case leading
     case center
