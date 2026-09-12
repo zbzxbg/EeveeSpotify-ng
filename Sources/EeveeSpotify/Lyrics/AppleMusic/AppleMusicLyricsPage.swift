@@ -214,6 +214,13 @@ struct AppleMusicLyricsPage: View {
             showsBackgroundVocals: showsBackgroundVocals,
             showsTranslation: showsTranslation
         )
+        // ⚠️ 必须显式给宽度。
+        //
+        // `LazyVStack` 会向子视图提议 nil 宽度，此时 `Text` 会按「理想宽度」排版 ——
+        // 而我们的构建器已经按 availableWidth 插过换行符了，两边算的不是同一个宽度，
+        // 容易出现"明明还放得下却提前折行"。
+        // 放在视觉修饰符**之前**，让 scale/opacity/blur 作用于定宽后的内容。
+        .frame(width: availableWidth, alignment: .leading)
         // 焦点态：缩放 + 透明度 + 模糊。三者都跟随 focusStrength，所以
         // 行切换时是同一条曲线，不会各走各的。
         .scaleEffect(

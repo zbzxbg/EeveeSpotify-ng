@@ -166,7 +166,7 @@ final class WordByWordPlaybackClock {
         displayLink = nil
     }
 
-    /// 供 iOS 18+ 的 Apple Music 渲染层使用的每帧回调。
+    /// 供 Apple Music 渲染层使用的每帧回调。
     /// 与 `onChange` 互斥：挂载时只会设置其中一个。
     var tickHandler: ((Double) -> Void)?
 
@@ -189,7 +189,7 @@ final class WordByWordPlaybackClock {
 /// 整行一个词 / 全退化 / 词级时间轴错位 等坏数据会低于阈值，回退原生行级。
 ///
 /// 抽成文件级函数是因为它有**两个**消费者：旧的 UIKit overlay（`setCurrentTime`）
-/// 和 iOS 18+ 的 Apple Music 渲染层（挂载前判定）。判定口径必须一致。
+/// 和 Apple Music 渲染层（挂载前判定）。判定口径必须一致。
 func hasUsableWordLevelData(_ dto: LyricsDto?) -> Bool {
     guard let dto, dto.timeSynced else { return false }
     let lines = dto.lines
@@ -899,7 +899,7 @@ final class WordByWordHost {
         let sideInset = sideInset ?? 16
         let usable = hasUsableWordLevelData(currentLyricsDto)
 
-        // iOS 18+ 且开关打开且数据可用 → 走 Apple Music 渲染层。
+        // 系统版本够、开关打开、数据可用 → 走 Apple Music 渲染层。
         // 三个条件缺一就走下面的 UIKit 旧实现，行为与改动前完全一致。
         if #available(iOS 26.0, *),
            usable,

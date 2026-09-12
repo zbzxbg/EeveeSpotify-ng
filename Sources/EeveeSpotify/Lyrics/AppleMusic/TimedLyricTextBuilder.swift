@@ -475,7 +475,12 @@ enum TimedLyricTextBuilder {
             // 不给余量会出现「算出能放下、渲染时溢出」的错行。
             safetyMargin = max(constrainedWidth * 0.05, fontSize * 0.5)
         } else {
-            safetyMargin = max(fontSize * 0.02, 0.5)
+            // ⚠️ 这里曾经是 `max(fontSize * 0.02, 0.5)` —— 26pt 下只有 0.52pt，
+            // 而逐字属性化同样会让**没有空格的行**（中文/日文，以及没有空格的英文）
+            // 被 SwiftUI 测得比 Core Text 宽。余量太小就会把一个字挤到下一行，
+            // 表现为「这句明明还放得下，却提前折行」。
+            // 现在与拉丁分支取同一量级的余量，不再区分有没有词间空格。
+            safetyMargin = max(constrainedWidth * 0.03, fontSize * 0.5)
         }
         return max(constrainedWidth - safetyMargin, 1)
     }

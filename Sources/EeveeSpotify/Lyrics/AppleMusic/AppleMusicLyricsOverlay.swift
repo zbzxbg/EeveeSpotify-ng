@@ -118,6 +118,7 @@ final class AppleMusicLyricsOverlayHost {
             currentVersion = currentLyricsVersion
             currentLines = (currentLyricsDto?.toAppleMusicLyricLines()) ?? []
             writeDebugLog("[AppleMusicLyrics] rebuilt with \(currentLines.count) line(s)")
+            dumpLinesIfDebugEnabled(currentLines)
         }
 
         let lines = currentLines
@@ -173,7 +174,7 @@ final class AppleMusicLyricsOverlayHost {
 
         hostingController = hosting
         hostView = view
-        writeDebugLog("[AppleMusicLyrics] overlay attached (iOS 18+ path)")
+        writeDebugLog("[AppleMusicLyrics] overlay attached (Apple Music path)")
     }
 
     func detach() {
@@ -189,6 +190,28 @@ final class AppleMusicLyricsOverlayHost {
     func tick(ms: Double) {
         guard hostView != nil, !currentLines.isEmpty else { return }
         clock.submit(seconds: ms / 1000)
+    }
+
+    /// 逐行打印时间戳与文本，**只在 rebuild 时各打一次**。
+    ///
+    /// 用途：分辨「一行的文本在数据里就是短的」与「一行被折成了两行」——
+    /// 前者是两个独立行对象，后者才是换行算法问题。
+    /// 旧实现（`LyricsWordByWordOverlayView`）本来每帧打一条诊断，
+    /// 换成新渲染层后那条日志没了，排查时等于盲的。
+    ///
+    /// 不需要额外的开关：`writeDebugLog` 自己就受设置里的「开启日志记录」控制，
+    /// 关着的时候这里一行都不会输出（一次 rebuild 约 65 行，不刷屏）。
+    private func dumpLinesIfDebugEnabled(_ lines: [LyricLine]) {
+        writeDebugLog("[AppleMusicLyrics] ---- \(lines.count) line(s) ----")
+        for (index, line) in lines.enumerated() {
+            let start = String(format: "%.2f", line.time)
+            let kind = line.syllables.isEmpty ? "line" : "word(\(line.syllables.count))"
+            let bg = line.backgroundVocal == nil ? "" : " +bg"
+            writeDebugLog(
+                "[AppleMusicLyrics] L\(index) t=\(start) \(kind)\(bg) \"\(line.text)\""
+            )
+        }
+        writeDebugLog("[AppleMusicLyrics] ---- end ----")
     }
 
     private func makeRootView(

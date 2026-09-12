@@ -63,7 +63,22 @@ struct LyricsDto {
             }
         }
         
-        if let translation = translation {
+        // 「更好的逐词歌词」开启时不把译文交给 Spotify。
+        //
+        // 原因：Spotify 看到注入数据里有 translation，就会在「歌词」标题栏亮起
+        // 翻译按钮（和分享/展开并排那个）。而 Apple Music 渲染层自己并不显示译文，
+        // 那个按钮点下去什么都不会变，纯属误导。
+        //
+        // 做法与「不展示网易云歌词翻译」完全一致：**跳过翻译层构建、不交给上游**，
+        // 而不是去隐藏 Spotify 的原生控件 —— 那样不用碰任何私有视图、没有类名
+        // 版本兼容问题，按钮是根本不会被创建。
+        //
+        // 注意：这只影响**注入给 Spotify 的那份 protobuf**。`currentLyricsDto`
+        // 里的 translation 仍然保留，所以旧 overlay 与老系统照常显示自己的译文。
+        let suppliesTranslation =
+            !NgzhwmSettingsViewModel.isBetterWordByWordLyricsEnabled
+
+        if let translation = translation, suppliesTranslation {
             lyricsData.translation = LyricsTranslation.with {
                 $0.languageCode = translation.languageCode
                 $0.lines = translation.lines
