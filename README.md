@@ -14,7 +14,7 @@ Due to school commitments, the update frequency will be reduced for the time bei
 
 ## 🔧 Modifications
 
-- Added two additional lyrics sources: NetEase and SpicyLyrics.
+- Added three additional lyrics sources: NetEase, SpicyLyrics, and AMLL TTML.
 - Implemented word-by-word lyrics.
 - Various other modifications and improvements.
 
