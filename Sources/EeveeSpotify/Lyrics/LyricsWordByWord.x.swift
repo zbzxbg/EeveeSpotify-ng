@@ -205,16 +205,21 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
     private var activeLineIndex = -1
     private var activeWordIndex = -1
 
-    private let lineColor = UIColor.black
-    private let activeLineColorValue = UIColor.white
+    /// 行色随背景明暗切换，见 `resolveTextColors`。
+    private var lineColor = UIColor.black
+    private var activeLineColorValue = UIColor.white
     /// 行级译文字号（比歌词小）。
     private let translationFontSize: CGFloat = 16
-    /// 行级译文颜色：与未唱歌词（其余行）一致的黑色。
-    private let translationColor = UIColor.black
+    /// 行级译文颜色：与未唱歌词（其余行）一致。
+    private var translationColor = UIColor.black
     /// 当前行内「未唱」词的透明度（已唱/正在唱为全白）。
     private let unsungWordOpacity: CGFloat = 0.45
     /// 背景色缓存：每次 rebuild（换歌/换数据）后按「定制」选项重新计算一次。
     private var resolvedBackgroundColor: UIColor?
+    /// 模糊封面背景层（最底层）：封面拿不到 / 用户选了静态色时自动退回纯色。
+    private let backdropView = LyricsBackdropView()
+    /// 当前背景对应的「歌 + 设置」标识，变了才重新配置背景。
+    private var resolvedBackdropKey: String?
     /// 顶部渐隐层（scrim）：背景色 → 透明，让上滚的歌词在顶部渐隐退出。
     private let topFadeView = UIView()
     private let topFadeLayer = CAGradientLayer()
@@ -275,7 +280,11 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
     }
 
     private func setupView() {
+        // 背景交给 backdropView（模糊封面），自身保持透明，否则会把它盖住。
         backgroundColor = .clear
+
+        backdropView.frame = bounds
+        backdropView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
 
         topFadeLayer.startPoint = CGPoint(x: 0.5, y: 0)
         topFadeLayer.endPoint = CGPoint(x: 0.5, y: 1)
@@ -320,6 +329,10 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
         stackLeadingConstraint = leading
         stackTrailingConstraint = trailing
         stackWidthConstraint = width
+
+        // 背景必须在最底层 —— 放在所有子视图添加完之后再插到 index 0，
+        // 不依赖 addSubview 的调用顺序。
+        insertSubview(backdropView, at: 0)
     }
 
     /// 每帧由时钟调用：惰性取 dto、词级高亮、自动滚动。
@@ -330,10 +343,15 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
             rebuild()
         }
 
+        // 背景（模糊封面 + 暗化）与文字色必须先于下面的 guard 配置好：
+        // 文字色取决于背景明暗，而 rebuild() 已经按旧色建过标签了。
+        configureBackdropIfNeeded()
+
         // 只有「有足够多行真逐字 且 时间同步」才显示逐字；
         // 否则（无逐字 / 坏逐字 / 静态歌词 / 还没加载到 dto）一律透明 + 隐藏标签，回退 Spotify 原生。
         guard let dto, dto.timeSynced, hasUsableWordLevel(dto) else {
             backgroundColor = .clear
+            backdropView.isHidden = true
             stackView.isHidden = true
             topFadeView.isHidden = true
             bottomFadeView.isHidden = true
@@ -341,22 +359,9 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
             return
         }
 
-        let targetBackground = resolvedBackgroundColor ?? overlayBackgroundColor()
-        resolvedBackgroundColor = targetBackground
-        if backgroundColor != targetBackground {
-            backgroundColor = targetBackground
-            topFadeLayer.colors = [
-                targetBackground.cgColor,
-                targetBackground.withAlphaComponent(0).cgColor
-            ]
-            bottomFadeLayer.colors = [
-                targetBackground.withAlphaComponent(0).cgColor,
-                targetBackground.cgColor
-            ]
-            stackView.isHidden = false
-            isUserInteractionEnabled = true
-            updateFadeVisibility()
-        }
+        stackView.isHidden = false
+        isUserInteractionEnabled = true
+        updateFadeVisibility()
 
         var bestLine = -1
         var bestWord = -1
@@ -447,6 +452,11 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
         activeLineIndex = -1
         activeWordIndex = -1
         resolvedBackgroundColor = nil
+        // 换歌/换数据后强制重算背景（即使两首歌底色恰好相同也要换封面）。
+        resolvedBackdropKey = nil
+        // 文字色不在这里定：setCurrentTime 紧接着就会调用
+        // configureBackdropIfNeeded()，由它按背景明暗统一决定并在需要时重涂。
+        // 这里先回到改动前的默认值，保证纯色兜底时建出来的标签就是对的。
 
         guard let dto else { return }
 
@@ -586,6 +596,162 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
         }
 
         label.attributedText = highlighted
+    }
+
+    // MARK: 背景：模糊封面
+
+    /// 是否使用「模糊封面 + 暗化渐变」背景。三条否决：
+    ///   - 用户在「定制」里选了静态色 → 静态色优先，不做封面背景；
+    ///   - 用户选了显示原生颜色 → 保持 Spotify 原始观感，不做封面背景；
+    ///   - 开关本身关掉 → 退回改动前的纯色底。
+    private var backdropEnabled: Bool {
+        guard NgzhwmSettingsViewModel.isLyricsBlurredBackdropEnabled else { return false }
+        let settings = UserDefaults.lyricsColors
+        if settings.useStaticColor, !settings.staticColor.isEmpty { return false }
+        if settings.displayOriginalColors { return false }
+        return true
+    }
+
+    /// 背景配置的缓存标识：换歌、改设置、或底色来源变化都会让它变化。
+    /// 返回 nil 表示当前应使用纯色底。
+    ///
+    /// 把 `currentLyricsBackgroundColorARGB` 也编进去是必要的：CustomLyrics
+    /// 是在歌词注入**之后**才写回这个值，只按歌名做 key 会一直用首次算出的底色。
+    private func backdropKey() -> String? {
+        guard backdropEnabled else { return nil }
+        let track = statefulPlayer?.currentTrack() ?? nowPlayingScrollViewController?.loadedTrack
+        let trackKey = track?.trackIdentifier ?? "unknown"
+        return "\(trackKey)|\(NgzhwmSettingsViewModel.isLyricsBackdropMaterialEnabled)|\(currentLyricsBackgroundColorARGB)"
+    }
+
+    /// 按当前背景明暗决定文字色。
+    ///
+    /// `isDarkSurface` 为 nil 表示「当前是纯色兜底底」，此时沿用改动前的黑底约定；
+    /// 非 nil 时表示模糊封面层正在生效（该层必然是深色，因为有暗化渐变），
+    /// 而原来的行色是按 Spotify 浅色底定的黑字 —— 不切换未唱行与译文会直接看不见。
+    ///
+    /// ⚠️ 这里显式传参而不是读 `backdropView.isHidden`：后者会残留上一次的底色判断，
+    /// 在「切歌后先走纯色、再切到模糊封面」这种过渡帧上会做出错误结论。
+    ///
+    /// 返回 true 表示文字色发生了变化（调用方据此决定要不要重涂标签）。
+    @discardableResult
+    private func resolveTextColors(isDarkSurface: Bool?) -> Bool {
+        // 已唱/正在唱始终是最亮的一层，两种底色下都是白色。
+        let newLineColor: UIColor
+        let newTranslationColor: UIColor
+        if let isDarkSurface {
+            // 深底：未唱用白（靠 unsungWordOpacity 压暗，与已唱区分），译文白但略淡。
+            // 浅底：维持改动前的黑字。
+            newLineColor = isDarkSurface ? .white : .black
+            newTranslationColor = isDarkSurface ? UIColor.white.withAlphaComponent(0.75) : .black
+        } else {
+            newLineColor = .black
+            newTranslationColor = .black
+        }
+
+        let changed = newLineColor != lineColor || newTranslationColor != translationColor
+        lineColor = newLineColor
+        translationColor = newTranslationColor
+        activeLineColorValue = .white
+        return changed
+    }
+
+    /// 按需（重）配置背景：纯色底或模糊封面层，并同步文字色。
+    ///
+    /// 每帧调用，但只在「首次 / 换歌 / 改设置 / 底色来源变化」时真正干活。
+    private func configureBackdropIfNeeded() {
+        // resolvedBackgroundColor 是缓存，用户改「定制」里的颜色时它不会变，
+        // 所以不能沿用旧的 `backgroundColor != targetBackground` 判断，
+        // 要把影响外观的几项一起编进 key。
+        let key = backdropKey()
+        let changed = resolvedBackgroundColor == nil || resolvedBackdropKey != key
+        let targetBackground = changed ? overlayBackgroundColor() : (resolvedBackgroundColor ?? .black)
+
+        if changed {
+            resolvedBackgroundColor = targetBackground
+            resolvedBackdropKey = key
+        }
+
+        // 纯色底（用户选了静态色 / 显示原生色 / 开关关闭）：整块退回改动前的行为。
+        guard key != nil else {
+            if changed {
+                backdropView.isHidden = true
+                backgroundColor = targetBackground
+                topFadeLayer.colors = [
+                    targetBackground.cgColor,
+                    targetBackground.withAlphaComponent(0).cgColor
+                ]
+                bottomFadeLayer.colors = [
+                    targetBackground.withAlphaComponent(0).cgColor,
+                    targetBackground.cgColor
+                ]
+            }
+            // 纯色兜底：沿用改动前的黑字约定（传 nil）。
+            if resolveTextColors(isDarkSurface: nil) {
+                repaintAllLines(upTo: activeLineIndex)
+            }
+            return
+        }
+
+        // 文字色跟着背景明暗走 —— 模糊封面层必然是深色底，而默认行色是黑字。
+        // 每帧都能安全调用：resolveTextColors 是恒等操作，除非颜色真的要变。
+        if changed {
+            backdropView.isHidden = false
+            backdropView.configure(
+                baseColor: targetBackground,
+                showsArtwork: true,
+                material: NgzhwmSettingsViewModel.isLyricsBackdropMaterialEnabled
+            )
+            // 渐变遮罩仍用纯色：它只负责让滚进/滚出视口的歌词渐隐，用底色即可。
+            let fadeBase = resolvedBackgroundColor ?? targetBackground
+            topFadeLayer.colors = [
+                fadeBase.cgColor,
+                fadeBase.withAlphaComponent(0).cgColor
+            ]
+            bottomFadeLayer.colors = [
+                fadeBase.withAlphaComponent(0).cgColor,
+                fadeBase.cgColor
+            ]
+            // 自身保持透明，否则会把 backdropView 盖住。
+            backgroundColor = .clear
+        }
+
+        if resolveTextColors(isDarkSurface: backdropView.baseColorBrightness < 0.55) {
+            repaintAllLines(upTo: activeLineIndex)
+        }
+    }
+
+    /// 按当前背景明暗决定文字色。
+    ///
+    /// `isDarkSurface` 为 nil 表示「当前是纯色兜底底」，此时沿用改动前的黑底约定；
+    /// 非 nil 时表示模糊封面层正在生效，原来的行色是按 Spotify 浅色底定的黑字 ——
+    /// 不切换的话未唱行与译文在模糊封面上会直接看不见。
+    ///
+    /// ⚠️ 这里由调用方显式传参，而不是在方法内读 `backdropView.isHidden`：
+    /// 后者会残留上一次的底色判断，在「切歌后先走纯色、再切到模糊封面」
+    /// 这种过渡帧上会做出错误结论。
+    ///
+    /// 返回 true 表示文字色发生了变化（调用方据此决定要不要重涂标签）。
+    @discardableResult
+    private func resolveTextColors(isDarkSurface: Bool?) -> Bool {
+        // 已唱/正在唱始终是最亮的一层，两种底色下都是白色。
+        let newLineColor: UIColor
+        let newTranslationColor: UIColor
+        if let isDarkSurface {
+            // 深底：未唱用白（靠 unsungWordOpacity 压暗，与已唱区分），译文白但略淡。
+            // 浅底：维持改动前的黑字。
+            newLineColor = isDarkSurface ? .white : .black
+            newTranslationColor = isDarkSurface ? UIColor.white.withAlphaComponent(0.75) : .black
+        } else {
+            newLineColor = .black
+            newTranslationColor = .black
+        }
+
+        let changed = newLineColor != lineColor || newTranslationColor != translationColor
+        lineColor = newLineColor
+        translationColor = newTranslationColor
+        activeLineColorValue = .white
+        return changed
     }
 
     // MARK: 背景取色（跟随「定制」选项）

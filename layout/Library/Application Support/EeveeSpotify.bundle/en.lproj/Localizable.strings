@@ -148,6 +148,10 @@ ngzhwm_japanese_romanization = "Romanize Japanese Lyrics";
 ngzhwm_korean_romanization = "Romanize Korean Lyrics";
 ngzhwm_remove_interlude_symbol = "Delete Interlude Symbol \"♪\"";
 ngzhwm_remove_interlude_symbol_description = "When this option is enabled, the interlude symbol \"♪\" is removed from lyrics, and lines containing \"♪\" are displayed as blank.";
+ngzhwm_blurred_backdrop = "Blurred Artwork Backdrop";
+ngzhwm_blurred_backdrop_description = "Use a blurred album artwork with a darkening gradient instead of a flat lyrics background. Has no effect when a static color is selected or original colors are shown in the customization settings.";
+ngzhwm_blurred_backdrop_material = "Add System Material";
+ngzhwm_blurred_backdrop_material_description = "Layer a system material over the blurred artwork to suppress color banding from the large blur, at the cost of one extra live compositing pass.";
 
 // Debug
 

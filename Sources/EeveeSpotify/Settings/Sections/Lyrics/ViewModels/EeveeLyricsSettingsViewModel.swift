@@ -47,6 +47,24 @@ class EeveeLyricsSettingsViewModel: ObservableObject {
         }
     }
     
+    @Published var blurredLyricsBackdrop = NgzhwmSettingsViewModel.isLyricsBlurredBackdropEnabled {
+        didSet {
+            UserDefaults.standard.set(
+                blurredLyricsBackdrop,
+                forKey: NgzhwmSettingsViewModel.blurredLyricsBackdropKey
+            )
+        }
+    }
+    
+    @Published var lyricsBackdropMaterial = NgzhwmSettingsViewModel.isLyricsBackdropMaterialEnabled {
+        didSet {
+            UserDefaults.standard.set(
+                lyricsBackdropMaterial,
+                forKey: NgzhwmSettingsViewModel.lyricsBackdropMaterialKey
+            )
+        }
+    }
+    
     @Published var disableLyricsFeature = UserDefaults.standard.bool(
         forKey: NgzhwmSettingsViewModel.disableLyricsFeatureKey
     ) {
@@ -104,6 +122,8 @@ class EeveeLyricsSettingsViewModel: ObservableObject {
             betterWordByWordLyrics,
             wordByWordLyrics,
             amllPreferred,
+            blurredLyricsBackdrop,
+            lyricsBackdropMaterial,
             disableLyricsFeature,
             removeMxmInterludeSymbol,
             neteaseRomajiLocal,

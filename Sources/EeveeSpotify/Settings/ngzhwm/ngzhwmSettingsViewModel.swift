@@ -9,6 +9,8 @@ class NgzhwmSettingsViewModel: ObservableObject {
     static let wordByWordLyricsKey = "ngzhwm_wordByWordLyrics"
     static let betterWordByWordLyricsKey = "ngzhwm_betterWordByWordLyrics"
     static let amllPreferredKey = "ngzhwm_amllPreferred"
+    static let blurredLyricsBackdropKey = "ngzhwm_blurredLyricsBackdrop"
+    static let lyricsBackdropMaterialKey = "ngzhwm_lyricsBackdropMaterial"
 
     static var isLyricsFeatureDisabled: Bool {
         UserDefaults.standard.bool(forKey: disableLyricsFeatureKey)
@@ -44,5 +46,16 @@ class NgzhwmSettingsViewModel: ObservableObject {
     /// 默认关闭，已装用户的既有行为不变。
     static var isAmllPreferred: Bool {
         bool(forKey: amllPreferredKey, defaultValue: false)
+    }
+
+    /// 「模糊封面背景」：用模糊版专辑封面 + 暗化渐变替换纯色底。
+    /// 默认开启（这是「更好的逐词歌词」观感的一部分，可单独关掉回到纯色）。
+    static var isLyricsBlurredBackdropEnabled: Bool {
+        bool(forKey: blurredLyricsBackdropKey, defaultValue: true)
+    }
+
+    /// 在模糊封面之上再叠一层系统材质，压掉大面积模糊的色带。
+    static var isLyricsBackdropMaterialEnabled: Bool {
+        bool(forKey: lyricsBackdropMaterialKey, defaultValue: true)
     }
 }

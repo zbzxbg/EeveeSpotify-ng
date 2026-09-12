@@ -1,0 +1,379 @@
+import UIKit
+import CoreImage
+
+// MARK: - 专辑封面来源解析
+//
+// 「更好的逐词歌词」的背景：模糊版专辑封面 + 暗化渐变。
+//
+// 为什么不用 UIBlurEffect 去糊屏幕后面的东西、也不用 Metal shader：
+//   1. Spotify 自己那层歌词背景只暴露一个颜色（SPTNowPlayingBackgroundViewModel.color()），
+//      没有图也没有模糊视图，所以没有「现成的模糊封面」可以借；
+//   2. 实时 UIBlurEffect 会把盖在下面的原生歌词文字一起糊成灰影子，还得额外去隐藏原生视图；
+//   3. Apple Music 与 Spotify 的歌词背景本来都不是实时模糊，而是预渲染的封面模糊图 / 算出来的色，
+//      每首歌算一次就够，开销可以忽略。
+//
+// 所以这里走「静态模糊封面」：拉原图 → 缩到小尺寸 → CIGaussianBlur → 存缓存 → 铺满 + 暗化。
+
+/// 从 SPTPlayerTrack 拿专辑封面。
+///
+/// `metadata()` 的键名在各 Spotify 版本/平台间不统一，所以按候选键逐个试，
+/// 并且把成功过的 URL 记下来 —— 只要这首歌曾经取到过，同一首歌的后续调用就有兜底，
+/// 不会因为某次 metadata 尚未就绪而闪回纯色背景。
+enum LyricsArtworkResolver {
+    /// 候选顺序：越可能直接是 URL 的键越靠前。
+    private static let urlKeys = [
+        "image_url", "imageUrl", "image", "cover_art", "coverArt",
+        "cover_url", "coverUrl", "artwork_url", "artwork",
+        "album_image_url", "album_art_url", "thumbnail_url", "picture_url"
+    ]
+
+    /// 只给 ID 的键：需要自己拼 CDN 地址。
+    private static let imageIDKeys = [
+        "image_id", "imageId", "image_uri", "cover_art_id", "coverId",
+        "image_hex", "imageIdHex"
+    ]
+
+    private static let stateQueue = DispatchQueue(label: "com.eevee.lyrics.artwork")
+    private static var lastResolved: (trackKey: String, url: URL)?
+    private static var didLogMetadataDump = false
+
+    static func artworkURL(for track: SPTPlayerTrack?) -> URL? {
+        guard let track else { return nil }
+
+        let metadata = track.metadata()
+        let trackKey = track.trackIdentifier
+
+        if !didLogMetadataDump {
+            didLogMetadataDump = true
+            // 只有第一次 dump，避免刷屏；对不上的时候照这行日志调 urlKeys 就行。
+            writeDebugLog("[Artwork] metadata keys: \(metadata.keys.sorted())")
+        }
+
+        if let url = urlFromMetadata(metadata) {
+            remember(url, for: trackKey)
+            return url
+        }
+
+        // 取不到时用上次成功的 URL 兜底 —— 但必须限定「同一首歌」，
+        // 否则换歌时 metadata 尚未就绪会把上一首的封面贴到新歌上。
+        let remembered = stateQueue.sync { lastResolved }
+        guard let remembered, remembered.trackKey == trackKey else { return nil }
+        return remembered.url
+    }
+
+    private static func remember(_ url: URL, for trackKey: String) {
+        stateQueue.sync { lastResolved = (trackKey, url) }
+    }
+
+    private static func urlFromMetadata(_ metadata: [String: String]) -> URL? {
+        for key in urlKeys {
+            guard let raw = metadata[key], !raw.isEmpty else { continue }
+
+            // 少数版本给的是 "image://<hex>" 形式，直接当 URL 会解析失败。
+            if raw.hasPrefix("image://") {
+                let hex = String(raw.dropFirst("image://".count))
+                if let url = urlFromImageID(hex) { return url }
+                continue
+            }
+
+            if let url = URL(string: raw), url.scheme?.hasPrefix("http") == true {
+                return url
+            }
+        }
+
+        for key in imageIDKeys {
+            guard let hex = metadata[key], !hex.isEmpty else { continue }
+            if let url = urlFromImageID(hex) { return url }
+        }
+
+        // URI 有时携带 image 信息（本地文件等场景）。
+        if let uriString = metadata["uri"], uriString.hasPrefix("image://") {
+            return urlFromImageID(String(uriString.dropFirst("image://".count)))
+        }
+
+        return nil
+    }
+
+    private static func urlFromImageID(_ rawID: String) -> URL? {
+        let hex = rawID.replacingOccurrences(of: "spotify:image:", with: "")
+        guard !hex.isEmpty else { return nil }
+        return URL(string: "https://i.scdn.co/image/\(hex)")
+    }
+}
+
+// MARK: - 背景视图
+
+/// 歌词页背景：模糊专辑封面 + 暗化渐变，外加一层材质（可选）压掉色带。
+///
+/// 层级（自下而上）：
+///   blurredImageView  —— 封面模糊图，aspectFill + 1.12 倍 overscan
+///   scrimView         —— UIBlurEffect(.systemUltraThinMaterialDark)，可选
+///   gradientLayer     —— 上/中/下三段暗化，中间最透（聚焦行所在区域）
+final class LyricsBackdropView: UIView {
+
+    private let blurredImageView = UIImageView()
+    private let scrimView = UIVisualEffectView(effect: nil)
+    private let gradientLayer = CAGradientLayer()
+
+    /// 兜底底色（封面拿不到时整块用它，行为等同于改动前）。
+    private var baseColor: UIColor = .black
+    /// 暗化渐变的中间透度 —— 决定封面颜色能透出多少。
+    ///
+    /// 取值偏低是刻意的：兜底色来自 `Color.normalized(0.5)`，本身已经是中灰调，
+    /// 如果这里再重压一层，模糊封面会比改动前的纯色底更灰更闷，反而不如原生。
+    /// 中间 0.12 让封面颜色透出来，两端 0.42 负责歌词滚进/滚出时的渐隐。
+    private let middleScrimAlpha: CGFloat = 0.12
+    private let edgeScrimAlpha: CGFloat = 0.42
+    /// 描边 overscan 比例，避免模糊后边缘透出底色。
+    private let overscan: CGFloat = 1.12
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        setup()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setup()
+    }
+
+    private func setup() {
+        backgroundColor = .black
+        isUserInteractionEnabled = false
+        clipsToBounds = true
+
+        blurredImageView.contentMode = .scaleAspectFill
+        blurredImageView.clipsToBounds = true
+        blurredImageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        addSubview(blurredImageView)
+
+        scrimView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        scrimView.isHidden = true
+        addSubview(scrimView)
+
+        gradientLayer.startPoint = CGPoint(x: 0.5, y: 0)
+        gradientLayer.endPoint = CGPoint(x: 0.5, y: 1)
+        layer.addSublayer(gradientLayer)
+
+        applyGradientColors()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+
+        // overscan：比 bounds 略大并居中，模糊边缘不会露出底色。
+        let width = bounds.width * overscan
+        let height = bounds.height * overscan
+        blurredImageView.frame = CGRect(
+            x: (bounds.width - width) / 2,
+            y: (bounds.height - height) / 2,
+            width: width,
+            height: height
+        )
+        scrimView.frame = bounds
+        gradientLayer.frame = bounds
+    }
+
+    // MARK: 对外配置
+
+    /// 每次 rebuild（换歌 / 换数据）调用一次。
+    /// - Parameters:
+    ///   - baseColor: 兜底底色，来自 CustomLyrics 算好的原生歌词背景色。
+    ///   - showsArtwork: 是否使用模糊封面（用户选了静态色 / 原生色时为 false）。
+    ///   - material: 是否再叠一层系统材质压色带。
+    func configure(
+        baseColor color: UIColor,
+        showsArtwork: Bool,
+        material: Bool
+    ) {
+        // 左侧的 `self.` 不能省：参数名与属性同名时，不带 self 会解析成参数。
+        self.baseColor = color
+        backgroundColor = color
+
+        scrimView.isHidden = !(showsArtwork && material)
+        if showsArtwork && material {
+            // 本工程 deployment target 是 iOS 14，材质系列（.systemUltraThinMaterialDark）
+            // 从 iOS 13 起就有，不需要 #available 分支。
+            scrimView.effect = UIBlurEffect(style: .systemUltraThinMaterialDark)
+        } else {
+            scrimView.effect = nil
+        }
+
+        applyGradientColors()
+
+        guard showsArtwork else {
+            blurredImageView.image = nil
+            return
+        }
+
+        loadArtworkIfNeeded()
+    }
+
+    // MARK: 内部
+
+    /// 当前底色的感知亮度（0~1）。供文字层判断该用白字还是黑字。
+    var baseColorBrightness: CGFloat {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        guard baseColor.getRed(&red, green: &green, blue: &blue, alpha: nil) else {
+            return 0.5
+        }
+        return red * 0.299 + green * 0.587 + blue * 0.114
+    }
+
+    private var lastLoadedTrackKey: String?
+    private var isLoading = false
+
+    private func applyGradientColors() {
+        gradientLayer.colors = [
+            baseColor.withAlphaComponent(edgeScrimAlpha).cgColor,
+            baseColor.withAlphaComponent(middleScrimAlpha).cgColor,
+            baseColor.withAlphaComponent(edgeScrimAlpha).cgColor
+        ]
+        gradientLayer.locations = [0.0, 0.45, 1.0]
+    }
+
+    private func loadArtworkIfNeeded() {
+        let track = statefulPlayer?.currentTrack() ?? nowPlayingScrollViewController?.loadedTrack
+        let trackKey = track?.trackIdentifier ?? "unknown"
+
+        guard !isLoading, lastLoadedTrackKey != trackKey else { return }
+
+        guard let url = LyricsArtworkResolver.artworkURL(for: track) else {
+            // 封面拿不到 —— 保持兜底色，不重试（避免每次 rebuild 都白试一遍）。
+            lastLoadedTrackKey = trackKey
+            writeDebugLog("[Artwork] no artwork URL for \(trackKey) — keeping flat color")
+            return
+        }
+
+        if let cached = LyricsBackdropImageCache.shared.blurredImage(for: url) {
+            lastLoadedTrackKey = trackKey
+            blurredImageView.image = cached
+            writeDebugLog("[Artwork] cache hit for \(trackKey)")
+            return
+        }
+
+        isLoading = true
+        lastLoadedTrackKey = trackKey
+        writeDebugLog("[Artwork] fetching \(url.absoluteString) for \(trackKey)")
+
+        LyricsBackdropImageCache.shared.loadBlurredImage(for: url) { [weak self] image in
+            guard let self else { return }
+            self.isLoading = false
+            guard let image else {
+                writeDebugLog("[Artwork] fetch/blur failed for \(trackKey)")
+                return
+            }
+            // 期间可能已经换歌，只在仍是同一首时套用。
+            let current = statefulPlayer?.currentTrack() ?? nowPlayingScrollViewController?.loadedTrack
+            guard (current?.trackIdentifier ?? "unknown") == trackKey else { return }
+            self.blurredImageView.image = image
+        }
+    }
+}
+
+// MARK: - 模糊图缓存
+
+/// 每首歌只算一次模糊图，结果缓存在内存里（NSCache，系统可回收）。
+final class LyricsBackdropImageCache {
+
+    static let shared = LyricsBackdropImageCache()
+
+    /// 模糊前先缩到这个尺寸：模糊本身会抹掉细节，用大图纯属浪费内存。
+    private let downscaleMaxSide: CGFloat = 96
+    /// 在「缩小后的图」上应用的模糊半径。
+    private let blurRadius: CGFloat = 18
+    private let maximumResponseBytes = 16 * 1024 * 1024
+
+    private let cache = NSCache<NSURL, UIImage>()
+    private let session: URLSession
+    private let context = CIContext(options: [.useSoftwareRenderer: false])
+    /// 同一 URL 并发请求合并。
+    private var inFlight: [URL: [(UIImage?) -> Void]] = [:]
+    private let lock = NSLock()
+
+    private init() {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 12
+        configuration.timeoutIntervalForResource = 20
+        session = URLSession(configuration: configuration)
+        cache.countLimit = 12
+    }
+
+    func blurredImage(for url: URL) -> UIImage? {
+        cache.object(forKey: url as NSURL)
+    }
+
+    /// 回调在主线程；失败时为 nil。
+    func loadBlurredImage(for url: URL, completion: @escaping (UIImage?) -> Void) {
+        if let cached = blurredImage(for: url) {
+            DispatchQueue.main.async { completion(cached) }
+            return
+        }
+
+        lock.lock()
+        if inFlight[url] != nil {
+            inFlight[url]?.append(completion)
+            lock.unlock()
+            return
+        }
+        inFlight[url] = [completion]
+        lock.unlock()
+
+        session.dataTask(with: url) { [weak self] data, _, error in
+            guard let self else { return }
+
+            var image: UIImage?
+            if let error {
+                writeDebugLog("[Artwork] network error: \(error.localizedDescription)")
+            } else if let data, !data.isEmpty, data.count <= self.maximumResponseBytes {
+                image = self.makeBlurredImage(from: data)
+            }
+
+            if let image { self.cache.setObject(image, forKey: url as NSURL) }
+
+            self.lock.lock()
+            let waiting = self.inFlight.removeValue(forKey: url) ?? []
+            self.lock.unlock()
+
+            // 所有等待者都在主线程回调。
+            let result = image
+            DispatchQueue.main.async {
+                for callback in waiting { callback(result) }
+                if waiting.isEmpty { completion(result) }
+            }
+        }.resume()
+    }
+
+    /// 缩图 → 模糊 → 裁回原尺寸（模糊会外扩，不裁会带一圈透明边）。
+    private func makeBlurredImage(from data: Data) -> UIImage? {
+        guard let source = CIImage(data: data),
+              let downscaled = downscale(source, maxSide: downscaleMaxSide) else {
+            return nil
+        }
+
+        let extent = downscaled.extent
+        let clamped = downscaled.clampedToExtent()
+        guard let filter = CIFilter(name: "CIGaussianBlur") else { return nil }
+        filter.setValue(clamped, forKey: kCIInputImageKey)
+        filter.setValue(blurRadius, forKey: kCIInputRadiusKey)
+        guard let output = filter.outputImage?.cropped(to: extent),
+              let cgImage = context.createCGImage(output, from: extent) else {
+            return nil
+        }
+
+        return UIImage(cgImage: cgImage)
+    }
+
+    private func downscale(_ image: CIImage, maxSide: CGFloat) -> CIImage? {
+        let extent = image.extent
+        let longest = max(extent.width, extent.height)
+        guard longest > 1, longest.isFinite else { return nil }
+
+        let scale = min(1, maxSide / longest)
+        guard scale < 1 else { return image }
+
+        return image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+    }
+}

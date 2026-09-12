@@ -142,6 +142,10 @@ ngzhwm_japanese_romanization = "日语歌词罗马化";
 ngzhwm_korean_romanization = "韩语歌词罗马化";
 ngzhwm_remove_interlude_symbol = "删除间奏符号「♪」";
 ngzhwm_remove_interlude_symbol_description = "选项开启时后会删除歌词内的间奏符号「♪」，有♪的这一行会显示空白。";
+ngzhwm_blurred_backdrop = "模糊封面背景";
+ngzhwm_blurred_backdrop_description = "用模糊版专辑封面加暗化渐变替代纯色歌词背景。在「定制」里选择「静态颜色」或开启「显示原始颜色」时，本项不生效。";
+ngzhwm_blurred_backdrop_material = "叠加系统材质";
+ngzhwm_blurred_backdrop_material_description = "在模糊封面之上再叠一层系统材质，可以压掉大面积模糊产生的色带，代价是多一层实时合成。";
 
 // Debug
 

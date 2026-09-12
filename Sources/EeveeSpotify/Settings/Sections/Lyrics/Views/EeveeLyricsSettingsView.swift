@@ -7,6 +7,7 @@ struct EeveeLyricsSettingsView: View {
         List {
             wordByWordLyricsSection()
             betterWordByWordLyricsSection()
+            blurredBackdropSection()
             lyricsSourceSection()
             
             // 「禁用歌词功能」作为「禁用歌词替换功能」的二级菜单：
@@ -77,6 +78,26 @@ struct EeveeLyricsSettingsView: View {
                 "ngzhwm_better_word_by_word_lyrics".localized,
                 isOn: $viewModel.betterWordByWordLyrics
             )
+        }
+    }
+    
+    /// 模糊封面背景：底图用模糊版专辑封面 + 暗化渐变（中间最透，聚焦行所在区域）。
+    /// 依赖逐词歌词（背景属于逐字 overlay 的一部分），未开启时整体禁用。
+    @ViewBuilder private func blurredBackdropSection() -> some View {
+        Section(
+            footer: Text("ngzhwm_blurred_backdrop_description".localized)
+        ) {
+            Toggle(
+                "ngzhwm_blurred_backdrop".localized,
+                isOn: $viewModel.blurredLyricsBackdrop
+            )
+            .disabled(!viewModel.wordByWordLyrics)
+            
+            Toggle(
+                "ngzhwm_blurred_backdrop_material".localized,
+                isOn: $viewModel.lyricsBackdropMaterial
+            )
+            .disabled(!viewModel.wordByWordLyrics || !viewModel.blurredLyricsBackdrop)
         }
     }
     
