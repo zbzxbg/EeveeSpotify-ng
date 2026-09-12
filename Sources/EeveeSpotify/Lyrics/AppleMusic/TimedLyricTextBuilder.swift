@@ -111,6 +111,20 @@ enum TimedLyricTextBuilder {
             usesTimedRunBoundaries: true
         )
 
+        // 折行诊断：只在「真的折了」或「文本明显超宽却没折」时各打一条。
+        //
+        // 用途：分辨两类原因 ——
+        //   · 日志里 layout 宽度明显偏小  → 宽度传递问题
+        //   · layout 宽度正常、断点却偏早 → CoreText 在「每字一个 run」的
+        //     字符串上词边界识别退化，导致按字断行
+        // 受设置里的「开启日志记录」控制，关着时不会输出。
+        logWrapDecisionIfUseful(
+            source: source,
+            lineBreakOffsets: lineBreakOffsets,
+            constrainedWidth: constrainedWidth,
+            fontSize: fontSize
+        )
+
         let horizontalOffsetByCharacterOffset = Dictionary(
             uniqueKeysWithValues: forcedHorizontalOffsets.map {
                 ($0.characterOffset, $0.horizontalOffset)
@@ -247,6 +261,82 @@ enum TimedLyricTextBuilder {
                 LyricRubyPlacementTextAttribute(horizontalOffset: horizontalOffset)
         }
         return Text(attributed)
+    }
+
+    // MARK: - 折行诊断
+
+    // MARK: - 折行诊断
+
+    /// 只在**真的折了**、或**文本明显超宽却没折**时打一条日志。
+    ///
+    /// 输出示例：
+    /// ```
+    /// [LyricWrap] w=366.0 layout=355.0 breaks=[21,29] "…and a↵brand↵new wagon"
+    /// ```
+    /// - `w`：传进来的可用宽度（应该等于容器宽 − 左右内边距）
+    /// - `layout`：实际用于测量的宽度（`w` 减去安全余量）
+    /// - `breaks`：CoreText 给出的折行字符下标
+    /// - 引号里的 `↵` 就是断点位置
+    private static func logWrapDecisionIfUseful(
+        source: String,
+        lineBreakOffsets: Set<Int>,
+        constrainedWidth: CGFloat?,
+        fontSize: CGFloat
+    ) {
+        let hasBreaks = !lineBreakOffsets.isEmpty
+
+        // 没折行时，只在「按估算宽度看它本该折」的情况下才报警，
+        // 免得把一屏短的短行全打出来。
+        var shouldLog = hasBreaks
+        if !hasBreaks, let constrainedWidth, constrainedWidth > 0, fontSize > 0 {
+            let estimatedWidth = CGFloat(source.count) * fontSize * 0.55
+            shouldLog = estimatedWidth > constrainedWidth
+        }
+        guard shouldLog else { return }
+
+        let layoutWidth: String
+        if let constrainedWidth, constrainedWidth > 0 {
+            layoutWidth = String(
+                format: "%.1f",
+                effectiveLayoutWidth(
+                    source: source,
+                    constrainedWidth: constrainedWidth,
+                    fontSize: fontSize,
+                    usesTimedRunBoundaries: true
+                )
+            )
+        } else {
+            layoutWidth = "nil"
+        }
+
+        let breaks = lineBreakOffsets.sorted()
+            .map(String.init)
+            .joined(separator: ",")
+
+        writeDebugLog(
+            "[LyricWrap] w=\(constrainedWidth.map { String(format: "%.1f", $0) } ?? "nil")"
+                + " layout=\(layoutWidth)"
+                + " breaks=[\(breaks)]"
+                + " \"\(marked(source, at: lineBreakOffsets))\""
+        )
+    }
+
+    /// 在断点处插入 `↵` 便于肉眼核对。
+    private static func marked(
+        _ source: String,
+        at offsets: Set<Int>
+    ) -> String {
+        guard !offsets.isEmpty else {
+            return source.count > 70 ? String(source.prefix(70)) + "…" : source
+        }
+        var result = ""
+        for (index, character) in source.enumerated() {
+            if offsets.contains(index), index > 0 {
+                result += "↵"
+            }
+            result += String(character)
+        }
+        return result
     }
 
     // MARK: - 折行

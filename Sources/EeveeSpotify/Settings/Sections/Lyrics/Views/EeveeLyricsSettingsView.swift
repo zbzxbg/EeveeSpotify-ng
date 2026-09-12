@@ -6,13 +6,15 @@ struct EeveeLyricsSettingsView: View {
     var body: some View {
         List {
             wordByWordLyricsSection()
-            lyricsSourceSection()
 
-            // 「更好的逐词歌词」是「开启逐词歌词」的子项：
-            // 主开关没开时整项不展示（与下面 NetEase 那几项同一套写法）。
+            // 「更好的逐词歌词」是「开启逐词歌词」的子项：**必须紧跟主开关**，
+            // 中间不插别的 section。主开关没开时整项不展示
+            // （与下面 NetEase 那几项同一套写法）。
             if viewModel.wordByWordLyrics {
                 betterWordByWordLyricsSection()
             }
+
+            lyricsSourceSection()
             
             // 「禁用歌词功能」作为「禁用歌词替换功能」的二级菜单：
             // 仅当「禁用歌词替换功能」开启（lyricsSource == .notReplaced）时显示，

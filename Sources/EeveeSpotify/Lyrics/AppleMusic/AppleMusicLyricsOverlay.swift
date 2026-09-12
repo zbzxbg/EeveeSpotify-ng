@@ -228,7 +228,18 @@ final class AppleMusicLyricsOverlayHost {
             showsProviderFooter: showsProviderFooter,
             sideInset: sideInset,
             onSeek: { time in
-                WordByWordSeeker.seek(toMs: Int(time * 1000))
+                // ⚠️ 必须 rounded() 而不是 Int() 截断，并额外 +5ms。
+                //
+                // `line.time` 是 `TimeInterval(offsetMs) / 1000`，双精度存不下
+                // 26.622 这种值，会落在略小的一侧（26.621999999999999…）。
+                // 再 ×1000 得到 26621.999999999996，`Int()` 截断成 **26621** ——
+                // 比这一行的起点少 1 毫秒。而时间轴的判定是 `time <= playbackTime`，
+                // 差这 1 毫秒就正好落回**上一行**，于是"点当前行反而定位到上一行"。
+                //
+                // +5ms 是为了即使有舍入误差或播放器 seek 后回报有轻微滞后，
+                // 也稳定落在这一行**内部**而不是边界上。
+                let ms = Int((time * 1000).rounded()) + 5
+                WordByWordSeeker.seek(toMs: ms)
             },
             clock: clock
         )
