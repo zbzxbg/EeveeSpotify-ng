@@ -48,22 +48,26 @@ class NgzhwmSettingsViewModel: ObservableObject {
         bool(forKey: amllPreferredKey, defaultValue: false)
     }
 
-    /// 「模糊封面背景」：用模糊版专辑封面 + 暗化渐变替换纯色底。
-    /// 默认开启（这是「更好的逐词歌词」观感的一部分，可单独关掉回到纯色）。
+    /// 「模糊封面背景」是否生效。
+    ///
+    /// **不再是独立开关**：需求是"更好的逐词歌词启用时，这两个背景功能就跟着启用"，
+    /// 所以它直接派生自 `isBetterWordByWordLyricsEnabled`。
+    /// 既有的 `blurredLyricsBackdropKey` 不再参与判断（保留 key 常量与 VM 属性只是为了
+    /// 不破坏旧数据、少一处无谓改动）。
     static var isLyricsBlurredBackdropEnabled: Bool {
-        bool(forKey: blurredLyricsBackdropKey, defaultValue: true)
+        isBetterWordByWordLyricsEnabled
     }
 
-    /// 「更好的逐词歌词」：Apple Music 风格的独立渲染层（需 iOS 18+）。
+    /// 「更好的逐词歌词」：Apple Music 风格的独立渲染层（需 iOS 26+）。
     ///
-    /// 默认**关闭** —— 这是整体重写，先让用户显式开启；出问题一键回到旧实现，
-    /// 也避免老系统用户看到一块空白背景。
+    /// 默认**关闭** —— 这是整体重写，先让用户显式开启；出问题一键回到旧实现。
     static var isBetterWordByWordLyricsEnabled: Bool {
         bool(forKey: betterWordByWordLyricsKey, defaultValue: false)
     }
 
-    /// 在模糊封面之上再叠一层系统材质，压掉大面积模糊的色带。
+    /// 是否在模糊封面之上再叠一层系统材质压色带。
+    /// 与 `isLyricsBlurredBackdropEnabled` 同理，跟随「更好的逐词歌词」。
     static var isLyricsBackdropMaterialEnabled: Bool {
-        bool(forKey: lyricsBackdropMaterialKey, defaultValue: true)
+        isBetterWordByWordLyricsEnabled
     }
 }

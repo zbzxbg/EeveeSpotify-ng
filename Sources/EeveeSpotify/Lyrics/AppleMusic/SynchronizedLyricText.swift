@@ -47,10 +47,15 @@ struct SynchronizedLyricText: View {
     let appliesTimingEffects: Bool
     /// 是否显示副唱（背景人声）。
     ///
-    /// 内嵌「预览歌词」传 false：预览只有约 200pt 高、主字号 17pt，
-    /// 副唱按 0.63 系数缩到约 11pt 基本看不清，还白占一行高度。
+    /// 内嵌「预览歌词」传 false：预览只有约 200pt 高、主字号 19pt，
+    /// 副唱按 0.63 系数缩到约 12pt 基本看不清，还白占一行高度。
     /// 只让全屏页承担这个信息层级。
     let showsBackgroundVocals: Bool
+    /// 是否显示行译文。
+    ///
+    /// Apple Music 歌词层一律传 false —— 那是"Apple Music 成功返回歌词"
+    /// 的条件之一（见 `printShowsTranslation` 的说明），译文不参与展示。
+    let showsTranslation: Bool
 
     init(
         syllables: [LyricSyllable],
@@ -66,7 +71,8 @@ struct SynchronizedLyricText: View {
         fontWeight: LyricsFontWeight = .semibold,
         primaryColor: Color = .white,
         appliesTimingEffects: Bool = true,
-        showsBackgroundVocals: Bool = true
+        showsBackgroundVocals: Bool = true,
+        showsTranslation: Bool = true
     ) {
         self.syllables = syllables
         self.text = text
@@ -82,6 +88,7 @@ struct SynchronizedLyricText: View {
         self.primaryColor = primaryColor
         self.appliesTimingEffects = appliesTimingEffects
         self.showsBackgroundVocals = showsBackgroundVocals
+        self.showsTranslation = showsTranslation
     }
 
     // MARK: 常量（来自 Apple Music 26.6 profile）
@@ -120,7 +127,7 @@ struct SynchronizedLyricText: View {
                 backgroundVocalRow(backgroundVocal)
             }
 
-            if let translation, !translation.isEmpty {
+            if showsTranslation, let translation, !translation.isEmpty {
                 translationText(translation)
             }
         }

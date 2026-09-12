@@ -90,6 +90,8 @@ struct AppleMusicLyricsPage: View {
     let typography: LyricsTypographyScale
     /// 是否显示副唱（背景人声）。预览模式传 false。
     let showsBackgroundVocals: Bool
+    /// 是否显示行译文。Apple Music 歌词层一律 false。
+    let showsTranslation: Bool
 
     init(
         lines: [LyricLine],
@@ -99,7 +101,8 @@ struct AppleMusicLyricsPage: View {
         onSeek: ((TimeInterval) -> Void)? = nil,
         contentInsets: EdgeInsets = EdgeInsets(top: 60, leading: 24, bottom: 120, trailing: 24),
         typography: LyricsTypographyScale = .fullscreen,
-        showsBackgroundVocals: Bool = true
+        showsBackgroundVocals: Bool = true,
+        showsTranslation: Bool = false
     ) {
         self.lines = lines
         self.playbackTime = playbackTime
@@ -109,6 +112,7 @@ struct AppleMusicLyricsPage: View {
         self.contentInsets = contentInsets
         self.typography = typography
         self.showsBackgroundVocals = showsBackgroundVocals
+        self.showsTranslation = showsTranslation
     }
 
     private static var profile: AppleMusicLyricsMotionProfile { .iOS26_6 }
@@ -207,7 +211,8 @@ struct AppleMusicLyricsPage: View {
             alignment: .leading,
             typography: typography,
             appliesTimingEffects: isActive,
-            showsBackgroundVocals: showsBackgroundVocals
+            showsBackgroundVocals: showsBackgroundVocals,
+            showsTranslation: showsTranslation
         )
         // 焦点态：缩放 + 透明度 + 模糊。三者都跟随 focusStrength，所以
         // 行切换时是同一条曲线，不会各走各的。

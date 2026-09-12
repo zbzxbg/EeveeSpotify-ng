@@ -134,7 +134,7 @@ ngzhwm_disable_lyrics_feature_description = "When enabled, this disables all fun
 ngzhwm_word_by_word_lyrics = "Enable Word-by-Word Lyrics";
 ngzhwm_word_by_word_lyrics_description = "Musixmatch, PetitLyrics, SpicyLyrics, and NetEase provide word-by-word lyrics services.";
 ngzhwm_better_word_by_word_lyrics = "Better Word-by-Word Lyrics";
-ngzhwm_better_word_by_word_lyrics_description = "Just like Apple Music: per-character gradient fill, long-tone emphasis, spring-animated focus transitions. Requires iOS 26 or later. Needs \"Enable Word-by-Word Lyrics\" turned on, and the current song must have syllable timing (NetEase / Musixmatch / SpicyLyrics / AMLL).";
+ngzhwm_better_word_by_word_lyrics_description = "Just like Apple Music: per-character gradient fill, long-tone emphasis, spring-animated focus transitions, and background vocals on their own line (fullscreen only). Requires iOS 26 or later. The current song must have syllable timing (NetEase / Musixmatch / SpicyLyrics / AMLL). Lyric translations are hidden while this is on.";
 word_by_word_lyrics_provider = "Word-by-word Lyrics provider: %@";
 ngzhwm_multi_level_fallback = "Multi-level Fallback";
 ngzhwm_multi_level_fallback_description = "Multi-level Fallback: lyrics are searched through multiple providers in this order: Musixmatch → PetitLyrics → LRCLIB → Genius. Musixmatch and PetitLyrics are given up to 5 seconds each, while LRCLIB and Genius are given up to 3 seconds each; if a provider doesn't return valid lyrics within its time limit, the next provider is queried.";
@@ -148,10 +148,10 @@ ngzhwm_japanese_romanization = "Romanize Japanese Lyrics";
 ngzhwm_korean_romanization = "Romanize Korean Lyrics";
 ngzhwm_remove_interlude_symbol = "Delete Interlude Symbol \"♪\"";
 ngzhwm_remove_interlude_symbol_description = "When this option is enabled, the interlude symbol \"♪\" is removed from lyrics, and lines containing \"♪\" are displayed as blank.";
-ngzhwm_blurred_backdrop = "Blurred Artwork Backdrop";
-ngzhwm_blurred_backdrop_description = "Use a blurred album artwork with a darkening gradient instead of a flat lyrics background. Has no effect when a static color is selected or original colors are shown in the customization settings.";
-ngzhwm_blurred_backdrop_material = "Add System Material";
-ngzhwm_blurred_backdrop_material_description = "Layer a system material over the blurred artwork to suppress color banding from the large blur, at the cost of one extra live compositing pass.";
+ngzhwm_better_lyrics_includes_header = "Enabled automatically";
+ngzhwm_better_lyrics_includes_backdrop = "Blurred artwork backdrop (blurred cover art with a darkening gradient instead of a flat color)";
+ngzhwm_better_lyrics_includes_material = "System material overlay (suppresses color banding from the large blur)";
+ngzhwm_better_lyrics_hides_translation = "Hide lyric translations";
 
 // Debug
 

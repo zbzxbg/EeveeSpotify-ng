@@ -71,22 +71,21 @@ struct LyricsTypographyScale {
     /// 同一行的原文与译文之间
     let supplementalSpacing: CGFloat
 
-    /// 全屏歌词页：接近本项目原有 overlay（22pt），略放大以适应整屏。
+    /// 全屏歌词页。24pt 试过偏小，调到 26。
     static let fullscreen = Self(
-        primaryFontSize: 24,
-        supplementalFontSize: 16,
-        lineSpacing: 14,
+        primaryFontSize: 26,
+        supplementalFontSize: 17,
+        lineSpacing: 16,
         supplementalSpacing: 4
     )
 
-    /// 内嵌「预览歌词」卡片：容器只有约 200pt 高，必须明显小于全屏。
+    /// 内嵌「预览歌词」卡片：容器只有约 200pt 高，比全屏小一档。
     ///
-    /// 17pt 是与 Spotify 原生预览歌词同量级的值 —— 预览卡片本来就该"像
-    /// Spotify 自己的卡片"，而不是一张缩小的全屏歌词页。
+    /// 17pt 试过偏小，调到 19；再大就会把卡片撑满、可见行数掉到 2 行以下。
     static let preview = Self(
-        primaryFontSize: 17,
-        supplementalFontSize: 13,
-        lineSpacing: 8,
+        primaryFontSize: 19,
+        supplementalFontSize: 14,
+        lineSpacing: 9,
         supplementalSpacing: 3
     )
 
