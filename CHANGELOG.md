@@ -3,6 +3,15 @@
 <details open>
 <summary><b>2026</b> </summary>
 
+### 09.12
+
+<details>
+<summary><b>v6.0.0-demo.2</b></summary>
+
+* Implemented the lyrics source UI for AMLL TTML.
+
+</details>
+
 ### 09.11
 
 <details>
