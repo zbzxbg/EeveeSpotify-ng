@@ -6,6 +6,13 @@
 ### 09.12
 
 <details>
+<summary><b>v6.0.0-beta.6</b></summary>
+
+- Tested the availability of Better Word-by-Word Lyrics.
+
+</details>
+
+<details>
 <summary><b>v6.0.0-beta.5</b></summary>
 
 - New Feature: Prioritize AMLL TTML.
