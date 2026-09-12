@@ -14,6 +14,9 @@ extension EeveeLyricsSettingsView {
         text.append("netease_description".localized)
 
         text.append("\n")
+        text.append("amll_ttml_description".localized)
+
+        text.append("\n")
         text.append("ngzhwm_multi_level_fallback_description".localized)
         
         text.append("\n\n")

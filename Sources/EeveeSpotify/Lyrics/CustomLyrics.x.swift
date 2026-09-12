@@ -21,6 +21,9 @@ private func lyricsRepository(for source: LyricsSource) -> LyricsRepository {
     case .spicy: return SpicyLyricsRepository.shared
     case .netease:
         return NeteaseLyricsRepository.shared
+    case .amllTtml:
+        // TODO: AMLL TTML 提供者尚未实现，暂用 Genius 兜底，避免编译失败。
+        return geniusLyricsRepository
     case .notReplaced, .multiLevel:
         // Never actually reached — callers filter these out beforehand.
         return geniusLyricsRepository

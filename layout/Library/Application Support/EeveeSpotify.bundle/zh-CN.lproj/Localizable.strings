@@ -36,6 +36,7 @@ lyrics_additional_info = "Genius，NetEase和PetitLyrics的搜索方式是模糊
 petitlyrics_description = "PetitLyrics：提供日语歌词。";
 spicylyrics_description = "SpicyLyrics：提供逐词歌词及部分其他歌词来源没有的歌词。具体介绍可前往spicylyrics.org查看。";
 netease_description = "NetEase：歌词大部分带时间轴。但对非中国大陆用户的支持较差，且可能出现时间轴不对齐等情况。";
+amll_ttml_description = "AMLL TTML：提供高质量逐词歌词和丰富的歌词结构。具体介绍可前往amll.dev查看。";
 
 musixmatch_user_token = "Musixmatch 用户令牌";
 user_token_placeholder = "输入用户令牌或粘贴调试信息";
