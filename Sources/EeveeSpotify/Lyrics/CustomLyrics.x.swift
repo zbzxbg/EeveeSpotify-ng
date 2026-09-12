@@ -11,6 +11,7 @@ var hasShownUnauthorizedPopUp = false
 
 private let geniusLyricsRepository = GeniusLyricsRepository()
 private let petitLyricsRepository = PetitLyricsRepository()
+private let amllTtmlLyricsRepository = AmllTtmlLyricsRepository.shared
 
 private func lyricsRepository(for source: LyricsSource) -> LyricsRepository {
     switch source {
@@ -22,8 +23,7 @@ private func lyricsRepository(for source: LyricsSource) -> LyricsRepository {
     case .netease:
         return NeteaseLyricsRepository.shared
     case .amllTtml:
-        // TODO: AMLL TTML 提供者尚未实现，暂用 Genius 兜底，避免编译失败。
-        return geniusLyricsRepository
+        return amllTtmlLyricsRepository
     case .notReplaced, .multiLevel:
         // Never actually reached — callers filter these out beforehand.
         return geniusLyricsRepository
