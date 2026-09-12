@@ -398,10 +398,10 @@ struct AppleMusicLyricsPage: View {
             constrainedWidth: availableWidth,
             alignment: .leading,
             typography: typography,
+            primaryColor: primaryColor,
             appliesTimingEffects: isActive,
             showsBackgroundVocals: showsBackgroundVocals,
-            showsTranslation: showsTranslation,
-            primaryColor: primaryColor
+            showsTranslation: showsTranslation
         )
         // 注：这里曾经有一个 `.frame(width: availableWidth, alignment: .leading)`。
         // 它是我为了"让 SwiftUI 与折行构建器用同一个宽度"加的，**MeloX 没有这个**。
