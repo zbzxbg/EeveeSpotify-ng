@@ -60,6 +60,13 @@ extension LyricsDto {
                 time: startTime,
                 duration: duration,
                 timingKind: isPrecise ? .precise : .lineSynchronized,
+                // ★ 必须用 `line.content`，**不要**把 words 拼回来当行文本。
+                //
+                // 原因：SpicyLyrics 的解析器会给非首词补一个前导空格
+                // （`SpicyLyricsRepository.swift` 里 `wordText = " " + syllableText`），
+                // 而 `content` 已经是按同一规则拼好的。若这里再拼一次，文本就比
+                // 逐字时间轴多出一批空格字符，填充前沿会整体漂移。
+                // 用 content 才能保证「文本」与「音节时间轴」严格对应。
                 text: line.content,
                 syllables: syllables,
                 romanization: nil,

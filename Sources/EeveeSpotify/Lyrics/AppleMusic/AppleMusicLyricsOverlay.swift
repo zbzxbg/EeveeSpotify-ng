@@ -65,11 +65,15 @@ struct AppleMusicLyricsOverlayView: View {
                     onClose: nil,
                     onSeek: onSeek,
                     contentInsets: EdgeInsets(
-                        top: 8,
+                        top: showsProviderFooter ? 8 : 6,
                         leading: sideInset,
-                        bottom: showsProviderFooter ? 46 : 12,
+                        bottom: showsProviderFooter ? 46 : 10,
                         trailing: sideInset
-                    )
+                    ),
+                    // 分档按「是不是全屏」决定：
+                    // showsProviderFooter 只在全屏页为 true（内嵌预览不显示提供者），
+                    // 所以直接拿它当尺度判据，不必再往下传一个额外参数。
+                    typography: showsProviderFooter ? .fullscreen : .preview
                 )
             }
         }

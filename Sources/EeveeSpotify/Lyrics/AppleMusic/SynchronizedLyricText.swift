@@ -35,8 +35,8 @@ struct SynchronizedLyricText: View {
     let constrainedWidth: CGFloat?
     /// 对齐方式。
     let alignment: SynchronizedLyricTextAlignment
-    /// 字号。
-    let fontSize: CGFloat
+    /// 排版分档（字号 / 译文号 / 行距）。
+    let typography: LyricsTypographyScale
     /// 字重。
     let fontWeight: LyricsFontWeight
     /// 主色。
@@ -53,8 +53,8 @@ struct SynchronizedLyricText: View {
         translation: String? = nil,
         constrainedWidth: CGFloat?,
         alignment: SynchronizedLyricTextAlignment = .leading,
-        fontSize: CGFloat = CGFloat(AppleMusicLyricsTypographyProfile.iOS26_6.primaryFontSize),
-        fontWeight: LyricsFontWeight = .bold,
+        typography: LyricsTypographyScale = .fullscreen,
+        fontWeight: LyricsFontWeight = .semibold,
         primaryColor: Color = .white,
         appliesTimingEffects: Bool = true
     ) {
@@ -66,7 +66,7 @@ struct SynchronizedLyricText: View {
         self.translation = translation
         self.constrainedWidth = constrainedWidth
         self.alignment = alignment
-        self.fontSize = fontSize
+        self.typography = typography
         self.fontWeight = fontWeight
         self.primaryColor = primaryColor
         self.appliesTimingEffects = appliesTimingEffects
@@ -80,6 +80,9 @@ struct SynchronizedLyricText: View {
     private static var supplemental: AppleMusicLyricsSupplementalTextProfile {
         .iOS26_6
     }
+
+    /// 复用别名，读起来短一些。
+    private var fontSize: CGFloat { typography.primaryFontSize }
 
     // MARK: Body
 
@@ -110,7 +113,7 @@ struct SynchronizedLyricText: View {
             .font(font)
             .foregroundStyle(primaryColor)
             .multilineTextAlignment(alignment.textAlignment)
-            .lineSpacing(CGFloat(Self.profile.lineSpacing))
+            .lineSpacing(typography.lineSpacing)
             // ⚠️ 顺序要紧：先注册属性作用域，再挂渲染器。
             // 少了 `lyricTextAttributes()`，渲染器在 run 上取不到逐字时间轴，
             // 表现为文字正常但完全不亮（且不报错）。
@@ -185,8 +188,10 @@ struct SynchronizedLyricText: View {
         Text(translation)
             .font(
                 .system(
-                    size: fontSize * 0.62,
-                    weight: fontWeight.swiftUIWeight
+                    // 用分档里显式给出的译文字号，而不是按主字号比例算 ——
+                    // 原 overlay 就是 22 主 / 16 译文（约 0.73），不是 0.62。
+                    size: typography.supplementalFontSize,
+                    weight: .regular
                 )
             )
             .foregroundStyle(
@@ -199,7 +204,7 @@ struct SynchronizedLyricText: View {
                 )
             )
             .multilineTextAlignment(alignment.textAlignment)
-            .padding(.top, CGFloat(Self.supplemental.translationSpacing))
+            .padding(.top, typography.supplementalSpacing)
             .fixedSize(horizontal: false, vertical: true)
             .frame(
                 maxWidth: .infinity,

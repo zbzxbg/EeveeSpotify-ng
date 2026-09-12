@@ -86,6 +86,8 @@ struct AppleMusicLyricsPage: View {
     let onSeek: ((TimeInterval) -> Void)?
     /// 顶部/底部无障碍内边距。
     let contentInsets: EdgeInsets
+    /// 排版分档（全屏 / 预览两种尺度）。
+    let typography: LyricsTypographyScale
 
     init(
         lines: [LyricLine],
@@ -93,7 +95,8 @@ struct AppleMusicLyricsPage: View {
         background: AnyView,
         onClose: (() -> Void)? = nil,
         onSeek: ((TimeInterval) -> Void)? = nil,
-        contentInsets: EdgeInsets = EdgeInsets(top: 60, leading: 24, bottom: 120, trailing: 24)
+        contentInsets: EdgeInsets = EdgeInsets(top: 60, leading: 24, bottom: 120, trailing: 24),
+        typography: LyricsTypographyScale = .fullscreen
     ) {
         self.lines = lines
         self.playbackTime = playbackTime
@@ -101,6 +104,7 @@ struct AppleMusicLyricsPage: View {
         self.onClose = onClose
         self.onSeek = onSeek
         self.contentInsets = contentInsets
+        self.typography = typography
     }
 
     private static var profile: AppleMusicLyricsMotionProfile { .iOS26_6 }
@@ -111,41 +115,62 @@ struct AppleMusicLyricsPage: View {
     }
 
     var body: some View {
-        ZStack {
-            background
-                .ignoresSafeArea()
+        // 用 GeometryReader 量出**真实可用宽度**再传下去。
+        // 之前直接把 constrainedWidth 传 nil、指望 SwiftUI 从父容器推断，
+        // 结果是文字不换行、直接超出屏幕宽度（尤其是 36pt 的英文长句）。
+        // 同时这也让 `LyricLineFitting` 的超宽缩放修正重新生效。
+        GeometryReader { geometry in
+            let availableWidth = max(
+                geometry.size.width
+                    - contentInsets.leading
+                    - contentInsets.trailing,
+                1
+            )
 
-            ScrollViewReader { proxy in
-                ScrollView(.vertical, showsIndicators: false) {
-                    LazyVStack(
-                        alignment: .leading,
-                        spacing: CGFloat(Self.profile.paragraphSpacing)
-                    ) {
-                        ForEach(lines) { line in
-                            row(for: line, position: position)
+            ZStack {
+                background
+                    .ignoresSafeArea()
+
+                ScrollViewReader { proxy in
+                    ScrollView(.vertical, showsIndicators: false) {
+                        LazyVStack(
+                            alignment: .leading,
+                            // 行块之间用「行距 + 一点额外留白」，而不是 Apple Music
+                            // 全屏页那个 39pt 段间距 —— 那个在短容器里会把一屏的行数
+                            // 压到只剩 3 行。
+                            spacing: typography.lineSpacing
+                                + max(typography.lineSpacing * 0.6, 4)
+                        ) {
+                            ForEach(lines) { line in
+                                row(
+                                    for: line,
+                                    position: position,
+                                    availableWidth: availableWidth
+                                )
                                 .id(line.id)
+                            }
+                        }
+                        .padding(.top, contentInsets.top)
+                        .padding(.bottom, contentInsets.bottom)
+                        .padding(.horizontal, contentInsets.leading)
+                    }
+                    .onChange(of: position.highlightedLyricID) { _, newValue in
+                        guard let newValue else { return }
+                        withAnimation(
+                            .spring(
+                                duration: 0.5,
+                                bounce: 0.08,
+                                blendDuration: 0
+                            )
+                        ) {
+                            proxy.scrollTo(newValue, anchor: .center)
                         }
                     }
-                    .padding(.top, contentInsets.top)
-                    .padding(.bottom, contentInsets.bottom)
-                    .padding(.horizontal, contentInsets.leading)
                 }
-                .onChange(of: position.highlightedLyricID) { _, newValue in
-                    guard let newValue else { return }
-                    withAnimation(
-                        .spring(
-                            duration: 0.5,
-                            bounce: 0.08,
-                            blendDuration: 0
-                        )
-                    ) {
-                        proxy.scrollTo(newValue, anchor: .center)
-                    }
-                }
-            }
 
-            if let onClose {
-                closeButton(onClose)
+                if let onClose {
+                    closeButton(onClose)
+                }
             }
         }
     }
@@ -155,7 +180,8 @@ struct AppleMusicLyricsPage: View {
     @ViewBuilder
     private func row(
         for line: LyricLine,
-        position: LyricPlaybackPosition
+        position: LyricPlaybackPosition,
+        availableWidth: CGFloat
     ) -> some View {
         let isFocused = position.highlightedLyricID == line.id
         let isActive = position.activeLyricIDs.contains(line.id)
@@ -171,8 +197,10 @@ struct AppleMusicLyricsPage: View {
             isFocused: isFocused,
             focusStrength: focusStrength,
             translation: line.translation,
-            constrainedWidth: nil,
+            // 显式传真实宽度，不要再依赖 SwiftUI 推断（那正是文字溢出的原因）。
+            constrainedWidth: availableWidth,
             alignment: .leading,
+            typography: typography,
             appliesTimingEffects: isActive
         )
         // 焦点态：缩放 + 透明度 + 模糊。三者都跟随 focusStrength，所以
