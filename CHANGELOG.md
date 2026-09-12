@@ -6,16 +6,24 @@
 ### 09.12
 
 <details>
+<summary><b>v6.0.0-beta.5</b></summary>
+
+- New Feature: Prioritize AMLL TTML.
+- Tested the availability of Better Word-by-Word Lyrics.
+
+</details>
+
+<details>
 <summary><b>v6.0.0-beta.4</b></summary>
 
-* Tested the availability of the AMLL TTML lyrics source.
+- Tested the availability of the AMLL TTML lyrics source.
 
 </details>
 
 <details>
 <summary><b>v6.0.0-demo.2</b></summary>
 
-* Implemented the lyrics source UI for AMLL TTML.
+- Implemented the lyrics source UI for AMLL TTML.
 
 </details>
 
@@ -24,7 +32,7 @@
 <details>
 <summary><b>v6.0.0-demo.1</b></summary>
 
-* Developed an improved word-by-word lyrics UI.
+- Developed an improved word-by-word lyrics UI.
 
 </details>
 
@@ -83,18 +91,18 @@
 <details>
 <summary><b>v5.1.2-beta.2</b></summary>
 
-* Improved the display of lyrics in the word-by-word lyrics module.
-* Improved terminology handling when removing song identification terms from Genius/NetEase lyrics.
+- Improved the display of lyrics in the word-by-word lyrics module.
+- Improved terminology handling when removing song identification terms from Genius/NetEase lyrics.
 
 </details>
 
 <details>
 <summary><b>v5.1.2-beta.1</b></summary>
 
-* Fixed an issue where the lyrics would not fall back to line-by-line lyrics when the quality of word-by-word lyric timestamps was too poor.
-* Fixed an issue where the first letter of a lyric line was not capitalized under certain circumstances.
-* Improved the display of lyrics in the word-by-word lyrics module.
-* Changed:
+- Fixed an issue where the lyrics would not fall back to line-by-line lyrics when the quality of word-by-word lyric timestamps was too poor.
+- Fixed an issue where the first letter of a lyric line was not capitalized under certain circumstances.
+- Improved the display of lyrics in the word-by-word lyrics module.
+- Changed:
     1. Enabled “Hide NetEase Translation Button” by default when the device language is not Simplified Chinese or Traditional Chinese.
     2. Enabled “Enable Word-by-Word Lyrics” by default.
 

@@ -9,12 +9,12 @@ Due to school commitments, the update frequency will be reduced for the time bei
 | | Version |
 | --- | --- |
 | Latest public release | v5.1.2 |
-| Current development version | [v6.0.0-beta.4](CHANGELOG.md)|
+| Current development version | [v6.0.0-beta.5](CHANGELOG.md)|
 | Development version last updated | 2026/09/12 |
 
 ## 🔧 Modifications
 
-- Added two additional lyrics sources: NetEase and SpicyLyrics.
+- Added three additional lyrics sources: NetEase, SpicyLyrics, and AMLL TTML.
 - Implemented word-by-word lyrics.
 - Various other modifications and improvements.
 
