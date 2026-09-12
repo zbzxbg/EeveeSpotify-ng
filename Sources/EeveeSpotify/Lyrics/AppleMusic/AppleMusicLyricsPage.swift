@@ -92,6 +92,10 @@ struct AppleMusicLyricsPage: View {
     let showsBackgroundVocals: Bool
     /// 是否显示行译文。Apple Music 歌词层一律 false。
     let showsTranslation: Bool
+    /// 歌词提供者（形如 `"AMLL TTML (EeveeSpotify)"`）。为空则不显示页脚。
+    let provider: String
+    /// 是否显示歌词提供者页脚。内嵌预览容器太小，不显示。
+    let showsProviderFooter: Bool
 
     init(
         lines: [LyricLine],
@@ -102,7 +106,9 @@ struct AppleMusicLyricsPage: View {
         contentInsets: EdgeInsets = EdgeInsets(top: 60, leading: 24, bottom: 120, trailing: 24),
         typography: LyricsTypographyScale = .fullscreen,
         showsBackgroundVocals: Bool = true,
-        showsTranslation: Bool = false
+        showsTranslation: Bool = false,
+        provider: String = "",
+        showsProviderFooter: Bool = false
     ) {
         self.lines = lines
         self.playbackTime = playbackTime
@@ -113,6 +119,8 @@ struct AppleMusicLyricsPage: View {
         self.typography = typography
         self.showsBackgroundVocals = showsBackgroundVocals
         self.showsTranslation = showsTranslation
+        self.provider = provider
+        self.showsProviderFooter = showsProviderFooter
     }
 
     private static var profile: AppleMusicLyricsMotionProfile { .iOS26_6 }
@@ -132,6 +140,14 @@ struct AppleMusicLyricsPage: View {
     private let postDragPauseDuration: TimeInterval = 2
     /// 两次自动滚动之间的最小间隔。
     private let minimumAutoScrollInterval: TimeInterval = 0.35
+
+    /// 顶部淡出结束位置（视口高度比例）—— 取自 MeloX 的 `topOpaque: 0.08`。
+    private var fadeTopRatio: CGFloat { 0.08 }
+    /// 底部开始淡出的位置。MeloX 用 0.84；全屏时下方还有控件栏要避让，
+    /// 所以按是否有页脚留白略微提前。
+    private var fadeBottomOpaqueRatio: CGFloat {
+        showsProviderFooter ? 0.80 : 0.86
+    }
 
     /// 当前播放位置（由纯逻辑时间轴给出，不在这里自己算）。
     private var position: LyricPlaybackPosition {
@@ -173,6 +189,18 @@ struct AppleMusicLyricsPage: View {
                                     proxy: proxy
                                 )
                                 .id(line.id)
+                            }
+
+                            // 歌词提供者页脚。
+                            //
+                            // 放在列表末尾（与旧 overlay、Spotify 原生一致）：用户往下翻
+                            // 才看到，不翻就看不到。**不参与卡拉OK** —— 它不挂 renderer、
+                            // 不挂焦点、不模糊、不填充，因为
+                            //   1. 它不是"唱出来的内容"，不该有时间轴；
+                            //   2. 一旦走焦点逻辑，非焦点行的 0.175 透明度 + 3.5pt 模糊
+                            //      会把它糊得不可读。
+                            if showsProviderFooter, !provider.isEmpty {
+                                providerFooter
                             }
                         }
                         .padding(.top, contentInsets.top)
@@ -228,6 +256,32 @@ struct AppleMusicLyricsPage: View {
                                     .addingTimeInterval(postDragPauseDuration)
                             }
                     )
+                    // 上下边缘淡出。
+                    //
+                    // 这是旧 overlay 有、而我移植时漏掉的一块（它用两个
+                    // `topFadeView` / `bottomFadeView` 渐变层实现）。
+                    // 这里改用 MeloX 的做法：**遮罩歌词内容本身**，背景不参与 ——
+                    // 这样不会出现"背景渐变换色 + 内容渐变"两层叠加变脏的问题。
+                    //
+                    // 比例取自 MeloX 的 `lyricsMaskLocations`：
+                    //   顶部 · 底部完全不透明 · 底部开始淡出位置
+                    //   0.08 · 0.84 · 1.0
+                    // 全屏模式下底部留白更多（要给控件栏让位），所以淡出起点略提前。
+                    .mask(
+                        LinearGradient(
+                            stops: [
+                                .init(color: .clear, location: 0),
+                                .init(color: .black, location: fadeTopRatio),
+                                .init(
+                                    color: .black,
+                                    location: fadeBottomOpaqueRatio
+                                ),
+                                .init(color: .clear, location: 1),
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
                 }
 
                 if let onClose {
@@ -254,6 +308,24 @@ struct AppleMusicLyricsPage: View {
             return false
         }
         return true
+    }
+
+    // MARK: 歌词提供者页脚
+
+    /// 静态页脚，**完全不参与**卡拉OK / 焦点 / 模糊那套。
+    ///
+    /// 参数是刻意定的，别照搬歌词行的取值：
+    ///   · 字号 13pt —— 比正文小两级，明确是元信息而不是内容
+    ///   · 不透明度 0.35 —— 要**高于**非焦点行的 0.175（否则它会沉进底噪里读不出来），
+    ///     又要**明显低于**已唱词的 1.0（否则它会比没唱到的歌词还亮，像多出来的标题）
+    ///   · 左对齐 —— 和歌词一致；居中的页脚会读成标题
+    ///   · 上间距 24pt —— 和正文拉开，形成独立的"页脚区"
+    private var providerFooter: some View {
+        Text("word_by_word_lyrics_provider".localizeWithFormat(provider))
+            .font(.system(size: 13))
+            .foregroundStyle(primaryColor.opacity(0.35))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 24)
     }
 
     // MARK: 点行跳转

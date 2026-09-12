@@ -134,6 +134,20 @@ enum LyricsArtworkResolver {
 ///   gradientLayer     —— 上/中/下三段暗化，中间最透（聚焦行所在区域）
 final class LyricsBackdropView: UIView {
 
+    /// 背景的两种用法。
+    enum Style {
+        /// 卡片式：铺在歌词容器内，上下重、中间轻的暗化渐变 —— 让滚进/滚出的歌词
+        /// 在容器边缘有缓冲。用于内嵌预览。
+        case card
+
+        /// 舞台式：**溢出到容器之外、铺满整屏**，并且均匀暗化（不做上下渐变）。
+        ///
+        /// 用于全屏歌词：Spotify 原有的 header / 控件栏是它自己的视图、位于
+        /// 歌词容器之外，只有让背景溢出去，"壳"和"肉"才会落在同一块背景上，
+        /// 那道"品红壳 / 褐红肉"的割裂才会消失。
+        case stage
+    }
+
     private let blurredImageView = UIImageView()
     private let scrimView = UIVisualEffectView(effect: nil)
     private let gradientLayer = CAGradientLayer()
@@ -147,8 +161,22 @@ final class LyricsBackdropView: UIView {
     /// 中间 0.12 让封面颜色透出来，两端 0.42 负责歌词滚进/滚出时的渐隐。
     private let middleScrimAlpha: CGFloat = 0.12
     private let edgeScrimAlpha: CGFloat = 0.42
+    /// 舞台式的**均匀**暗化度。
+    ///
+    /// 比卡片的「中间 0.12 / 两端 0.42」整体更暗一点：全屏是"深色舞台 + 白字 +
+    /// 白色原生控件"，底越暗，白的图标与文字越清楚（这也是 MeloX 能用同一块暗背景
+    /// 承载 header 和控件的原因）。
+    private let stageScrimAlpha: CGFloat = 0.30
     /// 描边 overscan 比例，避免模糊后边缘透出底色。
     private let overscan: CGFloat = 1.12
+
+    /// 背景样式。改动会立即重算渐变与溢出范围。
+    var style: Style = .card {
+        didSet {
+            guard style != oldValue else { return }
+            applyStyle()
+        }
+    }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -222,7 +250,8 @@ final class LyricsBackdropView: UIView {
             scrimView.effect = nil
         }
 
-        applyGradientColors()
+        // 溢出范围与渐变都随样式变化，所以这里走 applyStyle 而不是只更新颜色。
+        applyStyle()
 
         guard showsArtwork else {
             blurredImageView.image = nil
@@ -249,12 +278,50 @@ final class LyricsBackdropView: UIView {
     private var isLoading = false
 
     private func applyGradientColors() {
+        if style == .stage {
+            // 舞台式：均匀暗化，不做上下渐变。
+            //
+            // 为什么不要渐变：全屏时这块背景要同时承载歌词**和** Spotify 原有的
+            // header / 控件栏。一旦带上"上重下轻"的渐变，歌词区与控件区就会落在
+            // 明暗不同的两段上 —— 那正是"壳肉割裂"的成因之一。
+            gradientLayer.colors = [
+                baseColor.withAlphaComponent(stageScrimAlpha).cgColor,
+                baseColor.withAlphaComponent(stageScrimAlpha).cgColor
+            ]
+            gradientLayer.locations = [0.0, 1.0]
+            return
+        }
+
         gradientLayer.colors = [
             baseColor.withAlphaComponent(edgeScrimAlpha).cgColor,
             baseColor.withAlphaComponent(middleScrimAlpha).cgColor,
             baseColor.withAlphaComponent(edgeScrimAlpha).cgColor
         ]
         gradientLayer.locations = [0.0, 0.45, 1.0]
+    }
+
+    /// 按当前 `style` 应用溢出范围与渐变。
+    private func applyStyle() {
+        switch style {
+        case .card:
+            // 普通跟随宿主尺寸（不能清空 —— 旧 overlay 的卡片背景靠这个撑满容器；
+            // SwiftUI 那边由 UIViewRepresentable 直接设 frame，不受影响）。
+            autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        case .stage:
+            // 负 margin 的 autoresizing：让本视图**溢出到宿主容器之外**，
+            // 一直铺到屏幕边缘。
+            //
+            // 为什么用这个而不是把背景挂到整屏的宿主视图上：Spotify 的 header 与
+            // 控件栏位于歌词容器**之外**，只有背景溢出去，两者才会落在同一块背景上。
+            // 而改这个属性不需要碰 Spotify 的任何视图层级（不改背景色、不藏控件），
+            // 风险最低。`clipsToBounds = true` 作用在自身 bounds 上，不会裁掉溢出部分。
+            autoresizingMask = [
+                .flexibleWidth, .flexibleHeight,
+                .flexibleLeftMargin, .flexibleRightMargin,
+                .flexibleTopMargin, .flexibleBottomMargin,
+            ]
+        }
+        applyGradientColors()
     }
 
     private func loadArtworkIfNeeded() {

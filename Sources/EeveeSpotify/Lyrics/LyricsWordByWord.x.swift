@@ -289,6 +289,14 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
         bottomFadeLayer.frame = bottomFadeView.bounds
     }
 
+    /// 设置背景样式：全屏传 `.stage`（溢出铺满整屏、均匀暗化），
+    /// 内嵌预览传 `.card`（只在卡片内、上下暗中间透）。
+    func setBackdropStyle(_ style: LyricsBackdropView.Style) {
+        backdropView.style = style
+        // 样式变了要让 configureBackdropIfNeeded 重新算一次（它按 key 缓存）。
+        resolvedBackdropKey = nil
+    }
+
     /// 调整歌词行左右边距（全屏用到更大的左边距时调用）。
     func setSideInset(_ inset: CGFloat) {
         lyricsSideInset = inset
@@ -933,6 +941,10 @@ final class WordByWordHost {
         overlayView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         overlayView.showsProviderFooter = showsProviderFooter
         overlayView.showsTranslation = showsTranslation
+        // 全屏时背景改成"舞台式"：溢出到容器之外铺满整屏、均匀暗化。
+        // 目的是让 Spotify 原有的 header / 控件栏和歌词落在同一块背景上，
+        // 消除"品红壳 / 暗色肉"的割裂。内嵌预览保持卡片式。
+        overlayView.setBackdropStyle(showsProviderFooter ? .stage : .card)
         overlayView.setSideInset(sideInset)
         view.addSubview(overlayView)
         if let keepAboveView, keepAboveView.superview === view {

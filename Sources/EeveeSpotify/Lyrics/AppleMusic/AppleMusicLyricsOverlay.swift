@@ -81,7 +81,15 @@ struct AppleMusicLyricsOverlayView: View {
                     typography: showsProviderFooter ? .fullscreen : .preview,
                     // 副唱只在全屏页显示：预览是 17pt 的小卡片，
                     // 副唱按 0.63 缩到约 11pt 看不清，还白占一行高度。
-                    showsBackgroundVocals: showsProviderFooter
+                    showsBackgroundVocals: showsProviderFooter,
+                    // 歌词提供者页脚：全屏显示，预览不显示（卡片太小）。
+                    //
+                    // 从全局读而不是做参数，是为了**避免一个能预报的 bug**：
+                    // `update()` 在「布局参数没变」时会提前 return，不重建 rootView，
+                    // 所以任何存在 view 里、由 host 推入的值在换歌时都会变成陈旧的。
+                    // `currentLyricsProvider` 是全局，按需读取天然最新。
+                    provider: currentLyricsProvider,
+                    showsProviderFooter: showsProviderFooter
                 )
             }
         }
@@ -224,7 +232,10 @@ final class AppleMusicLyricsOverlayHost {
     ) -> AppleMusicLyricsOverlayView {
         AppleMusicLyricsOverlayView(
             lines: lines,
-            background: AppleMusicLyricsBackdrop.makeBackground(),
+            background: AppleMusicLyricsBackdrop.makeBackground(
+                // 全屏 → 舞台式背景（铺满整屏）；预览 → 卡片式。
+                style: showsProviderFooter ? .stage : .card
+            ),
             showsProviderFooter: showsProviderFooter,
             sideInset: sideInset,
             onSeek: { time in
@@ -250,12 +261,18 @@ final class AppleMusicLyricsOverlayHost {
 
 @available(iOS 26.0, *)
 enum AppleMusicLyricsBackdrop {
-    /// 背景：优先模糊封面（复用已实现的 `LyricsBackdropView` 的取图与缓存逻辑），
-    /// 拿不到就退回底色。
+    /// 背景：模糊封面（复用 `LyricsBackdropView` 的取图与缓存/材质逻辑）。
+    ///
+    /// `style` 由调用方按「是不是全屏」决定：
+    ///   · 全屏 → `.stage`：溢出铺满整屏 + 均匀暗化，让 Spotify 原有的
+    ///     header / 控件栏与歌词落在同一块背景上（消除"壳肉割裂"）
+    ///   · 预览 → `.card`：只在卡片内，上下暗中间透
     @ViewBuilder
-    static func makeBackground() -> AnyView {
+    static func makeBackground(
+        style: LyricsBackdropView.Style
+    ) -> AnyView {
         AnyView(
-            LyricsBackdropRepresentable()
+            LyricsBackdropRepresentable(style: style)
                 .ignoresSafeArea()
         )
     }
@@ -266,8 +283,12 @@ enum AppleMusicLyricsBackdrop {
 @available(iOS 26.0, *)
 private struct LyricsBackdropRepresentable: UIViewRepresentable {
 
+    /// 背景样式：全屏用舞台式（溢出铺满 + 均匀暗化），预览用卡片式。
+    let style: LyricsBackdropView.Style
+
     func makeUIView(context: Context) -> LyricsBackdropView {
         let view = LyricsBackdropView()
+        view.style = style
         view.configure(
             baseColor: .black,
             showsArtwork: true,
@@ -276,5 +297,9 @@ private struct LyricsBackdropRepresentable: UIViewRepresentable {
         return view
     }
 
-    func updateUIView(_ uiView: LyricsBackdropView, context: Context) {}
+    func updateUIView(_ uiView: LyricsBackdropView, context: Context) {
+        // 内嵌 ↔ 全屏切换时样式会变（stage ↔ card），这里让它跟着走，
+        // 不用重建 hosting controller。
+        uiView.style = style
+    }
 }
