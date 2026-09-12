@@ -6,6 +6,13 @@
 ### 09.12
 
 <details>
+<summary><b>v6.0.0-beta.4</b></summary>
+
+* Tested the availability of the AMLL TTML lyrics source.
+
+</details>
+
+<details>
 <summary><b>v6.0.0-demo.2</b></summary>
 
 * Implemented the lyrics source UI for AMLL TTML.
