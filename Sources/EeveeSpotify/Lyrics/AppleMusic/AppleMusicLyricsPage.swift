@@ -84,6 +84,12 @@ struct AppleMusicLyricsPage: View {
     let onClose: (() -> Void)?
     /// 点某一行跳转（为 nil 时不可点）。
     let onSeek: ((TimeInterval) -> Void)?
+    /// 用户碰了这一页（拖动 / 点击）时回调。
+    ///
+    /// 用途：全屏页"停留一会儿就淡掉 Spotify 界面"的沉浸模式 —— 任何交互都要把
+    /// 界面唤回来并重新计时（见 `LyricsChromeVisibilityController`）。
+    /// **自动跟随滚动不走这里**：那是播放驱动的，不算用户交互。
+    let onUserInteraction: (() -> Void)?
     /// 顶部/底部无障碍内边距。
     let contentInsets: EdgeInsets
     /// 排版分档（全屏 / 预览两种尺度）。
@@ -108,6 +114,7 @@ struct AppleMusicLyricsPage: View {
         background: AnyView,
         onClose: (() -> Void)? = nil,
         onSeek: ((TimeInterval) -> Void)? = nil,
+        onUserInteraction: (() -> Void)? = nil,
         contentInsets: EdgeInsets = EdgeInsets(top: 60, leading: 24, bottom: 120, trailing: 24),
         typography: LyricsTypographyScale = .fullscreen,
         showsBackgroundVocals: Bool = true,
@@ -121,6 +128,7 @@ struct AppleMusicLyricsPage: View {
         self.background = background
         self.onClose = onClose
         self.onSeek = onSeek
+        self.onUserInteraction = onUserInteraction
         self.contentInsets = contentInsets
         self.typography = typography
         self.showsBackgroundVocals = showsBackgroundVocals
@@ -177,6 +185,19 @@ struct AppleMusicLyricsPage: View {
             ZStack {
                 background
                     .ignoresSafeArea()
+
+                // 背景层的点击 = "点空白处唤回界面"。
+                //
+                // 界面淡出后它自己就点不到了（alpha 0 的视图不接收触摸），所以"再点一下
+                // 唤回来"这件事必须由我们来接。挂在这一层是安全的：它是 ZStack 最底层，
+                // 歌词行自己的点击（seek）和 ScrollView 的拖动都在它上面，不会被抢走。
+                //
+                // 只有全屏需要（onUserInteraction 由宿主注入）——
+                // 内嵌预览那块小卡片没有可隐藏的界面。
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture { onUserInteraction?() }
+                    .allowsHitTesting(onUserInteraction != nil)
 
                 ScrollViewReader { proxy in
                     ScrollView(.vertical, showsIndicators: false) {
@@ -256,11 +277,15 @@ struct AppleMusicLyricsPage: View {
                                 lastDragTime = Date()
                                 autoScrollPauseUntil = Date()
                                     .addingTimeInterval(postDragPauseDuration)
+                                // 沉浸模式：拖动中要一直看得见界面（每次 onChanged 都会
+                                // 把淡出的截止时间往后推，所以拖动期间不可能藏）。
+                                onUserInteraction?()
                             }
                             .onEnded { _ in
                                 lastDragTime = Date()
                                 autoScrollPauseUntil = Date()
                                     .addingTimeInterval(postDragPauseDuration)
+                                onUserInteraction?()
                             }
                     )
                     // 上下边缘淡出。
@@ -352,6 +377,8 @@ struct AppleMusicLyricsPage: View {
         autoScrollPauseUntil = .distantPast
         lastDragTime = .distantPast
         lastAutoScrollTime = .distantPast
+        // 沉浸模式：点了屏幕就把界面唤回来并重新计时。
+        onUserInteraction?()
 
         var transaction = Transaction()
         transaction.disablesAnimations = true
@@ -360,7 +387,6 @@ struct AppleMusicLyricsPage: View {
         }
 
         onSeek?(line.time)
-
         // 关键：把节流起点留在"过去"，而不是设为 now。
         //
         // seek 是异步的：位置更新后 `onChange(of: highlightedLyricID)` 才会触发。

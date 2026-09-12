@@ -161,12 +161,23 @@ final class LyricsBackdropView: UIView {
     /// 中间 0.12 让封面颜色透出来，两端 0.42 负责歌词滚进/滚出时的渐隐。
     private let middleScrimAlpha: CGFloat = 0.12
     private let edgeScrimAlpha: CGFloat = 0.42
-    /// 舞台式的**均匀**暗化度。
+    /// 舞台式的**均匀**暗化度（默认档）。
     ///
     /// 比卡片的「中间 0.12 / 两端 0.42」整体更暗一点：全屏是"深色舞台 + 白字 +
-    /// 白色原生控件"，底越暗，白的图标与文字越清楚（这也是 MeloX 能用同一块暗背景
-    /// 承载 header 和控件的原因）。
+    /// 白色原生控件"，底越暗，白的图标与文字越清楚。
     private let stageScrimAlpha: CGFloat = 0.30
+    /// 舞台式的**实心档**：全屏时必须靠这一层压住底下的 Spotify 页面。
+    ///
+    /// 起因：全屏页的原生结构碰不得（根视图里一个子视图都没有，藏一个就等于藏整页 ——
+    /// 见 `LyricsWordByWordFullscreenModernHostHook` 的说明）。既然不能"接管"原生视图，
+    /// 唯一的办法就是让我们的背景足够不透明，把底下的东西盖住。
+    ///
+    /// 取值 0.70 是照卡片式的实测效果反推的：
+    ///   兜底色 `Color.normalized(0.5)` ≈ `#7F7F7F`，卡片式压 `(0.12+0.42)/2 = 0.27`
+    ///   → 约 `#5D5D5D`，那个深度上歌词的黑白对比已经够用（内嵌预览一直如此）。
+    ///   舞台式要的是**均匀**，所以用单值达到同一效果：`1 - 0.70 = 0.30` → `#5C5C5C`。
+    /// 模糊封面（明度约 `#D0D0D0`）压完约 `#7B7B7B`，仍透得出来，不会糊成死黑。
+    private let solidStageScrimAlpha: CGFloat = 0.70
     /// 描边 overscan 比例，避免模糊后边缘透出底色。
     private let overscan: CGFloat = 1.12
 
@@ -175,6 +186,14 @@ final class LyricsBackdropView: UIView {
         didSet {
             guard style != oldValue else { return }
             applyStyle()
+        }
+    }
+
+    /// 是否走"实心"档（目前只有全屏用）。与 `style` 独立：舞台式也有"够不够实"之分。
+    var solid: Bool = false {
+        didSet {
+            guard solid != oldValue else { return }
+            applyGradientColors()
         }
     }
 
@@ -284,9 +303,10 @@ final class LyricsBackdropView: UIView {
             // 为什么不要渐变：全屏时这块背景要同时承载歌词**和** Spotify 原有的
             // header / 控件栏。一旦带上"上重下轻"的渐变，歌词区与控件区就会落在
             // 明暗不同的两段上 —— 那正是"壳肉割裂"的成因之一。
+            let alpha = solid ? solidStageScrimAlpha : stageScrimAlpha
             gradientLayer.colors = [
-                baseColor.withAlphaComponent(stageScrimAlpha).cgColor,
-                baseColor.withAlphaComponent(stageScrimAlpha).cgColor
+                baseColor.withAlphaComponent(alpha).cgColor,
+                baseColor.withAlphaComponent(alpha).cgColor
             ]
             gradientLayer.locations = [0.0, 1.0]
             return
@@ -306,9 +326,13 @@ final class LyricsBackdropView: UIView {
     /// 铺满整屏。**那是错的**：autoresizing 只在父视图 bounds 内重新分配空间，
     /// 子视图永远不可能超出父视图的 bounds。所以那样写的效果是"什么都没变"。
     ///
-    /// 正确的做法在挂载点：全屏时把 overlay 挂到全屏页的**根视图**上（见
-    /// `LyricsWordByWordFullscreenModernHostHook`），并隐藏原生的歌词内容容器。
-    /// 那时本视图自然就是整屏大小，不需要任何溢出技巧。
+    /// 正确的做法在挂载点：全屏时把整层挂到全屏页的**根视图**上（见
+    /// `LyricsWordByWordFullscreenModernHostHook`），那时本视图自然就是整屏大小。
+    ///
+    /// ⚠️ 曾经还有后半句"并隐藏原生的歌词内容容器" —— **那句是错的，已删除**。
+    /// 全屏页的根视图里一个子视图都没有（dump 实测），藏任何一个"看起来像歌词容器"
+    /// 的视图都会把整页内容一起藏掉。原生视图一个都不能碰：
+    /// 要盖住壳，只能靠 `solidStageScrimAlpha` 把背景做够暗。
     private func applyStyle() {
         // 两种样式都只需跟随宿主尺寸。
         autoresizingMask = [.flexibleWidth, .flexibleHeight]
