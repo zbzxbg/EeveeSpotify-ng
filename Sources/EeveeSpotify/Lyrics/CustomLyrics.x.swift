@@ -160,49 +160,119 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
             throw LyricsError.invalidSource
         }
 
-        var repository = lyricsRepository(for: source)
-        let lyricsDto: LyricsDto
+        // 「AMLL TTML 优先」：先向 AMLL 要逐词歌词，没正常返回再回退到用户在来源
+        // 选择器里设置的那个源（连同它的相关设置）。
+        //
+        // 回退目标刻意不是硬编码的：哪个源适合兜底完全取决于地区与语言 ——
+        // 日本用户设 PetitLyrics、大陆用户设网易云、其它地区设 SpicyLyrics，
+        // 各自回退到自己最合适的地方，不需要我们再维护一份地区判断。
+        // 该选项依赖逐词歌词，未开启时视为未勾选。
+        let amllPreferred = NgzhwmSettingsViewModel.isAmllPreferred
+            && NgzhwmSettingsViewModel.isWordByWordLyricsEnabled
+            && source != .amllTtml
+
+        if amllPreferred {
+            writeDebugLog("[Lyrics] AMLL preferred — trying AMLL TTML first, fallback target: \(source.description)")
+
+            // 走同一套单源错误处理：记录 fallbackError、弹 MxM 相关弹窗。
+            let amllDto = try? requestSingleSource(
+                .amllTtml,
+                searchQuery: searchQuery,
+                options: options,
+                recordFallbackError: true
+            )
+
+            if let dto = amllDto, !dto.lines.isEmpty {
+                writeDebugLog("[Lyrics] AMLL TTML succeeded — using it (\(dto.lines.count) line(s))")
+                return makeLyrics(from: dto, source: .amllTtml)
+            }
+
+            writeDebugLog(
+                "[Lyrics] AMLL TTML unavailable — falling back to \(source.description) with its own settings"
+            )
+            // 用户设置的就是 Genius 时不必再走下面的 geniusFallback，否则会重复请求一次。
+            let dto = try requestSingleSource(
+                source,
+                searchQuery: searchQuery,
+                options: options,
+                recordFallbackError: false,
+                allowGeniusFallback: source != .genius
+            )
+            return makeLyrics(from: dto, source: source)
+        }
+
+        let lyricsDto = try requestSingleSource(
+            source,
+            searchQuery: searchQuery,
+            options: options,
+            recordFallbackError: true
+        )
+
+        return makeLyrics(from: lyricsDto, source: source)
+    }
+
+    // MARK: - 单源请求
+
+    /// 按用户设置请求单一来源。保持既有行为不变：
+    /// - 该源的错误会写入 `lyricsState.fallbackError`（`recordFallbackError`）并弹 MxM 相关弹窗；
+    /// - 非 Genius 源失败且 `options.geniusFallback` 开启时，再用 Genius 重试一次。
+    ///
+    /// - Parameter allowGeniusFallback: 为 false 时跳过 Genius 兜底。用于
+    ///   「AMLL 优先」模式下用户设置本身就是 Genius 的场景，避免重复请求同一个源。
+    private func requestSingleSource(
+        _ source: LyricsSource,
+        searchQuery: LyricsSearchQuery,
+        options: LyricsOptions,
+        recordFallbackError: Bool,
+        allowGeniusFallback: Bool = true
+    ) throws -> LyricsDto {
+        let repository = source == .genius
+            ? geniusLyricsRepository
+            : lyricsRepository(for: source)
 
         do {
-            lyricsDto = try repository.getLyrics(searchQuery, options: options)
+            return try repository.getLyrics(searchQuery, options: options)
         } catch let error {
-            if source == .genius {
-                // Genius 失败（含查无此曲）直接抛出，不再兜底为空歌词
-                throw error
-            } else {
-                // 单源模式以前只打一句「failed — falling back to Genius」，具体错误被丢掉，
-                // 日志里看不出是网络失败、授权失败还是解析失败。
-                writeDebugLog("[Lyrics] \(source.description) failed: \(error)")
+            // 单源模式以前只打一句「failed — falling back to Genius」，具体错误被丢掉，
+            // 日志里看不出是网络失败、授权失败还是解析失败。
+            writeDebugLog("[Lyrics] \(source.description) failed: \(error)")
 
+            if recordFallbackError {
                 if let error = error as? LyricsError {
                     lyricsState.fallbackError = error
                     handleLyricsErrorPopUp(error)
                 } else {
                     lyricsState.fallbackError = .unknownError
                 }
-
-                if !options.geniusFallback {
-                    throw error
-                }
-
-                writeDebugLog("[Lyrics] \(source.description) failed — falling back to Genius")
-                source = .genius
-                repository = geniusLyricsRepository
-                // Genius 兜底源同样直接抛错，不再兜底为空歌词
-                lyricsDto = try repository.getLyrics(searchQuery, options: options)
             }
-        }
 
-        lyricsState.isEmpty = lyricsDto.lines.isEmpty
-        lyricsState.wasRomanized = lyricsDto.romanization == .romanized
-            || lyricsDto.romanization == .canBeRomanized
+            // 注意顺序：Genius 失败不再兜底为空歌词（与既有行为一致）——
+            // allowGeniusFallback 在用户设置本身就是 Genius 时为 false。
+            if !allowGeniusFallback || !options.geniusFallback {
+                throw error
+            }
+
+            writeDebugLog("[Lyrics] \(source.description) failed — falling back to Genius")
+            // Genius 兜底源同样直接抛错，不再兜底为空歌词
+            return try geniusLyricsRepository.getLyrics(searchQuery, options: options)
+        }
+    }
+
+    // MARK: - DTO → Lyrics
+
+    /// 把来源返回的 DTO 转成注入 Spotify 的 `Lyrics`，并同步全局状态
+    /// （`currentLyricsDto` / `currentLyricsVersion` / `lyricsState`）。
+    private func makeLyrics(from dto: LyricsDto, source: LyricsSource) -> Lyrics {
+        lyricsState.isEmpty = dto.lines.isEmpty
+        lyricsState.wasRomanized = dto.romanization == .romanized
+            || dto.romanization == .canBeRomanized
         lyricsState.loadedSuccessfully = true
 
-        currentLyricsDto = lyricsDto.romanizedForWordByWordIfEnabled()
+        currentLyricsDto = dto.romanizedForWordByWordIfEnabled()
         currentLyricsVersion += 1
 
         return Lyrics.with {
-            $0.data = lyricsDto.toSpotifyLyricsData(
+            $0.data = dto.toSpotifyLyricsData(
                 source: source.description,
                 useInstrumentalPlaceholder: source != .genius
             )

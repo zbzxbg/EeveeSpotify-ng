@@ -42,6 +42,9 @@ musixmatch_user_token = "Musixmatch 用户令牌";
 user_token_placeholder = "输入用户令牌或粘贴调试信息";
 
 
+ngzhwm_amll_preferred = "AMLL TTML优先";
+ngzhwm_amll_preferred_description = "选项生效需要开启逐词歌词。选项开启后会优先向AMLL TTML请求逐词歌词。如果AMLL的歌词未正常返回。则回退到用用户自己选择的歌词来源和相关设置进行请求。";
+
 genius_fallback = "Genius回退";
 genius_fallback_description = "如果 %@ 有问题，将使用 Genius 加载歌词。";
 

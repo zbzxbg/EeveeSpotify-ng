@@ -47,6 +47,9 @@ amll_ttml_description = "AMLL TTML: Provides high-quality word-by-word lyrics an
 musixmatch_user_token = "Musixmatch User Token";
 user_token_placeholder = "Enter User Token or Paste Debug Info";
 
+ngzhwm_amll_preferred = "Prefer AMLL TTML";
+ngzhwm_amll_preferred_description = "Requires word-by-word lyrics to be enabled. When on, word-by-word lyrics are requested from AMLL TTML first. If AMLL does not return lyrics normally, playback falls back to your selected lyrics source and its related settings.";
+
 genius_fallback = "Genius Fallback";
 genius_fallback_description = "Load lyrics from Genius if there is a problem with %@.";
 

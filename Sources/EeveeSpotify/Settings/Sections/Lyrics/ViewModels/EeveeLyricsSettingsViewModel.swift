@@ -38,6 +38,15 @@ class EeveeLyricsSettingsViewModel: ObservableObject {
         }
     }
     
+    @Published var amllPreferred = NgzhwmSettingsViewModel.isAmllPreferred {
+        didSet {
+            UserDefaults.standard.set(
+                amllPreferred,
+                forKey: NgzhwmSettingsViewModel.amllPreferredKey
+            )
+        }
+    }
+    
     @Published var disableLyricsFeature = UserDefaults.standard.bool(
         forKey: NgzhwmSettingsViewModel.disableLyricsFeatureKey
     ) {
@@ -94,6 +103,7 @@ class EeveeLyricsSettingsViewModel: ObservableObject {
             lyricsOptions,
             betterWordByWordLyrics,
             wordByWordLyrics,
+            amllPreferred,
             disableLyricsFeature,
             removeMxmInterludeSymbol,
             neteaseRomajiLocal,

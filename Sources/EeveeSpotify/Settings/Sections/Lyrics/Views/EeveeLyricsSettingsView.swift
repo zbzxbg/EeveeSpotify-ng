@@ -22,7 +22,17 @@ struct EeveeLyricsSettingsView: View {
             }
             
             if viewModel.lyricsSource != .notReplaced {
-                // 多级回退链路本身以 Genius 收尾，不再重复提供 Genius 兜底开关。
+                // 「AMLL TTML 优先」需要有一个「用户自己选的源」作为回退目标，
+                // 所以来源为 Genius / 多级回退 / LRCLIB / AMLL TTML 时不展示。
+                if viewModel.lyricsSource != .genius
+                    && viewModel.lyricsSource != .multiLevel
+                    && viewModel.lyricsSource != .lrclib
+                    && viewModel.lyricsSource != .amllTtml {
+                    amllPreferredSection()
+                }
+                
+                // Genius 回退保持原有条件：多级回退链路本身以 Genius 收尾，
+                // 不再重复提供该开关；来源为 Genius 时自己回退给自己没有意义。
                 if viewModel.lyricsSource != .genius && viewModel.lyricsSource != .multiLevel {
                     geniusFallbackSection()
                 }
@@ -91,6 +101,20 @@ struct EeveeLyricsSettingsView: View {
         } footer: {
             Text("genius_fallback_description"
                 .localizeWithFormat(viewModel.lyricsSource.description))
+        }
+    }
+    
+    /// 「AMLL TTML 优先」：勾选后先向 AMLL 要逐词歌词，没正常返回再回退到
+    /// 用户在来源选择器里设置的那个源。选项依赖逐词歌词，未开启时整体禁用。
+    @ViewBuilder private func amllPreferredSection() -> some View {
+        Section {
+            Toggle(
+                "ngzhwm_amll_preferred".localized,
+                isOn: $viewModel.amllPreferred
+            )
+            .disabled(!viewModel.wordByWordLyrics)
+        } footer: {
+            Text("ngzhwm_amll_preferred_description".localized)
         }
     }
     

@@ -8,6 +8,7 @@ class NgzhwmSettingsViewModel: ObservableObject {
     static let neteaseHideTranslationKey = "ngzhwm_neteaseHideTranslation"
     static let wordByWordLyricsKey = "ngzhwm_wordByWordLyrics"
     static let betterWordByWordLyricsKey = "ngzhwm_betterWordByWordLyrics"
+    static let amllPreferredKey = "ngzhwm_amllPreferred"
 
     static var isLyricsFeatureDisabled: Bool {
         UserDefaults.standard.bool(forKey: disableLyricsFeatureKey)
@@ -31,5 +32,17 @@ class NgzhwmSettingsViewModel: ObservableObject {
 
     static var isNeteaseHideTranslationEnabled: Bool {
         bool(forKey: neteaseHideTranslationKey, defaultValue: !isChineseDevice)
+    }
+
+    /// 「AMLL TTML 优先」：开启后先向 AMLL 要逐词歌词，没正常返回再回退到用户在
+    /// 来源选择器里设置的那个源（连同它的相关设置）。
+    ///
+    /// 之所以回退到「用户自己选的源」而不是硬编码一条回退链：哪个源适合兜底完全
+    /// 取决于地区与语言 —— 日本用户设 PetitLyrics、大陆用户设网易云、其它地区设
+    /// SpicyLyrics，各自回退到最合适的地方，不需要我们再维护地区判断。
+    ///
+    /// 默认关闭，已装用户的既有行为不变。
+    static var isAmllPreferred: Bool {
+        bool(forKey: amllPreferredKey, defaultValue: false)
     }
 }
