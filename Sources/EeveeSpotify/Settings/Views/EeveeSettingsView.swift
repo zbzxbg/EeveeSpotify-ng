@@ -52,7 +52,7 @@ struct EeveeSettingsView: View {
             
             Button {
                 pushSettingsController(
-                    with: EeveeLyricsSettingsView(navigationController: navigationController),
+                    with: EeveeLyricsSettingsView(),
                     title: "lyrics".localized
                 )
             } label: {

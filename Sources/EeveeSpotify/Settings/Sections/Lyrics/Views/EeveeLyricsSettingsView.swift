@@ -3,20 +3,16 @@ import SwiftUI
 struct EeveeLyricsSettingsView: View {
     @StateObject var viewModel = EeveeLyricsSettingsViewModel()
 
-    /// 二级菜单需要它来 push 子页面。
-    ///
-    /// 顶层 `EeveeSettingsView` 已经持有同一个 navigationController（设置页是它 push 的），
-    /// 这里按项目既有的"显式传参"方式往下传，而不是去运行时反查窗口层级。
-    let navigationController: UINavigationController?
-
-    init(navigationController: UINavigationController? = nil) {
-        self.navigationController = navigationController
-    }
-
     var body: some View {
         List {
             wordByWordLyricsSection()
             lyricsSourceSection()
+
+            // 「更好的逐词歌词」是「开启逐词歌词」的子项：
+            // 主开关没开时整项不展示（与下面 NetEase 那几项同一套写法）。
+            if viewModel.wordByWordLyrics {
+                betterWordByWordLyricsSection()
+            }
             
             // 「禁用歌词功能」作为「禁用歌词替换功能」的二级菜单：
             // 仅当「禁用歌词替换功能」开启（lyricsSource == .notReplaced）时显示，
@@ -67,10 +63,6 @@ struct EeveeLyricsSettingsView: View {
         .animation(.default, value: viewModel.animationValues)
     }
     
-    /// 「开启逐词歌词」+ 它的二级菜单入口。
-    ///
-    /// 「更好的逐词歌词」不是一个平级开关，而是这项的**二级菜单** ——
-    /// 它只在逐词歌词开启后才有意义，做成子页面可以让主列表保持简洁。
     @ViewBuilder private func wordByWordLyricsSection() -> some View {
         Section(
             footer: Text("ngzhwm_word_by_word_lyrics_description".localized)
@@ -79,33 +71,26 @@ struct EeveeLyricsSettingsView: View {
                 "ngzhwm_word_by_word_lyrics".localized,
                 isOn: $viewModel.wordByWordLyrics
             )
-
-            Button {
-                pushBetterWordByWordSettings()
-            } label: {
-                HStack {
-                    Text("ngzhwm_better_word_by_word_lyrics".localized)
-                        .foregroundColor(.primary)
-                    Spacer()
-                    ChevronRightView()
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(!viewModel.wordByWordLyrics)
         }
     }
 
-    private func pushBetterWordByWordSettings() {
-        guard let navigationController else { return }
-        let controller = EeveeSettingsViewController(
-            navigationController.view.frame,
-            settingsView: AnyView(
-                BetterWordByWordLyricsSettingsView(viewModel: viewModel)
-            ),
-            navigationTitle: "ngzhwm_better_word_by_word_lyrics".localized
-        )
-        navigationController.pushViewController(controller, animated: true)
+    /// 「更好的逐词歌词」：**跟着主开关显示/隐藏的子项**，不单独占一个平级位置。
+    ///
+    /// 与文件里其它条件项同一套写法（例如
+    /// `if viewModel.lyricsSource == .netease { ... }`）：
+    /// 逐词歌词没开时它没有任何意义，所以整项不展示，而不是置灰。
+    ///
+    /// 页脚里把"开启后自动带上什么"说清楚，免得用户去找已经不存在的
+    /// 模糊封面 / 系统材质开关（那两个已改为跟随本项自动启用）。
+    @ViewBuilder private func betterWordByWordLyricsSection() -> some View {
+        Section(
+            footer: Text("ngzhwm_better_word_by_word_lyrics_footer".localized)
+        ) {
+            Toggle(
+                "ngzhwm_better_word_by_word_lyrics".localized,
+                isOn: $viewModel.betterWordByWordLyrics
+            )
+        }
     }
     
     @ViewBuilder private func disableLyricsSection() -> some View {
