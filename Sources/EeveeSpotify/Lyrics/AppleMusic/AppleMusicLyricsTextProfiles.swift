@@ -71,21 +71,34 @@ struct LyricsTypographyScale {
     /// 同一行的原文与译文之间
     let supplementalSpacing: CGFloat
 
-    /// 全屏歌词页。24pt 试过偏小，调到 26。
+    /// 全屏歌词页。
+    ///
+    /// ⚠️ 字号是**被容器宽度约束的**，不能凭观感调大。
+    /// 实测（`[LyricWrap] text=` 字段，26pt / 366pt 容器）：
+    ///   "I'm tryna put you in the worst mood ah"  → 479.4pt
+    ///   "Twenty racks a table cut from ebony"     → 455.6pt
+    /// 也就是 **26pt 下每字符约 12.6pt**，38 字符的行要 479pt —— 远超 366pt 容器，
+    /// 于是**几乎每一行都必然折成两行**，且第一行剩不下多少空间。
+    /// 这不是折行算法的问题，是字号超出容器容量。
+    ///
+    /// 22pt 时该行约 406pt，第一行能放到约 34 字符（26pt 只有 31）。
+    /// 选 22 还有一个理由：它与本项目原有 overlay（`LyricsWordByWord.x.swift`
+    /// 的 `lyricsFontSize = 22`）一致，是用户已经接受过的量级。
     static let fullscreen = Self(
-        primaryFontSize: 26,
-        supplementalFontSize: 17,
-        lineSpacing: 16,
+        primaryFontSize: 22,
+        supplementalFontSize: 16,
+        lineSpacing: 15,
         supplementalSpacing: 4
     )
 
-    /// 内嵌「预览歌词」卡片：容器只有约 200pt 高，比全屏小一档。
+    /// 内嵌「预览歌词」卡片：容器约 200pt 高、且更窄，比全屏再小一档。
     ///
-    /// 17pt 试过偏小，调到 19；再大就会把卡片撑满、可见行数掉到 2 行以下。
+    /// 20pt 时实测 "Twenty racks a table cut from ebony" ≈ 339pt，
+    /// 能塞进预览的 342pt 容器（不折行）。再大就开始折。
     static let preview = Self(
-        primaryFontSize: 19,
+        primaryFontSize: 20,
         supplementalFontSize: 14,
-        lineSpacing: 9,
+        lineSpacing: 10,
         supplementalSpacing: 3
     )
 
