@@ -251,7 +251,7 @@ enum AmllTtmlParser {
             plainText: plainText,
             translation: normalized(inlineTranslation?.text ?? sidecarTranslation?.text),
             translationLanguage: translationLanguage,
-            romanization: normalized(inlineRomanization ?? sidecarRomanization?.text),
+            romanization: normalized(inlineRomanization?.text ?? sidecarRomanization?.text),
             backgroundVocal: backgroundVocal,
             agent: node.attribute("agent")
         )
