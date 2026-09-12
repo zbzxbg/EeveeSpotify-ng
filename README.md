@@ -1,6 +1,6 @@
 > **Language:** English | [简体中文](README-zhcn.md)
 
-### Based on [EeveeSpotify](https://github.com/whoeevee/EeveeSpotifyReborn).
+### Based on [EeveeSpotify](https://github.com/whoeevee/EeveeSpotifyReborn), but better.
 
 This fork is independently maintained by me and is not affiliated with the original author, whoeevee.
 
