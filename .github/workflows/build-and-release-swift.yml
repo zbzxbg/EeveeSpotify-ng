@@ -57,30 +57,21 @@ jobs:
             exit 1
           fi
 
-      - name: Install SwiftProtobuf (Rootful)
+      # 从源码编译 SwiftProtobuf，代替 whoeevee 那份预编译 deb。
+      # 原因：那份 deb 是 Swift 6.0.3 生成的 .swiftmodule，而 Swift 的二进制模块
+      # 格式不跨编译器版本兼容，Xcode 26.6（Swift 6.3.x）无法导入，构建直接失败。
+      # whoeevee/swift-protobuf 已归档不再更新，所以改成现场编译。
+      # 脚本还带 -emit-module-interface，导出 .swiftinterface 以防将来再撞同样的墙。
+      - name: Build SwiftProtobuf from source
         run: |
-          mkdir -p swiftprotobuf
-          cd swiftprotobuf
+          chmod +x Tools/SwiftProtobufBuild/build-swiftprotobuf.sh
 
-          wget "https://github.com/whoeevee/swift-protobuf/releases/download/${SWIFTPROTOBUF_VERSION}/org.swift.protobuf.swiftprotobuf_${SWIFTPROTOBUF_VERSION}_iphoneos-arm.deb"
+          # rootful → $THEOS/lib/SwiftProtobuf.framework
+          Tools/SwiftProtobufBuild/build-swiftprotobuf.sh
 
-          ar -x "org.swift.protobuf.swiftprotobuf_${SWIFTPROTOBUF_VERSION}_iphoneos-arm.deb"
-          tar -xvf data.tar.lzma
-
-          cp -r Library/Frameworks/SwiftProtobuf.framework "$THEOS/lib"
-
-      - name: Install SwiftProtobuf (Rootless)
-        run: |
-          mkdir -p swiftprotobuf-rootless
-          cd swiftprotobuf-rootless
-
-          wget "https://github.com/whoeevee/swift-protobuf/releases/download/${SWIFTPROTOBUF_VERSION}/org.swift.protobuf.swiftprotobuf_${SWIFTPROTOBUF_VERSION}_iphoneos-arm64.deb"
-
-          ar -x "org.swift.protobuf.swiftprotobuf_${SWIFTPROTOBUF_VERSION}_iphoneos-arm64.deb"
-          tar -xvf data.tar.lzma
-
-          mkdir -p "$THEOS/lib/iphone/rootless"
-          cp -r var/jb/Library/Frameworks/SwiftProtobuf.framework "$THEOS/lib/iphone/rootless"
+          # rootless → $THEOS/lib/iphone/rootless/SwiftProtobuf.framework
+          THEOS_PACKAGE_SCHEME=rootless \
+            Tools/SwiftProtobufBuild/build-swiftprotobuf.sh
 
       - name: Build Rootful Package
         run: |
