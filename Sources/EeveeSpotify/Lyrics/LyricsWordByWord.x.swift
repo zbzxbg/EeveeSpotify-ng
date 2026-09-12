@@ -939,7 +939,7 @@ final class WordByWordHost {
             )
             // 新层由主时钟驱动，旧 overlay 的回调必须清掉，否则两边同时渲染。
             WordByWordPlaybackClock.shared.onChange = nil
-            WordByWordPlaybackClock.shared.tickHandler = { ms in
+            WordByWordPlaybackClock.shared.tickHandler = { @MainActor ms in
                 AppleMusicLyricsOverlayHost.shared.tick(ms: ms)
             }
             WordByWordPlaybackClock.shared.start()
@@ -979,7 +979,13 @@ final class WordByWordHost {
         isAttached = true
 
         // 旧 overlay 的时间回调（新层走 `tickHandler`，两者互斥）。
-        WordByWordPlaybackClock.shared.onChange = { [weak overlayView] ms in
+        //
+        // ⚠️ 两个闭包都显式标 `@MainActor`：它们的目标
+        // （`AppleMusicLyricsOverlayHost.tick`、`LyricsWordByWordOverlayView.setCurrentTime`）
+        // 都是 main-actor 隔离的，而在 `attach`（已隔离）里创建的闭包**不会自动继承**
+        // 隔离 —— 不标就是"在非隔离同步上下文调用 MainActor 隔离方法"。
+        // 运行时无变化：时钟是 `CADisplayLink` 挂在 `.main` run loop 上的，本来就在主线程。
+        WordByWordPlaybackClock.shared.onChange = { @MainActor [weak overlayView] ms in
             overlayView?.setCurrentTime(ms)
         }
         WordByWordPlaybackClock.shared.tickHandler = nil
@@ -1005,103 +1011,111 @@ final class WordByWordHost {
 
 // MARK: - 挂载 hook（全屏歌词 VC）
 //
-// ⚠️ 每个回调都显式写了 `@MainActor`：**`ClassHook` 不继承 `UIViewController` 的
-// main-actor 隔离**（它是个普通的 Orion 泛型类，只有 `target` 是那个类型）。
-// 所以哪怕被 hook 的是 UIViewController 的方法，我们覆写的这个函数在编译器眼里
-// 仍是"非隔离"的，同步调用 `WordByWordHost.shared`（@MainActor 类）就会报
-// "在非隔离同步上下文调用 MainActor 隔离成员"。
+// ⚠️⚠️ **绝对不要在这些覆写方法（或 hook 类）上写 `@MainActor`。**
 //
-// 标 `@MainActor` 是**如实描述**而非迁就编译器：这些回调只会在主线程被调用
-// （UIKit 的生命周期回调本来就在主线程）。
+// Orion 的代码生成器是按**源码文本**拼接的：给覆写方法加 `@MainActor`，生成的
+// `EeveeSpotify.xc.swift` 里会拼出 `@MainActoroverride` 这种非法属性，`override`
+// 关键字也一起丢掉，整个文件报一串语法错误；而且它生成的 C 跳板是非隔离的，
+// 同步调用被标成 `@MainActor` 的方法又构成隔离违规。
+//
+// 正确的写法：方法保持非隔离，**在方法体里**用 `onMainThreadSync { }`
+// （定义在 `LyricsChromeVisibility.swift`）把"这是主线程"表达出来。
+// 它已经是主线程时是同步执行的，不改变任何时序；`viewWillDisappear` 里的清理
+// 因此仍然是同步的。
+//
+// 顺带：需要延后一拍再挂载的那两处（内嵌 / 全屏），沿用原有的
+// `DispatchQueue.main.async`，写在 `onMainThreadSync` 里面。
 
-@MainActor
 class LyricsWordByWordModernHostHook: ClassHook<UIViewController> {
     typealias Group = ModernLyricsGroup
     static let targetName = "Lyrics_NPVCommunicatorImpl.LyricsOnlyViewController"
 
-    @MainActor
     func viewDidAppear(_ animated: Bool) {
         orig.viewDidAppear(animated)
         let vc = target
-        WordByWordHost.shared.rememberInlineController(vc)
-        DispatchQueue.main.async {
-            WordByWordHost.shared.attach(to: vc, showsTranslation: false)
+        onMainThreadSync {
+            WordByWordHost.shared.rememberInlineController(vc)
+            DispatchQueue.main.async {
+                WordByWordHost.shared.attach(to: vc, showsTranslation: false)
+            }
         }
     }
 
-    @MainActor
     func viewWillDisappear(_ animated: Bool) {
         orig.viewWillDisappear(animated)
-        WordByWordHost.shared.detach()
+        onMainThreadSync {
+            WordByWordHost.shared.detach()
+        }
     }
 }
 
-@MainActor
 class LyricsWordByWordLegacyHostHook: ClassHook<UIViewController> {
     typealias Group = LegacyLyricsGroup
     static let targetName = "Lyrics_CoreImpl.LyricsOnlyViewController"
 
-    @MainActor
     func viewDidAppear(_ animated: Bool) {
         orig.viewDidAppear(animated)
         let vc = target
-        WordByWordHost.shared.rememberInlineController(vc)
-        DispatchQueue.main.async {
-            WordByWordHost.shared.attach(to: vc, showsTranslation: false)
+        onMainThreadSync {
+            WordByWordHost.shared.rememberInlineController(vc)
+            DispatchQueue.main.async {
+                WordByWordHost.shared.attach(to: vc, showsTranslation: false)
+            }
         }
     }
 
-    @MainActor
     func viewWillDisappear(_ animated: Bool) {
         orig.viewWillDisappear(animated)
-        WordByWordHost.shared.detach()
+        onMainThreadSync {
+            WordByWordHost.shared.detach()
+        }
     }
 }
 
 // MARK: - 全屏歌词挂载 hook（点击歌词框架展开后铺满的页面）
 
-@MainActor
 class LyricsWordByWordFullscreenModernHostHook: ClassHook<UIViewController> {
     typealias Group = ModernLyricsGroup
     static let targetName = "Lyrics_FullscreenElementPageImpl.FullscreenElementViewController"
 
-    @MainActor
     func viewDidAppear(_ animated: Bool) {
         orig.viewDidAppear(animated)
         let vc = target
-        DispatchQueue.main.async {
-            // 挂载点：**整屏的 vc.view**，除此之外什么都不做。
-            //
-            // 这里曾经把 overlay 挂到「歌词内容」子模块
-            // `Lyrics_FullscreenElementPageImpl.LyricsView`（frame=0,104 414x570），
-            // 后果是背景只能铺在 570pt 的容器内、容器边界上留一道"壳 / 肉"接缝 ——
-            // 这是要消除的东西，所以改成挂整屏。
-            //
-            // ⚠️ 但"挂整屏"必须配上"不碰原生视图"。中间我试过更激进的一版
-            // （隐藏歌词容器 + 把整层插到最底 + 清宿主底色），真机结果是**整页空白、
-            // Spotify 菜单全没了**。原因见 `attach` 里的说明：这一页的 header / 歌词 /
-            // 控件栏都不是 vc.view 的直接子视图，藏一个就等于藏整页。
-            // 所以现在：原生 UI 一个都不动，靠我们自己的背景够暗来盖住它。
-            // 全屏左边距用 24（贴近 Spotify 原生歌词内容的 24pt 内缩）
-            WordByWordHost.shared.attach(
-                to: vc,
-                sideInset: 24,
-                showsProviderFooter: true
-            )
+        onMainThreadSync {
+            DispatchQueue.main.async {
+                // 挂载点：**整屏的 vc.view**，除此之外什么都不做。
+                //
+                // 这里曾经把 overlay 挂到「歌词内容」子模块
+                // `Lyrics_FullscreenElementPageImpl.LyricsView`（frame=0,104 414x570），
+                // 后果是背景只能铺在 570pt 的容器内、容器边界上留一道"壳 / 肉"接缝 ——
+                // 这是要消除的东西，所以改成挂整屏。
+                //
+                // ⚠️ 但"挂整屏"必须配上"不碰原生视图"。中间我试过更激进的一版
+                // （隐藏歌词容器 + 把整层插到最底 + 清宿主底色），真机结果是**整页空白、
+                // Spotify 菜单全没了**。原因见 `attach` 里的说明：这一页的 header / 歌词 /
+                // 控件栏都不是 vc.view 的直接子视图，藏一个就等于藏整页。
+                // 所以现在：原生 UI 一个都不动，靠我们自己的背景够暗来盖住它。
+                // 全屏左边距用 24（贴近 Spotify 原生歌词内容的 24pt 内缩）
+                WordByWordHost.shared.attach(
+                    to: vc,
+                    sideInset: 24,
+                    showsProviderFooter: true
+                )
+            }
         }
     }
 
-    @MainActor
     func viewWillDisappear(_ animated: Bool) {
         orig.viewWillDisappear(animated)
-        WordByWordHost.shared.detach()
-        // 全屏以 sheet 形式盖在内嵌之上，关闭时内嵌 VC 不会重新 viewDidAppear；
-        // 用记住的内嵌 VC 把 overlay 挂回去。
-        WordByWordHost.shared.reattachToInline()
+        onMainThreadSync {
+            WordByWordHost.shared.detach()
+            // 全屏以 sheet 形式盖在内嵌之上，关闭时内嵌 VC 不会重新 viewDidAppear；
+            // 用记住的内嵌 VC 把 overlay 挂回去。
+            WordByWordHost.shared.reattachToInline()
+        }
     }
 }
 
-@MainActor
 class LyricsWordByWordFullscreenLegacyHostHook: ClassHook<UIViewController> {
     typealias Group = LegacyLyricsGroup
     static var targetName: String {
@@ -1111,33 +1125,35 @@ class LyricsWordByWordFullscreenLegacyHostHook: ClassHook<UIViewController> {
         }
     }
 
-    @MainActor
     func viewDidAppear(_ animated: Bool) {
         orig.viewDidAppear(animated)
         let vc = target
-        DispatchQueue.main.async {
-            // 挂到 vc.view（整屏）让背景铺满。
-            //
-            // 原生 headerView 用 `keepAboveView` 保留在 overlay 之上 —— 注意这是
-            // **旧 UIKit overlay 分支**才有的参数，Apple Music 层走不到这里；
-            // 而且它也只在 header 真的是 contentView 直接子视图时才生效。
-            // Modern 路径的 dump 已证明这类假设不可靠，所以那边一个原生视图都不碰
-            // （见 `LyricsWordByWordFullscreenModernHostHook`）。
-            let header = Ivars<UIView>(vc.view).headerView
-            WordByWordHost.shared.attach(
-                to: vc,
-                keepAboveView: header,
-                sideInset: 24,
-                showsProviderFooter: true
-            )
+        onMainThreadSync {
+            DispatchQueue.main.async {
+                // 挂到 vc.view（整屏）让背景铺满。
+                //
+                // 原生 headerView 用 `keepAboveView` 保留在 overlay 之上 —— 注意这是
+                // **旧 UIKit overlay 分支**才有的参数，Apple Music 层走不到这里；
+                // 而且它也只在 header 真的是 contentView 直接子视图时才生效。
+                // Modern 路径的 dump 已证明这类假设不可靠，所以那边一个原生视图都不碰
+                // （见 `LyricsWordByWordFullscreenModernHostHook`）。
+                let header = Ivars<UIView>(vc.view).headerView
+                WordByWordHost.shared.attach(
+                    to: vc,
+                    keepAboveView: header,
+                    sideInset: 24,
+                    showsProviderFooter: true
+                )
+            }
         }
     }
 
-    @MainActor
     func viewWillDisappear(_ animated: Bool) {
         orig.viewWillDisappear(animated)
-        WordByWordHost.shared.detach()
-        // 同 modern hook：关闭全屏时把 overlay 挂回内嵌歌词 VC
-        WordByWordHost.shared.reattachToInline()
+        onMainThreadSync {
+            WordByWordHost.shared.detach()
+            // 同 modern hook：关闭全屏时把 overlay 挂回内嵌歌词 VC
+            WordByWordHost.shared.reattachToInline()
+        }
     }
 }

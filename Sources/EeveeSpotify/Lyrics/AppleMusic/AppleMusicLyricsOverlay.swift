@@ -348,7 +348,9 @@ final class AppleMusicLyricsOverlayHost {
                 let ms = Int((time * 1000).rounded()) + 5
                 WordByWordSeeker.seek(toMs: ms)
             },
-            onUserInteraction: {
+            // 显式 `@MainActor`：目标（`LyricsChromeVisibilityController`）是
+            // main-actor 隔离的，而在方法体里创建的闭包不会自动继承隔离。
+            onUserInteraction: { @MainActor in
                 LyricsChromeVisibilityController.shared.noteUserInteraction()
             },
             clock: clock
