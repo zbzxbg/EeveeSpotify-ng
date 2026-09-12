@@ -1004,11 +1004,22 @@ final class WordByWordHost {
 }
 
 // MARK: - 挂载 hook（全屏歌词 VC）
+//
+// ⚠️ 每个回调都显式写了 `@MainActor`：**`ClassHook` 不继承 `UIViewController` 的
+// main-actor 隔离**（它是个普通的 Orion 泛型类，只有 `target` 是那个类型）。
+// 所以哪怕被 hook 的是 UIViewController 的方法，我们覆写的这个函数在编译器眼里
+// 仍是"非隔离"的，同步调用 `WordByWordHost.shared`（@MainActor 类）就会报
+// "在非隔离同步上下文调用 MainActor 隔离成员"。
+//
+// 标 `@MainActor` 是**如实描述**而非迁就编译器：这些回调只会在主线程被调用
+// （UIKit 的生命周期回调本来就在主线程）。
 
+@MainActor
 class LyricsWordByWordModernHostHook: ClassHook<UIViewController> {
     typealias Group = ModernLyricsGroup
     static let targetName = "Lyrics_NPVCommunicatorImpl.LyricsOnlyViewController"
 
+    @MainActor
     func viewDidAppear(_ animated: Bool) {
         orig.viewDidAppear(animated)
         let vc = target
@@ -1018,16 +1029,19 @@ class LyricsWordByWordModernHostHook: ClassHook<UIViewController> {
         }
     }
 
+    @MainActor
     func viewWillDisappear(_ animated: Bool) {
         orig.viewWillDisappear(animated)
         WordByWordHost.shared.detach()
     }
 }
 
+@MainActor
 class LyricsWordByWordLegacyHostHook: ClassHook<UIViewController> {
     typealias Group = LegacyLyricsGroup
     static let targetName = "Lyrics_CoreImpl.LyricsOnlyViewController"
 
+    @MainActor
     func viewDidAppear(_ animated: Bool) {
         orig.viewDidAppear(animated)
         let vc = target
@@ -1037,6 +1051,7 @@ class LyricsWordByWordLegacyHostHook: ClassHook<UIViewController> {
         }
     }
 
+    @MainActor
     func viewWillDisappear(_ animated: Bool) {
         orig.viewWillDisappear(animated)
         WordByWordHost.shared.detach()
@@ -1045,10 +1060,12 @@ class LyricsWordByWordLegacyHostHook: ClassHook<UIViewController> {
 
 // MARK: - 全屏歌词挂载 hook（点击歌词框架展开后铺满的页面）
 
+@MainActor
 class LyricsWordByWordFullscreenModernHostHook: ClassHook<UIViewController> {
     typealias Group = ModernLyricsGroup
     static let targetName = "Lyrics_FullscreenElementPageImpl.FullscreenElementViewController"
 
+    @MainActor
     func viewDidAppear(_ animated: Bool) {
         orig.viewDidAppear(animated)
         let vc = target
@@ -1074,6 +1091,7 @@ class LyricsWordByWordFullscreenModernHostHook: ClassHook<UIViewController> {
         }
     }
 
+    @MainActor
     func viewWillDisappear(_ animated: Bool) {
         orig.viewWillDisappear(animated)
         WordByWordHost.shared.detach()
@@ -1083,6 +1101,7 @@ class LyricsWordByWordFullscreenModernHostHook: ClassHook<UIViewController> {
     }
 }
 
+@MainActor
 class LyricsWordByWordFullscreenLegacyHostHook: ClassHook<UIViewController> {
     typealias Group = LegacyLyricsGroup
     static var targetName: String {
@@ -1092,6 +1111,7 @@ class LyricsWordByWordFullscreenLegacyHostHook: ClassHook<UIViewController> {
         }
     }
 
+    @MainActor
     func viewDidAppear(_ animated: Bool) {
         orig.viewDidAppear(animated)
         let vc = target
@@ -1113,6 +1133,7 @@ class LyricsWordByWordFullscreenLegacyHostHook: ClassHook<UIViewController> {
         }
     }
 
+    @MainActor
     func viewWillDisappear(_ animated: Bool) {
         orig.viewWillDisappear(animated)
         WordByWordHost.shared.detach()

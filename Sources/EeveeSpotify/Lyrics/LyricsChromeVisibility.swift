@@ -144,6 +144,8 @@ final class LyricsChromeVisibilityController {
 
 // MARK: - 找到"界面"到底是哪几块视图
 
+/// `@MainActor`：这几个方法只读 UIKit 视图层次，调用点（宿主挂载）也在主线程。
+@MainActor
 extension UIViewController {
 
     /// 全屏歌词页里需要淡出的原生容器。
@@ -159,8 +161,15 @@ extension UIViewController {
     /// - Parameter lyricsContent: `Lyrics_FullscreenElementPageImpl.LyricsView`，
     ///   取不到时返回空数组（调用方静默降级）。
     func fullscreenChromeCandidates(lyricsContent: UIView?) -> [UIView] {
+        // ⚠️ `UIViewController.view` 在 Swift 里是 `UIView!`（隐式解包可选），
+        // 而 `Ivars<T>` 要的是非可选的类实例 —— 不先解包就是
+        // "把 UIView? 传给要求类类型约束的 Ivars<T>"。VC 没加载视图时直接放弃。
+        guard let root = view else {
+            writeDebugLog("[ChromeVisibility] ⚠️ view not loaded — auto-hide disabled")
+            return []
+        }
+
         var candidates: [UIView] = []
-        let root = view
 
         if let header = Ivars<UIView>(root).headerView {
             candidates.append(header)
