@@ -861,6 +861,12 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
 
 // MARK: - 挂载管理
 
+/// `@MainActor`：整个挂载链路只碰 UIKit（往 VC 的视图上挂 overlay），而调用点
+/// （VC 的 viewDidAppear / SwiftUI 手势）本来都在主线程。标出来是为了让
+/// `AppleMusicLyricsOverlayHost`、`LyricsChromeVisibilityController` 这两个
+/// 同样 main-actor 隔离的单例能被合法调用 —— 否则就是
+/// "在非隔离同步上下文调用 MainActor 隔离的方法"。
+@MainActor
 final class WordByWordHost {
     static let shared = WordByWordHost()
 

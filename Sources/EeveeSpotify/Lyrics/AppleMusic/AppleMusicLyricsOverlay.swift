@@ -111,6 +111,7 @@ struct AppleMusicLyricsOverlayView: View {
 // MARK: - 挂载管理
 
 @available(iOS 26.0, *)
+@MainActor
 final class AppleMusicLyricsOverlayHost {
 
     static let shared = AppleMusicLyricsOverlayHost()
@@ -250,12 +251,19 @@ final class AppleMusicLyricsOverlayHost {
         // 只在全屏（solidBackdrop == true）启用 —— 内嵌预览那一小块不该把整页界面藏了。
         // 这一句放在最后：此时 overlay 已经挂好，淡出后露出来的是我们的歌词，不是空白。
         if solidBackdrop {
-            let lyricsContent = WindowHelper.shared.findFirstSubview(
-                "Lyrics_FullscreenElementPageImpl.LyricsView", in: view
-            )
-            LyricsChromeVisibilityController.shared.adopt(
-                controller.fullscreenChromeCandidates(lyricsContent: lyricsContent)
-            )
+            // ⚠️ 不能写 `controller.…`：`update(in:sideInset:showsProviderFooter:solidBackdrop:)`
+            // 收的是 **UIView**，手里根本没有 VC。VC 从视图反查（next-responder 链，
+            // 项目里既有 helper，`DarkPopUps.x.swift` 也这么用）。
+            if let controller = WindowHelper.shared.viewController(for: view) {
+                let lyricsContent = WindowHelper.shared.findFirstSubview(
+                    "Lyrics_FullscreenElementPageImpl.LyricsView", in: view
+                )
+                LyricsChromeVisibilityController.shared.adopt(
+                    controller.fullscreenChromeCandidates(lyricsContent: lyricsContent)
+                )
+            } else {
+                writeDebugLog("[ChromeVisibility] ⚠️ no view controller for host — auto-hide disabled")
+            }
         }
     }
 

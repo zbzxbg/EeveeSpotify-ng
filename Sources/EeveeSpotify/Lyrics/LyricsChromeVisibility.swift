@@ -1,4 +1,8 @@
+import Orion
 import UIKit
+
+// `Ivars` 来自 Orion —— 本文件用它读 Spotify 视图上的 `headerView`。
+// 少了这一行就是 "cannot find 'Ivars' in scope"。
 
 // 全屏歌词页：**停留一会儿就把 Spotify 自己的界面淡掉**（沉浸模式）。
 //
