@@ -96,6 +96,11 @@ struct AppleMusicLyricsPage: View {
     let provider: String
     /// 是否显示歌词提供者页脚。内嵌预览容器太小，不显示。
     let showsProviderFooter: Bool
+    /// 主色（歌词文字与页脚共用）。
+    ///
+    /// 每一行会把它继续传给 `SynchronizedLyricText`；页脚也用它（取一个低不透明度），
+    /// 这样"页脚"和"歌词"在同一个色系里，换主题色时不会漏掉页脚。
+    let primaryColor: Color
 
     init(
         lines: [LyricLine],
@@ -108,7 +113,8 @@ struct AppleMusicLyricsPage: View {
         showsBackgroundVocals: Bool = true,
         showsTranslation: Bool = false,
         provider: String = "",
-        showsProviderFooter: Bool = false
+        showsProviderFooter: Bool = false,
+        primaryColor: Color = .white
     ) {
         self.lines = lines
         self.playbackTime = playbackTime
@@ -121,6 +127,7 @@ struct AppleMusicLyricsPage: View {
         self.showsTranslation = showsTranslation
         self.provider = provider
         self.showsProviderFooter = showsProviderFooter
+        self.primaryColor = primaryColor
     }
 
     private static var profile: AppleMusicLyricsMotionProfile { .iOS26_6 }
@@ -393,7 +400,8 @@ struct AppleMusicLyricsPage: View {
             typography: typography,
             appliesTimingEffects: isActive,
             showsBackgroundVocals: showsBackgroundVocals,
-            showsTranslation: showsTranslation
+            showsTranslation: showsTranslation,
+            primaryColor: primaryColor
         )
         // 注：这里曾经有一个 `.frame(width: availableWidth, alignment: .leading)`。
         // 它是我为了"让 SwiftUI 与折行构建器用同一个宽度"加的，**MeloX 没有这个**。
