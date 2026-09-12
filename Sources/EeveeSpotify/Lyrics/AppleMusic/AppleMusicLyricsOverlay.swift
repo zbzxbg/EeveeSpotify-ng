@@ -58,9 +58,13 @@ struct AppleMusicLyricsOverlayView: View {
     /// 曲名 / 歌手 —— 自绘壳的标题栏用。
     ///
     /// 不再依赖原生那一页的标题视图（我们连它长什么样都读不到），直接取
-    /// `SPTPlayerTrack`。换歌时由宿主重建 rootView 时一起更新。
-    let trackTitle: String
-    let trackArtist: String
+    /// `SPTPlayerTrack`。
+    ///
+    /// ⚠️ 必须是 `var`：`update()` 在宿主没变时会**就地更新**宿主上的属性
+    /// （这样才不会重建 hosting controller、丢掉滚动位置）。换歌时标题要跟着变，
+    /// 声明成 `let` 就会在那一行报"对不可变属性赋值"。
+    var trackTitle: String
+    var trackArtist: String
 
     @ObservedObject var clock: AppleMusicLyricsClock
     /// 播放状态投影（当前时间 / 总时长 / 是否在播放），自绘壳的进度条与播放键用它。
@@ -281,11 +285,14 @@ final class AppleMusicLyricsOverlayHost {
         let hosting: UIHostingController<AppleMusicLyricsOverlayView>
         if let existing = hostingController, !hostChanged {
             hosting = existing
-            // 就地改背景：背景是 body 里按这两个值现算的，所以改完即为最新。
+            // 就地改这些参数：背景是 body 里按它们现算的，所以改完即为最新。
             hosting.rootView.backdropStyle = showsProviderFooter ? .stage : .card
             hosting.rootView.solidBackdrop = solidBackdrop
             hosting.rootView.sideInset = sideInset
             hosting.rootView.showsProviderFooter = showsProviderFooter
+            // 壳文本也一起对齐（换歌 + 换挂载点可能同时发生）。
+            hosting.rootView.trackTitle = currentTrackTitle
+            hosting.rootView.trackArtist = currentTrackArtist
         } else {
             detach()
             hosting = UIHostingController(
