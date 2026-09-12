@@ -6,6 +6,13 @@
 ### 09.12
 
 <details>
+<summary><b>v6.0.0-beta.7</b></summary>
+
+- Didn’t feel like writing it all out. Made some adjustments.
+
+</details>
+
+<details>
 <summary><b>v6.0.0-beta.6</b></summary>
 
 - Tested the availability of Better Word-by-Word Lyrics.
