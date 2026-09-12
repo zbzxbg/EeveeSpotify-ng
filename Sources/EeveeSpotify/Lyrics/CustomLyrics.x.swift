@@ -210,6 +210,7 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
 
         return makeLyrics(from: lyricsDto, source: source)
     }
+    }
 
     // MARK: - 单源请求
 

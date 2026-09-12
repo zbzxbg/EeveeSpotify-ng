@@ -721,39 +721,6 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
         }
     }
 
-    /// 按当前背景明暗决定文字色。
-    ///
-    /// `isDarkSurface` 为 nil 表示「当前是纯色兜底底」，此时沿用改动前的黑底约定；
-    /// 非 nil 时表示模糊封面层正在生效，原来的行色是按 Spotify 浅色底定的黑字 ——
-    /// 不切换的话未唱行与译文在模糊封面上会直接看不见。
-    ///
-    /// ⚠️ 这里由调用方显式传参，而不是在方法内读 `backdropView.isHidden`：
-    /// 后者会残留上一次的底色判断，在「切歌后先走纯色、再切到模糊封面」
-    /// 这种过渡帧上会做出错误结论。
-    ///
-    /// 返回 true 表示文字色发生了变化（调用方据此决定要不要重涂标签）。
-    @discardableResult
-    private func resolveTextColors(isDarkSurface: Bool?) -> Bool {
-        // 已唱/正在唱始终是最亮的一层，两种底色下都是白色。
-        let newLineColor: UIColor
-        let newTranslationColor: UIColor
-        if let isDarkSurface {
-            // 深底：未唱用白（靠 unsungWordOpacity 压暗，与已唱区分），译文白但略淡。
-            // 浅底：维持改动前的黑字。
-            newLineColor = isDarkSurface ? .white : .black
-            newTranslationColor = isDarkSurface ? UIColor.white.withAlphaComponent(0.75) : .black
-        } else {
-            newLineColor = .black
-            newTranslationColor = .black
-        }
-
-        let changed = newLineColor != lineColor || newTranslationColor != translationColor
-        lineColor = newLineColor
-        translationColor = newTranslationColor
-        activeLineColorValue = .white
-        return changed
-    }
-
     // MARK: 背景取色（跟随「定制」选项）
 
     /// 与 CustomLyrics 里原生日志歌词的取色逻辑一致：
