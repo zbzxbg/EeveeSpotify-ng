@@ -279,7 +279,6 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
             )
         }
     }
-}
 
 func getLyricsDataForCurrentTrack(_ originalPath: String, originalLyrics: Lyrics? = nil) throws -> Data {
     writeDebugLog("[Lyrics] Request for \(originalPath)")
