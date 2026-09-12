@@ -42,13 +42,13 @@ lyrics_additional_info = "Genius, NetEase, and PetitLyrics use fuzzy search, so 
 petitlyrics_description = "PetitLyrics: Provides Japanese lyrics.";
 spicylyrics_description = "SpicyLyrics: Provides word-by-word lyrics and lyrics that some other lyrics sources do not have. Visit spicylyrics.org for more details.";
 netease_description = "NetEase: Most lyrics come with timestamps. However, support for users outside mainland China is weaker, and timestamps may be misaligned.";
-amll_ttml_description = "AMLL TTML: Provides high-quality word-by-word lyrics and rich lyrics structure. Visit amll.dev for more details.";
+amll_description = "AMLL: Provides high-quality word-by-word lyrics and rich lyrics structure. Visit amll.dev for more details.";
 
 musixmatch_user_token = "Musixmatch User Token";
 user_token_placeholder = "Enter User Token or Paste Debug Info";
 
-ngzhwm_amll_preferred = "Prefer AMLL TTML";
-ngzhwm_amll_preferred_description = "Requires word-by-word lyrics to be enabled. When on, word-by-word lyrics are requested from AMLL TTML first. If AMLL does not return lyrics normally, playback falls back to your selected lyrics source and its related settings.";
+ngzhwm_amll_preferred = "Prefer AMLL";
+ngzhwm_amll_preferred_description = "Requires word-by-word lyrics to be enabled. When on, word-by-word lyrics are requested from AMLL first. If AMLL does not return lyrics normally, playback falls back to your selected lyrics source and its related settings.";
 
 genius_fallback = "Genius Fallback";
 genius_fallback_description = "Load lyrics from Genius if there is a problem with %@.";

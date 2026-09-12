@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - AmllTtmlLyricsRepository
 //
-// AMLL TTML 逐词歌词源（amll.dev）。
+// AMLL 逐词歌词源（amll.dev）。
 //
 // ── 数据来源 ──────────────────────────────────────────────────────────────
 // 走 AMLL 官方 HTTP API：https://api.amll.dev/v1/lyrics/get?spotifyId=<trackID>

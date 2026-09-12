@@ -29,8 +29,8 @@ struct EeveeLyricsSettingsView: View {
             }
             
             if viewModel.lyricsSource != .notReplaced {
-                // 「AMLL TTML 优先」需要有一个「用户自己选的源」作为回退目标，
-                // 所以来源为 Genius / 多级回退 / LRCLIB / AMLL TTML 时不展示。
+                // 「AMLL 优先」需要有一个「用户自己选的源」作为回退目标，
+                // 所以来源为 Genius / 多级回退 / LRCLIB / AMLL 时不展示。
                 if viewModel.lyricsSource != .genius
                     && viewModel.lyricsSource != .multiLevel
                     && viewModel.lyricsSource != .lrclib
@@ -119,7 +119,7 @@ struct EeveeLyricsSettingsView: View {
         }
     }
     
-    /// 「AMLL TTML 优先」：勾选后先向 AMLL 要逐词歌词，没正常返回再回退到
+    /// 「AMLL 优先」：勾选后先向 AMLL 要逐词歌词，没正常返回再回退到
     /// 用户在来源选择器里设置的那个源。选项依赖逐词歌词，未开启时整体禁用。
     @ViewBuilder private func amllPreferredSection() -> some View {
         Section {

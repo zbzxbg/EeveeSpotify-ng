@@ -36,7 +36,7 @@ class NgzhwmSettingsViewModel: ObservableObject {
         bool(forKey: neteaseHideTranslationKey, defaultValue: !isChineseDevice)
     }
 
-    /// 「AMLL TTML 优先」：开启后先向 AMLL 要逐词歌词，没正常返回再回退到用户在
+    /// 「AMLL 优先」：开启后先向 AMLL 要逐词歌词，没正常返回再回退到用户在
     /// 来源选择器里设置的那个源（连同它的相关设置）。
     ///
     /// 之所以回退到「用户自己选的源」而不是硬编码一条回退链：哪个源适合兜底完全

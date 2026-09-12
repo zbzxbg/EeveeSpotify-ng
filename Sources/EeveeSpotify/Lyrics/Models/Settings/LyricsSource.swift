@@ -12,7 +12,7 @@ enum LyricsSource: Int, CaseIterable, CustomStringConvertible {
     /// 多级回退：不是单一来源，而是固定顺序的链路（Mxm → PL → LRC → Gen）。
     /// 作为来源选择器里的一项，与具体来源互斥。
     case multiLevel
-    /// AMLL TTML：提供高质量逐词歌词与丰富的歌词结构（amll.dev）。
+    /// AMLL：提供高质量逐词歌词与丰富的歌词结构（amll.dev）。
     /// 追加在末尾，避免改变既有 rawValue。
     case amllTtml
     
@@ -40,7 +40,7 @@ enum LyricsSource: Int, CaseIterable, CustomStringConvertible {
     case .multiLevel:
         return "ngzhwm_multi_level_fallback".localized
     case .amllTtml:
-        return "AMLL TTML"
+        return "AMLL"
     }
     }
 

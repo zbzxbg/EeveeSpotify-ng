@@ -160,7 +160,7 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
             throw LyricsError.invalidSource
         }
 
-        // 「AMLL TTML 优先」：先向 AMLL 要逐词歌词，没正常返回再回退到用户在来源
+        // 「AMLL 优先」：先向 AMLL 要逐词歌词，没正常返回再回退到用户在来源
         // 选择器里设置的那个源（连同它的相关设置）。
         //
         // 回退目标刻意不是硬编码的：哪个源适合兜底完全取决于地区与语言 ——
@@ -172,7 +172,7 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
             && source != .amllTtml
 
         if amllPreferred {
-            writeDebugLog("[Lyrics] AMLL preferred — trying AMLL TTML first, fallback target: \(source.description)")
+            writeDebugLog("[Lyrics] AMLL preferred — trying AMLL first, fallback target: \(source.description)")
 
             // 走同一套单源错误处理：记录 fallbackError、弹 MxM 相关弹窗。
             let amllDto = try? requestSingleSource(
@@ -183,12 +183,12 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
             )
 
             if let dto = amllDto, !dto.lines.isEmpty {
-                writeDebugLog("[Lyrics] AMLL TTML succeeded — using it (\(dto.lines.count) line(s))")
+                writeDebugLog("[Lyrics] AMLL succeeded — using it (\(dto.lines.count) line(s))")
                 return makeLyrics(from: dto, source: .amllTtml)
             }
 
             writeDebugLog(
-                "[Lyrics] AMLL TTML unavailable — falling back to \(source.description) with its own settings"
+                "[Lyrics] AMLL unavailable — falling back to \(source.description) with its own settings"
             )
             // 用户设置的就是 Genius 时不必再走下面的 geniusFallback，否则会重复请求一次。
             let dto = try requestSingleSource(

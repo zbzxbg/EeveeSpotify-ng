@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - AMLL TTML 解析
+// MARK: - AMLL 歌词解析
 //
 // 把 TTML 正文解析成与项目既有模型对齐的中间结构（LyricsDto / LyricsLineDto / LyricsWordDto）。
 //

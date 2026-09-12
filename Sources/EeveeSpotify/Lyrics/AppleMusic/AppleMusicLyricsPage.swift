@@ -92,7 +92,7 @@ struct AppleMusicLyricsPage: View {
     let showsBackgroundVocals: Bool
     /// 是否显示行译文。Apple Music 歌词层一律 false。
     let showsTranslation: Bool
-    /// 歌词提供者（形如 `"AMLL TTML (EeveeSpotify)"`）。为空则不显示页脚。
+    /// 歌词提供者（形如 `"AMLL (EeveeSpotify)"`）。为空则不显示页脚。
     let provider: String
     /// 是否显示歌词提供者页脚。内嵌预览容器太小，不显示。
     let showsProviderFooter: Bool
