@@ -54,6 +54,14 @@ class NgzhwmSettingsViewModel: ObservableObject {
         bool(forKey: blurredLyricsBackdropKey, defaultValue: true)
     }
 
+    /// 「更好的逐词歌词」：Apple Music 风格的独立渲染层（需 iOS 18+）。
+    ///
+    /// 默认**关闭** —— 这是整体重写，先让用户显式开启；出问题一键回到旧实现，
+    /// 也避免老系统用户看到一块空白背景。
+    static var isBetterWordByWordLyricsEnabled: Bool {
+        bool(forKey: betterWordByWordLyricsKey, defaultValue: false)
+    }
+
     /// 在模糊封面之上再叠一层系统材质，压掉大面积模糊的色带。
     static var isLyricsBackdropMaterialEnabled: Bool {
         bool(forKey: lyricsBackdropMaterialKey, defaultValue: true)

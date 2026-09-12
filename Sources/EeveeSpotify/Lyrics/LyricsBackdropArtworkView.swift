@@ -69,12 +69,10 @@ enum LyricsArtworkResolver {
         for key in urlKeys {
             guard let raw = metadata[key], !raw.isEmpty else { continue }
 
-            // 少数版本给的是 "image://<hex>" 形式，直接当 URL 会解析失败。
-            if raw.hasPrefix("image://") {
-                let hex = String(raw.dropFirst("image://".count))
-                if let url = urlFromImageID(hex) { return url }
-                continue
-            }
+            // 实测：`image_url` 的值是 `spotify:image:<hex>`，不是 http(s) URL。
+            // 所以先走「当 image 标识解析」，再退回「当普通 URL 解析」——
+            // 顺序不能反：scheme 是 `spotify`，用 http 校验会把它直接拒掉。
+            if let url = urlFromImageID(raw) { return url }
 
             if let url = URL(string: raw), url.scheme?.hasPrefix("http") == true {
                 return url
@@ -87,16 +85,41 @@ enum LyricsArtworkResolver {
         }
 
         // URI 有时携带 image 信息（本地文件等场景）。
-        if let uriString = metadata["uri"], uriString.hasPrefix("image://") {
-            return urlFromImageID(String(uriString.dropFirst("image://".count)))
+        if let uriString = metadata["uri"], uriString.hasPrefix("image") {
+            return urlFromImageID(uriString)
         }
 
         return nil
     }
 
+    /// 把 Spotify 的 image 标识转成 CDN 地址。
+    ///
+    /// 实测 `metadata()["image_url"]` 拿到的是 **`spotify:image:<hex>` URI**，不是 http(s) URL，
+    /// 所以不能拿 `URL(string:)` 的 scheme 去判断（scheme 是 `spotify`，会被 http 校验拒掉）。
+    /// 这里统一剥掉各种可能的前缀，只留 hex，再拼 `i.scdn.co`。
     private static func urlFromImageID(_ rawID: String) -> URL? {
-        let hex = rawID.replacingOccurrences(of: "spotify:image:", with: "")
-        guard !hex.isEmpty else { return nil }
+        var hex = rawID.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        for prefix in ["spotify:image:", "image://", "spotify:image", "image:"] {
+            if hex.hasPrefix(prefix) {
+                hex = String(hex.dropFirst(prefix.count))
+                break
+            }
+        }
+
+        // 兜底：只保留最后一段，防止 `spotify:image://<hex>` 这类多斜杠写法。
+        if let last = hex.split(separator: "/").last {
+            hex = String(last)
+        }
+        hex = hex.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+
+        // 只接受看起来像 Spotify image hash 的值，避免把任意字符串拼成 URL。
+        // 用显式 ASCII 判断，不用 Character.isHexDigit（后者认得非 ASCII 的十六进制字符）。
+        let hexDigits = CharacterSet(charactersIn: "0123456789abcdefABCDEF")
+        guard hex.count >= 16,
+              hex.unicodeScalars.allSatisfy({ hexDigits.contains($0) }) else {
+            return nil
+        }
         return URL(string: "https://i.scdn.co/image/\(hex)")
     }
 }

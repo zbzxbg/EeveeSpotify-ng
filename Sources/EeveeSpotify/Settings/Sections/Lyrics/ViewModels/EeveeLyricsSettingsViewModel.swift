@@ -27,9 +27,7 @@ class EeveeLyricsSettingsViewModel: ObservableObject {
         }
     }
     
-    @Published var betterWordByWordLyrics = UserDefaults.standard.bool(
-        forKey: NgzhwmSettingsViewModel.betterWordByWordLyricsKey
-    ) {
+    @Published var betterWordByWordLyrics = NgzhwmSettingsViewModel.isBetterWordByWordLyricsEnabled {
         didSet {
             UserDefaults.standard.set(
                 betterWordByWordLyrics,

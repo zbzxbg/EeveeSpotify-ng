@@ -166,6 +166,10 @@ final class WordByWordPlaybackClock {
         displayLink = nil
     }
 
+    /// 供 iOS 18+ 的 Apple Music 渲染层使用的每帧回调。
+    /// 与 `onChange` 互斥：挂载时只会设置其中一个。
+    var tickHandler: ((Double) -> Void)?
+
     @objc private func tick() {
         let ms: Double
         if let seconds = WordByWordPositionResolver.shared.currentPositionSeconds() {
@@ -175,10 +179,24 @@ final class WordByWordPlaybackClock {
         }
         currentMs = ms
         onChange?(ms)
+        tickHandler?(ms)
     }
 }
 
 // MARK: - 叠加视图
+
+/// 逐字数据是否可用：至少一半的行有「多词」级时间轴（words.count >= 2）。
+/// 整行一个词 / 全退化 / 词级时间轴错位 等坏数据会低于阈值，回退原生行级。
+///
+/// 抽成文件级函数是因为它有**两个**消费者：旧的 UIKit overlay（`setCurrentTime`）
+/// 和 iOS 18+ 的 Apple Music 渲染层（挂载前判定）。判定口径必须一致。
+func hasUsableWordLevelData(_ dto: LyricsDto?) -> Bool {
+    guard let dto, dto.timeSynced else { return false }
+    let lines = dto.lines
+    guard !lines.isEmpty else { return false }
+    let wordLevelLines = lines.filter { ($0.words?.count ?? 0) >= 2 }.count
+    return wordLevelLines * 10 >= lines.count * 5  // >= 50%
+}
 
 private final class LineLabel: UILabel {
     var lineIndex = -1
@@ -349,7 +367,7 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
 
         // 只有「有足够多行真逐字 且 时间同步」才显示逐字；
         // 否则（无逐字 / 坏逐字 / 静态歌词 / 还没加载到 dto）一律透明 + 隐藏标签，回退 Spotify 原生。
-        guard let dto, dto.timeSynced, hasUsableWordLevel(dto) else {
+        guard let dto, hasUsableWordLevelData(dto) else {
             backgroundColor = .clear
             backdropView.isHidden = true
             stackView.isHidden = true
@@ -428,15 +446,6 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
                 applyHighlight(to: bestLine, wordIndex: bestWord)
             }
         }
-    }
-
-    /// 逐字数据是否可用：至少一半行有「多词」级时间轴（words.count >= 2）。
-    /// 整行一个词 / 全退化 / 词级时间轴错位 等坏数据会低于阈值，回退原生行级。
-    private func hasUsableWordLevel(_ dto: LyricsDto) -> Bool {
-        let lines = dto.lines
-        guard !lines.isEmpty else { return false }
-        let wordLevelLines = lines.filter { ($0.words?.count ?? 0) >= 2 }.count
-        return wordLevelLines * 10 >= lines.count * 5  // >= 50%
     }
 
     private func rebuild() {
@@ -887,6 +896,39 @@ final class WordByWordHost {
         if isAttached, hostView === view { return }
         detach()
 
+        let sideInset = sideInset ?? 16
+        let usable = hasUsableWordLevelData(currentLyricsDto)
+
+        // iOS 18+ 且开关打开且数据可用 → 走 Apple Music 渲染层。
+        // 三个条件缺一就走下面的 UIKit 旧实现，行为与改动前完全一致。
+        if #available(iOS 18.0, *),
+           usable,
+           NgzhwmSettingsViewModel.isBetterWordByWordLyricsEnabled {
+            AppleMusicLyricsOverlayHost.shared.update(
+                in: view,
+                sideInset: sideInset,
+                showsProviderFooter: showsProviderFooter
+            )
+            // 新层由主时钟驱动，旧 overlay 的回调必须清掉，否则两边同时渲染。
+            WordByWordPlaybackClock.shared.onChange = nil
+            WordByWordPlaybackClock.shared.tickHandler = { ms in
+                AppleMusicLyricsOverlayHost.shared.tick(ms: ms)
+            }
+            WordByWordPlaybackClock.shared.start()
+            hostView = view
+            isAttached = true
+            return
+        }
+
+        // 用不上新层就把它摘掉（例如从有逐字的歌切到纯 LRC 的歌）。
+        if #available(iOS 18.0, *) {
+            AppleMusicLyricsOverlayHost.shared.detach()
+        }
+
+        // 数据不可用时保持原生歌词，不做任何覆盖：
+        // 铺一层空白背景比直接放行原生渲染更糟。
+        guard usable else { return }
+
         let overlayView = LyricsWordByWordOverlayView(frame: view.bounds)
         overlayView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         overlayView.showsProviderFooter = showsProviderFooter
@@ -904,9 +946,11 @@ final class WordByWordHost {
         hostView = view
         isAttached = true
 
+        // 旧 overlay 的时间回调（新层走 `tickHandler`，两者互斥）。
         WordByWordPlaybackClock.shared.onChange = { [weak overlayView] ms in
             overlayView?.setCurrentTime(ms)
         }
+        WordByWordPlaybackClock.shared.tickHandler = nil
         WordByWordPlaybackClock.shared.start()
         writeDebugLog("[WordByWord] overlay attached")
     }
@@ -915,6 +959,10 @@ final class WordByWordHost {
         guard isAttached else { return }
         WordByWordPlaybackClock.shared.stop()
         WordByWordPlaybackClock.shared.onChange = nil
+        WordByWordPlaybackClock.shared.tickHandler = nil
+        if #available(iOS 18.0, *) {
+            AppleMusicLyricsOverlayHost.shared.detach()
+        }
         overlay?.removeFromSuperview()
         overlay = nil
         hostView = nil
