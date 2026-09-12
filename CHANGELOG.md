@@ -6,6 +6,13 @@
 ### 09.12
 
 <details>
+<summary><b>v6.0.0-beta.8</b></summary>
+
+- Experimental: Further improved the display of Better Word-by-Word Lyrics.
+
+</details>
+
+<details>
 <summary><b>v6.0.0-beta.7</b></summary>
 
 - Didn’t feel like writing it all out. Made some adjustments.
