@@ -867,6 +867,8 @@ final class WordByWordHost {
     private var overlay: LyricsWordByWordOverlayView?
     private weak var hostView: UIView?
     private var isAttached = false
+    /// 被我们隐藏掉的原生视图（目前是全屏页的歌词内容容器），卸载时要还原。
+    private weak var concealedView: UIView?
     /// 最近出现的内嵌歌词 VC（弱引用），全屏关闭后据此重新挂载。
     private weak var lastInlineController: UIViewController?
 
@@ -888,13 +890,17 @@ final class WordByWordHost {
     /// sideInset: 覆盖层歌词行的左右边距（全屏可用更大值，默认用 overlay 自己的）。
     /// showsProviderFooter: 是否在底部显示「歌词提供者」（全屏显示，内嵌不显示）。
     /// showsTranslation: 是否显示行级译文（全屏显示；内嵌「预览歌词」不显示）。
+    /// concealView: 全屏时被我们接管、需要隐藏的原生歌词容器。
+    /// mountsAtBottom: 整层是否插到宿主最底层并清掉宿主自刷的底色（全屏才为 true）。
     func attach(
         to controller: UIViewController,
         contentView: UIView? = nil,
         keepAboveView: UIView? = nil,
         sideInset: CGFloat? = nil,
         showsProviderFooter: Bool = false,
-        showsTranslation: Bool = true
+        showsTranslation: Bool = true,
+        concealView: UIView? = nil,
+        mountsAtBottom: Bool = false
     ) {
         guard renderEnabled else { return }
         let view = contentView ?? controller.view
@@ -912,10 +918,30 @@ final class WordByWordHost {
         if #available(iOS 26.0, *),
            usable,
            NgzhwmSettingsViewModel.isBetterWordByWordLyricsEnabled {
+            // 隐藏原生歌词内容容器。
+            //
+            // 为什么必须隐藏而不是"盖住"：它自己带一层暗化背景，铺在**歌词容器内**，
+            // 而容器之外（header / 控件栏）由 Spotify 用另一个颜色画。我们的层只要挂在
+            // 容器里，就会在容器边界形成"品红壳 / 暗色肉"的接缝 —— 这正是要消除的东西。
+            // 把它隐藏掉，我那块铺满整屏的背景才成为唯一背景，接缝自然消失。
+            if let concealView {
+                concealedView = concealView
+                concealView.isHidden = true
+                writeDebugLog(
+                    "[WordByWord] concealed native lyrics container "
+                        + "\(NSStringFromClass(type(of: concealView)))"
+                )
+            } else if mountsAtBottom {
+                // 全屏但没找到原生歌词容器：我们的层盖不住它，两边会同时渲染。
+                // 这条日志出现就说明类名猜错了，需要按 dump 出的真实类名修正。
+                writeDebugLog("[WordByWord] ⚠️ fullscreen conceal view not found")
+            }
+
             AppleMusicLyricsOverlayHost.shared.update(
                 in: view,
                 sideInset: sideInset,
-                showsProviderFooter: showsProviderFooter
+                showsProviderFooter: showsProviderFooter,
+                mountsAtBottom: mountsAtBottom
             )
             // 新层由主时钟驱动，旧 overlay 的回调必须清掉，否则两边同时渲染。
             WordByWordPlaybackClock.shared.onChange = nil
@@ -975,6 +1001,10 @@ final class WordByWordHost {
         if #available(iOS 26.0, *) {
             AppleMusicLyricsOverlayHost.shared.detach()
         }
+        // 还原被隐藏的原生视图。**必须还原** —— 否则离开全屏页后那段歌词
+        // 会一直是隐藏状态（它是 Spotify 自己的视图，我们只是借用期间藏起来）。
+        concealedView?.isHidden = false
+        concealedView = nil
         overlay?.removeFromSuperview()
         overlay = nil
         hostView = nil
@@ -1033,13 +1063,29 @@ class LyricsWordByWordFullscreenModernHostHook: ClassHook<UIViewController> {
         orig.viewDidAppear(animated)
         let vc = target
         DispatchQueue.main.async {
-            // 只覆盖「歌词内容」子模块 LyricsView（已由层级 dump 确认，frame=0,104 414x570）；
-            // 页面其余部分（标题 HeaderView、按钮 ControlsView、进度条 FooterView）保持原生
-            let contentView: UIView = WindowHelper.shared.findFirstSubview(
+            // ⚠️ 这里曾经把 overlay 挂到「歌词内容」子模块
+            // `Lyrics_FullscreenElementPageImpl.LyricsView`（frame=0,104 414x570）。
+            // 那样挂的后果：背景只能铺在 570pt 的歌词容器内，而 header / 控件栏在
+            // 容器之外、由 Spotify 用另一个颜色绘制 —— 容器边界上就出现
+            // "品红壳 / 暗色肉"的接缝，也就是一直被诟病的割裂感。
+            //
+            // 现在改成：
+            //   · 挂到 vc.view（整屏）→ 我那块模糊封面背景铺满整屏
+            //   · 隐藏原生歌词内容容器（concealView）→ 它自带的暗化背景不再参与，
+            //     接缝消失；原生文字本来也被我们盖着，隐藏掉更干净
+            //   · header / 控件栏是 vc.view 的子视图、不在 LyricsView 内，
+            //     所以**保持可见**，并浮在我们的 overlay 之上
+            let lyricsContent = WindowHelper.shared.findFirstSubview(
                 "Lyrics_FullscreenElementPageImpl.LyricsView", in: vc.view
-            ) ?? vc.view
-            // 全屏左边距用 24（贴近 Spotify 原生歌词内容的 24pt 内缩），比内嵌的 16 更靠右
-            WordByWordHost.shared.attach(to: vc, contentView: contentView, sideInset: 24, showsProviderFooter: true)
+            )
+            // 全屏左边距用 24（贴近 Spotify 原生歌词内容的 24pt 内缩）
+            WordByWordHost.shared.attach(
+                to: vc,
+                sideInset: 24,
+                showsProviderFooter: true,
+                concealView: lyricsContent,
+                mountsAtBottom: true
+            )
         }
     }
 
@@ -1065,10 +1111,22 @@ class LyricsWordByWordFullscreenLegacyHostHook: ClassHook<UIViewController> {
         orig.viewDidAppear(animated)
         let vc = target
         DispatchQueue.main.async {
-            // 把原生 headerView（分享/举报按钮）保留在 overlay 之上；
-            // iOS14/15 的歌词内容子模块等层级 dump 后再改为只覆盖内容区
+            // 把原生 headerView（分享/举报按钮）保留在 overlay 之上。
+            //
+            // 与 Modern 路径同策略：挂到 vc.view（整屏）让背景铺满，并把整层插到最底
+            // + 清掉宿主自刷的底色，这样 header / 控件栏的底色也由我们的背景提供，
+            // 不再出现"品红壳 / 暗色肉"。
+            // Legacy 的歌词内容子模块类名未经 dump 确认，所以**不做 conceal** ——
+            // 它自己的暗色底仍在，只是被压在品红之下，不影响观感。
+            // 如果实测发现 Legacy 上仍有接缝，再按 dump 出的类名补 conceal。
             let header = Ivars<UIView>(vc.view).headerView
-            WordByWordHost.shared.attach(to: vc, keepAboveView: header, sideInset: 24, showsProviderFooter: true)
+            WordByWordHost.shared.attach(
+                to: vc,
+                keepAboveView: header,
+                sideInset: 24,
+                showsProviderFooter: true,
+                mountsAtBottom: true
+            )
         }
     }
 

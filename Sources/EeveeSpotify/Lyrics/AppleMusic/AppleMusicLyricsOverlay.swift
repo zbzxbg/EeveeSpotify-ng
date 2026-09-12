@@ -110,6 +110,8 @@ final class AppleMusicLyricsOverlayHost {
     private var currentVersion: Int = -1
     private var currentSideInset: CGFloat = -1
     private var currentShowsProviderFooter: Bool = false
+    /// 当前是不是"铺在整屏最底层"的挂法。挂法变了要重挂（见 `update`）。
+    private var currentMountsAtBottom: Bool = false
 
     private init() {}
 
@@ -120,11 +122,31 @@ final class AppleMusicLyricsOverlayHost {
         return true
     }
 
-    /// 挂载或刷新。每帧由 `WordByWordPlaybackClock` 调用（和旧 overlay 共用一个入口）。
+    /// 挂载或刷新。挂载时调用一次，之后由 `tick(ms:)` 每帧驱动时间。
+    /// - Parameters:
+    ///   - view: 挂到哪个视图上。全屏页传 VC 的根视图（整屏），内嵌预览传歌词容器。
+    ///   - mountsAtBottom: 是否把整层插到**最底层**并清掉宿主自己的底色。
+    ///
+    ///     ⚠️ 这个参数回答的是"为什么背景铺满屏了、屏幕上还是有品红壳"。
+    ///
+    ///     全屏页的层次大致是：
+    ///       vc.view
+    ///         ├─ Lyrics_FullscreenElementPageImpl.LyricsView（歌词内容 + 自己的暗化底）
+    ///         └─ Lyrics_FullscreenElementPageImpl.FullscreenView
+    ///              ├─ header（标题/歌手/关闭）
+    ///              ├─ controlsView（分享 / 更多 / 进度条 / 播放键）
+    ///              └─ lyrics 内容（同一个 LyricsView 的引用，或是它的兄弟）
+    ///     品红壳属于**外层**（vc.view 或 FullscreenView），不在歌词容器里。
+    ///     所以"把 overlay 挂到根视图"只解决了尺寸，没解决**谁盖住谁**：
+    ///     外层的漆不是我们能"盖"掉的，得让它的底不存在（清掉）或让它整体挪到我们下面。
+    ///
+    ///     具体清哪一层由挂载时 dump 出的视图树决定（`dumpFullscreenHierarchy`）——
+    ///     壳的类名在各版本里不保证一致，猜不如看。
     func update(
         in view: UIView,
         sideInset: CGFloat,
-        showsProviderFooter: Bool
+        showsProviderFooter: Bool,
+        mountsAtBottom: Bool = false
     ) {
         // 数据变了就重建视图（换歌 / 重新取词）。
         if currentVersion != currentLyricsVersion {
@@ -140,15 +162,20 @@ final class AppleMusicLyricsOverlayHost {
             return
         }
 
-        // 布局参数变化时**就地改属性**，不重建 hosting controller。
+        // 宿主没变时**就地更新**，不重建 hosting controller。
         //
         // 之前这里重建 rootView：代价是整页 SwiftUI 状态（滚动位置）被丢掉，
         // 于是全屏 ↔ 预览切换后歌词回到顶部、不再居中于当前行。
         // 改成 var 属性写入后，SwiftUI 只重新计算布局，页面身份与滚动位置都保留。
-        if let hostingController, hostingController.view.superview === view {
-            let insetChanged = sideInset != currentSideInset
-            let footerChanged = showsProviderFooter != currentShowsProviderFooter
+        let insetChanged = sideInset != currentSideInset
+        let footerChanged = showsProviderFooter != currentShowsProviderFooter
+        // 挂法变了（内嵌 ↔ 全屏会把同一块宿主换成 vc.view）→ 需要**搬**视图，
+        // 但依然不重建：`removeFromSuperview` + `addSubview` 会把子视图和约束一起带走，
+        // SwiftUI 的页面身份与滚动位置都留着。
+        let mountChanged = mountsAtBottom != currentMountsAtBottom
+        let hostChanged = hostingController?.view.superview !== view
 
+        if let hostingController, !mountChanged, !hostChanged {
             currentSideInset = sideInset
             currentShowsProviderFooter = showsProviderFooter
 
@@ -159,21 +186,41 @@ final class AppleMusicLyricsOverlayHost {
             return
         }
 
+        let hosting: UIHostingController<AppleMusicLyricsOverlayView>
+        if let existing = hostingController, !hostChanged {
+            hosting = existing
+        } else {
+            detach()
+            hosting = UIHostingController(
+                rootView: makeRootView(
+                    lines: lines,
+                    sideInset: sideInset,
+                    showsProviderFooter: showsProviderFooter
+                )
+            )
+            hosting.view.backgroundColor = .clear
+            hosting.view.translatesAutoresizingMaskIntoConstraints = false
+            // 让 SwiftUI 内容透传触摸：只有歌词行自己是可点的。
+            hosting.view.isUserInteractionEnabled = true
+        }
+
+        // 换挂载点（内嵌的歌词容器 → 全屏页根视图）时先还原**上一个**宿主的底色，
+        // 再清当前这个 —— 保证任何时刻最多只有一块宿主被清过。
+        if let previous = hostView, previous !== view {
+            restoreHostBackground()
+        }
+
         currentSideInset = sideInset
         currentShowsProviderFooter = showsProviderFooter
-        detach()
+        currentMountsAtBottom = mountsAtBottom
 
-        let hosting = UIHostingController(
-            rootView: makeRootView(
-                lines: lines,
-                sideInset: sideInset,
-                showsProviderFooter: showsProviderFooter
-            )
-        )
-        hosting.view.backgroundColor = .clear
-        hosting.view.translatesAutoresizingMaskIntoConstraints = false
-        // 让 SwiftUI 内容透传触摸：只有歌词行自己是可点的。
-        hosting.view.isUserInteractionEnabled = true
+        hosting.view.removeFromSuperview()
+
+        // 全屏：先把宿主自己刷的那层"壳漆"清掉，再插到最底层。
+        // 顺序是刻意的 —— 清漆必须在插入之前，否则中间那一帧是「我们盖着品红」。
+        if mountsAtBottom {
+            stripHostBackground(of: view)
+        }
 
         view.addSubview(hosting.view)
         NSLayoutConstraint.activate([
@@ -183,19 +230,242 @@ final class AppleMusicLyricsOverlayHost {
             hosting.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
 
+        if mountsAtBottom {
+            // 插到最底：header / 控件栏 / 歌词容器全都从我们上方经过，
+            // 它们本身没有不透明底（底是宿主刷的、刚被清掉），于是整屏都是我们的背景。
+            view.sendSubviewToBack(hosting.view)
+            dumpFullscreenHierarchy(hosting: hosting.view, in: view)
+            // 再 dump 一次：present 动画期间 Spotify 才会把壳的视图装齐，
+            // `viewDidAppear` 那一刻看到的树并不完整。
+            scheduleFullscreenSecondPass(for: view)
+        }
+
         hostingController = hosting
         hostView = view
-        writeDebugLog("[AppleMusicLyrics] overlay attached (Apple Music path)")
+        writeDebugLog(
+            "[AppleMusicLyrics] overlay attached (Apple Music path)"
+                + " host=\(NSStringFromClass(type(of: view)))"
+                + " mountsAtBottom=\(mountsAtBottom)"
+        )
     }
 
     func detach() {
-        guard hostingController != nil else { return }
-        hostingController?.view.removeFromSuperview()
-        hostingController = nil
-        hostView = nil
+        // ⚠️ 还原宿主背景**不能**用 `guard hostingController != nil` 挡住：
+        // 走到这里可能已经没有任何 hosting controller，却仍然清着某个宿主的底色
+        // （例如全屏页被系统直接销毁、没走我们的 detach）。还原操作本身是幂等的
+        // ——两张表空了就什么都不做。
+        if hostingController != nil {
+            hostingController?.view.removeFromSuperview()
+            hostingController = nil
+            hostView = nil
+        }
+        // 把宿主那层漆还回去。**必须还原** —— 它是 Spotify 自己的视图，
+        // 我们只是借用期间清掉；不还原的话离开全屏后那段页面会失去底色。
+        restoreHostBackground()
+        currentMountsAtBottom = false
         writeDebugLog("[AppleMusicLyrics] overlay detached")
     }
 
+    // MARK: 宿主底色的清除与还原
+
+    /// 宿主根视图上被我们摘掉的层，以及它原来的背景色。`detach` 时原样还回。
+    ///
+    /// 用一个 `NSMapTable`（weak → strong）而不是字典：宿主一旦被销毁，
+    /// 我们不该再持有它的 layer 或视图。
+    private var strippedLayers = NSMapTable<UIView, NSMutableArray>(
+        keyOptions: .weakMemory,
+        valueOptions: .strongMemory
+    )
+    /// 被我们清掉 backgroundColor 的视图及其原色。
+    private var clearedBaseColors = NSMapTable<UIView, UIColor>(
+        keyOptions: .weakMemory,
+        valueOptions: .strongMemory
+    )
+
+    /// 清掉宿主「自己刷的漆」，让我们的背景成为唯一底色。
+    ///
+    /// 只处理宿主**自己**的两类东西，别的一律不碰：
+    ///   · `backgroundColor` —— 根视图自己刷的品红
+    ///   · `layer` 上的 `CAGradientLayer` / 纯色 `CALayer` —— Spotify 的暗化渐变
+    ///
+    /// ⚠️ 这里**刻意不去动子视图**。第一版我顺手把"铺满整屏的直接子视图"的底色也清了，
+    /// 那是错的：根视图的直接子视图里就有一个 `FullscreenView`，它自带底漆**就是为了
+    /// 盖住我们的背景**；把它的底色清掉，还没等我们理清层次，下一层的底漆又露出来 ——
+    /// 会变成"清了一层又冒一层"的打地鼠。正确顺序是先用 dump 看清是哪一层，
+    /// 再把那一层整体挪到我们下面（而不是把它刷的漆刮掉）。
+    ///
+    /// 形状层、遮罩层、`CAReplicatorLayer` 之类同样保留：那些多半承担布局或内容。
+    private func stripHostBackground(of view: UIView) {
+        if let rootColor = view.backgroundColor, !isClear(rootColor) {
+            clearedBaseColors.setObject(rootColor, forKey: view)
+            view.backgroundColor = .clear
+            writeDebugLog(
+                "[AppleMusicLyrics] cleared root background \(describe(rootColor))"
+            )
+        }
+
+        // ⚠️ 这里用类名比较而不是 `$0 is CALayer` / `type(of:) == CALayer.self`：
+        // `CAGradientLayer` 是 `CALayer` 的子类，`is` 会把它一起匹配进来（那没问题），
+        // 但 `type(of: $0) == CALayer.self` 在 Swift 里是编译不过的写法（元类型比较
+        // 需要同一静态类型）。类名字符串最省事，也方便日志里直接看。
+        let strippable = view.layer.sublayers?.filter {
+            $0 is CAGradientLayer || NSStringFromClass(type(of: $0)) == "CALayer"
+        } ?? []
+        guard !strippable.isEmpty else { return }
+
+        let store = strippedLayers.object(forKey: view) ?? NSMutableArray()
+        for layer in strippable {
+            store.add(layer)
+            layer.removeFromSuperlayer()
+        }
+        strippedLayers.setObject(store, forKey: view)
+        writeDebugLog(
+            "[AppleMusicLyrics] stripped \(strippable.count) background layer(s): "
+                + strippable.map { NSStringFromClass(type(of: $0)) }.joined(separator: ",")
+        )
+    }
+
+    private func restoreHostBackground() {
+        for view in allKeys(of: strippedLayers) {
+            guard let store = strippedLayers.object(forKey: view) else { continue }
+            for case let layer as CALayer in store {
+                // 插到最底：它原本就是我们摘掉的那层底漆。
+                view.layer.insertSublayer(layer, at: 0)
+            }
+        }
+        strippedLayers.removeAllObjects()
+
+        for view in allKeys(of: clearedBaseColors) {
+            view.backgroundColor = clearedBaseColors.object(forKey: view)
+        }
+        clearedBaseColors.removeAllObjects()
+    }
+
+    private func allKeys(of table: NSMapTable<UIView, NSMutableArray>) -> [UIView] {
+        var keys: [UIView] = []
+        for case let key as UIView in table.keyEnumerator() {
+            keys.append(key)
+        }
+        return keys
+    }
+
+    private func allKeys(of table: NSMapTable<UIView, UIColor>) -> [UIView] {
+        var keys: [UIView] = []
+        for case let key as UIView in table.keyEnumerator() {
+            keys.append(key)
+        }
+        return keys
+    }
+
+    private func isClear(_ color: UIColor) -> Bool {
+        var alpha: CGFloat = 0
+        guard color.getRed(nil, green: nil, blue: nil, alpha: &alpha) else { return false }
+        return alpha <= 0.001
+    }
+
+    private func describe(_ color: UIColor) -> String {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        guard color.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else {
+            return "\(color)"
+        }
+        return String(
+            format: "rgba(%.3f,%.3f,%.3f,%.3f)",
+            red, green, blue, alpha
+        )
+    }
+
+    // MARK: 诊断
+
+    /// 挂载后延时再 dump 一次视图树。
+    ///
+    /// 为什么需要第二次：全屏页是 **sheet**，`viewDidAppear` 时 present 动画还没结束，
+    /// Spotify 往往在动画期间才把 header / 控件栏这些壳的视图装齐。
+    /// 第一次 dump 看到的树可能是不完整的。
+    private func scheduleFullscreenSecondPass(for view: UIView) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self, weak view] in
+            guard let self, let view else { return }
+            guard let hosting = self.hostingController?.view,
+                  hosting.superview === view else { return }
+            writeDebugLog("[AppleMusicLyrics] fullscreen second pass")
+            view.sendSubviewToBack(hosting)
+            self.dumpFullscreenHierarchy(hosting: hosting, in: view)
+        }
+    }
+
+    /// 全屏页的视图树诊断（递归，最多 `maxDepth` 层）。
+    ///
+    /// 只在设置里开着「开启日志记录」时输出。
+    /// 用途：确认「壳」（品红底 + header + 控件栏）到底是**哪一层**视图刷的色。
+    /// 只有看清层次，才能决定把哪一层挪到我们下面 —— 盲清底色会变成打地鼠。
+    ///
+    /// 输出顺序与 `subviews` 一致 = **从后往前**，所以要盖住谁、谁在我上面，
+    /// 直接看序号就行。
+    private func dumpFullscreenHierarchy(
+        hosting: UIView,
+        in root: UIView,
+        maxDepth: Int = 4
+    ) {
+        writeDebugLog("[AppleMusicLyrics] ---- fullscreen view tree ----")
+        // 顺带报一下宿主父视图：全屏页是 sheet，真正刷壳色的可能是外面那层容器。
+        if let superview = root.superview {
+            writeDebugLog(
+                "[AppleMusicLyrics] superview=\(NSStringFromClass(type(of: superview)))"
+                    + " \(rectDescription(superview.frame))"
+                    + " bg=\(superview.backgroundColor.map(describe) ?? "nil")"
+            )
+        }
+
+        func line(for view: UIView, depth: Int, index: Int) -> String {
+            let indent = String(repeating: "  ", count: depth)
+            let relation = view === hosting ? " <- backdrop" : ""
+            return "[AppleMusicLyrics] \(indent)[\(index)] "
+                + NSStringFromClass(type(of: view))
+                + " \(rectDescription(view.frame))"
+                + " bg=\(view.backgroundColor.map(describe) ?? "nil")"
+                + " cicolor=\(cicolorDescription(view))"
+                + " alpha=\(String(format: "%.2f", view.alpha))"
+                + " hidden=\(view.isHidden)"
+                + " layers=\(layerSummary(view.layer))\(relation)"
+        }
+
+        func walk(_ view: UIView, depth: Int) {
+            for (index, subview) in view.subviews.enumerated() {
+                writeDebugLog(line(for: subview, depth: depth, index: index))
+                if depth < maxDepth, !subview.subviews.isEmpty {
+                    walk(subview, depth: depth + 1)
+                }
+            }
+        }
+
+        writeDebugLog(line(for: root, depth: 0, index: 0))
+        walk(root, depth: 1)
+        writeDebugLog("[AppleMusicLyrics] ---- end view tree ----")
+    }
+
+    private func layerSummary(_ layer: CALayer) -> String {
+        let names = (layer.sublayers ?? []).map { NSStringFromClass(type(of: $0)) }
+        return names.isEmpty ? "-" : names.joined(separator: ",")
+    }
+
+    /// 视图 layer 上 `contents` 的对象类型（如果有）。
+    ///
+    /// Spotify 的底色有时根本不走 `backgroundColor`，而是设 `backgroundImage` /
+    /// 直接把一张 `CIImage` 铺在 layer 的 `contents` 上 —— 那样 `bg=nil` 却有色块。
+    /// 这一栏就是为了不漏掉那种情况（`CIImage` 说明该层是用图片画的底）。
+    private func cicolorDescription(_ view: UIView) -> String {
+        guard let contents = view.layer.contents else { return "-" }
+        return String(describing: type(of: contents))
+    }
+
+    private func rectDescription(_ rect: CGRect) -> String {
+        String(
+            format: "(%.0f,%.0f %.0fx%.0f)",
+            rect.origin.x, rect.origin.y, rect.width, rect.height
+        )
+    }
     /// CADisplayLink 每帧回调入口。由 `WordByWordPlaybackClock.tickHandler` 驱动，
     /// 避免新层自带时钟与主时钟错拍。
     func tick(ms: Double) {

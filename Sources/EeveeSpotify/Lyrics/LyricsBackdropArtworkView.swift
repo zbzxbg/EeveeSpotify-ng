@@ -300,27 +300,18 @@ final class LyricsBackdropView: UIView {
         gradientLayer.locations = [0.0, 0.45, 1.0]
     }
 
-    /// 按当前 `style` 应用溢出范围与渐变。
+    /// 按当前 `style` 重算渐变。
+    ///
+    /// ⚠️ 这里曾经试图用「负 margin 的 autoresizingMask」让背景溢出到父视图之外，
+    /// 铺满整屏。**那是错的**：autoresizing 只在父视图 bounds 内重新分配空间，
+    /// 子视图永远不可能超出父视图的 bounds。所以那样写的效果是"什么都没变"。
+    ///
+    /// 正确的做法在挂载点：全屏时把 overlay 挂到全屏页的**根视图**上（见
+    /// `LyricsWordByWordFullscreenModernHostHook`），并隐藏原生的歌词内容容器。
+    /// 那时本视图自然就是整屏大小，不需要任何溢出技巧。
     private func applyStyle() {
-        switch style {
-        case .card:
-            // 普通跟随宿主尺寸（不能清空 —— 旧 overlay 的卡片背景靠这个撑满容器；
-            // SwiftUI 那边由 UIViewRepresentable 直接设 frame，不受影响）。
-            autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        case .stage:
-            // 负 margin 的 autoresizing：让本视图**溢出到宿主容器之外**，
-            // 一直铺到屏幕边缘。
-            //
-            // 为什么用这个而不是把背景挂到整屏的宿主视图上：Spotify 的 header 与
-            // 控件栏位于歌词容器**之外**，只有背景溢出去，两者才会落在同一块背景上。
-            // 而改这个属性不需要碰 Spotify 的任何视图层级（不改背景色、不藏控件），
-            // 风险最低。`clipsToBounds = true` 作用在自身 bounds 上，不会裁掉溢出部分。
-            autoresizingMask = [
-                .flexibleWidth, .flexibleHeight,
-                .flexibleLeftMargin, .flexibleRightMargin,
-                .flexibleTopMargin, .flexibleBottomMargin,
-            ]
-        }
+        // 两种样式都只需跟随宿主尺寸。
+        autoresizingMask = [.flexibleWidth, .flexibleHeight]
         applyGradientColors()
     }
 
