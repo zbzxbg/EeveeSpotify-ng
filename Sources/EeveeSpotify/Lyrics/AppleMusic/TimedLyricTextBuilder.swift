@@ -124,7 +124,6 @@ enum TimedLyricTextBuilder {
             constrainedWidth: constrainedWidth,
             fontSize: fontSize
         )
-
         let horizontalOffsetByCharacterOffset = Dictionary(
             uniqueKeysWithValues: forcedHorizontalOffsets.map {
                 ($0.characterOffset, $0.horizontalOffset)
@@ -314,7 +313,8 @@ enum TimedLyricTextBuilder {
             .joined(separator: ",")
 
         writeDebugLog(
-            "[LyricWrap] w=\(constrainedWidth.map { String(format: "%.1f", $0) } ?? "nil")"
+            "[LyricWrap] fs=\(String(format: "%.1f", fontSize))"
+                + " w=\(constrainedWidth.map { String(format: "%.1f", $0) } ?? "nil")"
                 + " layout=\(layoutWidth)"
                 + " breaks=[\(breaks)]"
                 + " \"\(marked(source, at: lineBreakOffsets))\""
@@ -561,16 +561,15 @@ enum TimedLyricTextBuilder {
         let containsWordSpacing = source.contains { $0.isWhitespace }
         let safetyMargin: CGFloat
         if usesTimedRunBoundaries, containsLatinText, containsWordSpacing {
-            // 逐字属性化后，SwiftUI 在词边界附近测得比 Core Text 更宽，
-            // 不给余量会出现「算出能放下、渲染时溢出」的错行。
+            // ⚠️ 必须与 MeloX 原版一致：5%。
+            //
+            // 这里曾被改成 3%，理由是"逐字属性化后 SwiftUI 测得偏宽，余量小一点更敢放"。
+            // 那个改动是错的 —— 它让测量宽度变大 7pt，折行点却没随之前移，
+            // 结果是每行的第二行都明显偏短（"…and a brand ↵new wagon" 这种）。
+            // MeloX 用 5% 是被它的逐字 Text 拼接形状验证过的，不要凭感觉调。
             safetyMargin = max(constrainedWidth * 0.05, fontSize * 0.5)
         } else {
-            // ⚠️ 这里曾经是 `max(fontSize * 0.02, 0.5)` —— 26pt 下只有 0.52pt，
-            // 而逐字属性化同样会让**没有空格的行**（中文/日文，以及没有空格的英文）
-            // 被 SwiftUI 测得比 Core Text 宽。余量太小就会把一个字挤到下一行，
-            // 表现为「这句明明还放得下，却提前折行」。
-            // 现在与拉丁分支取同一量级的余量，不再区分有没有词间空格。
-            safetyMargin = max(constrainedWidth * 0.03, fontSize * 0.5)
+            safetyMargin = max(fontSize * 0.02, 0.5)
         }
         return max(constrainedWidth - safetyMargin, 1)
     }

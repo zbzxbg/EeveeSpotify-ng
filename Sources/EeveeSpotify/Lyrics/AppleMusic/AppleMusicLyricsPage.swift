@@ -169,7 +169,8 @@ struct AppleMusicLyricsPage: View {
                                 row(
                                     for: line,
                                     position: position,
-                                    availableWidth: availableWidth
+                                    availableWidth: availableWidth,
+                                    proxy: proxy
                                 )
                                 .id(line.id)
                             }
@@ -255,13 +256,49 @@ struct AppleMusicLyricsPage: View {
         return true
     }
 
+    // MARK: 点行跳转
+
+    /// 点击某一行：seek 到它的时间，并**立刻把它滚到视口中间**。
+    ///
+    /// 为什么要在这里直接滚，而不是等 `onChange(of: highlightedLyricID)`：
+    ///   `onChange` 是唯一的滚动入口，而它被 `shouldAutoScroll()` 的两道闸门挡着
+    ///   （用户滚动暂停窗口 + 自动滚动节流）。点击之后位置更新触发的 `onChange`
+    ///   会被**节流挡掉**，表现就是"点了歌词停在原地、不回中间"。
+    ///
+    /// 所以点击走独立的滚动路径：
+    ///   1. 清掉暂停窗口与节流（用户刚刚明确表达了"我要看这一行"）
+    ///   2. 立刻把被点的这一行居中（不带动画，避免先看见一段位移）
+    ///   3. 再执行 seek；若实际高亮落在别的行，`onChange` 会补一次动画滚动
+    private func handleTap(on line: LyricLine, proxy: ScrollViewProxy) {
+        autoScrollPauseUntil = .distantPast
+        lastDragTime = .distantPast
+        lastAutoScrollTime = .distantPast
+
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            proxy.scrollTo(line.id, anchor: .center)
+        }
+
+        onSeek?(line.time)
+
+        // 关键：把节流起点留在"过去"，而不是设为 now。
+        //
+        // seek 是异步的：位置更新后 `onChange(of: highlightedLyricID)` 才会触发。
+        // 如果这里把 lastAutoScrollTime 设为 now，那次 onChange 会被 0.35s 节流挡掉，
+        // 于是"点了不回中间"。留成 distantPast 是让紧接着的那次补滚动**一定**放行 ——
+        // 它最多再滚一次（目标就是刚点的这一行），是幂等的。
+        lastAutoScrollTime = .distantPast
+    }
+
     // MARK: 单行
 
     @ViewBuilder
     private func row(
         for line: LyricLine,
         position: LyricPlaybackPosition,
-        availableWidth: CGFloat
+        availableWidth: CGFloat,
+        proxy: ScrollViewProxy
     ) -> some View {
         let isFocused = position.highlightedLyricID == line.id
         let isActive = position.activeLyricIDs.contains(line.id)
@@ -286,13 +323,11 @@ struct AppleMusicLyricsPage: View {
             showsBackgroundVocals: showsBackgroundVocals,
             showsTranslation: showsTranslation
         )
-        // ⚠️ 必须显式给宽度。
-        //
-        // `LazyVStack` 会向子视图提议 nil 宽度，此时 `Text` 会按「理想宽度」排版 ——
-        // 而我们的构建器已经按 availableWidth 插过换行符了，两边算的不是同一个宽度，
-        // 容易出现"明明还放得下却提前折行"。
-        // 放在视觉修饰符**之前**，让 scale/opacity/blur 作用于定宽后的内容。
-        .frame(width: availableWidth, alignment: .leading)
+        // 注：这里曾经有一个 `.frame(width: availableWidth, alignment: .leading)`。
+        // 它是我为了"让 SwiftUI 与折行构建器用同一个宽度"加的，**MeloX 没有这个**。
+        // 宽度已经通过 `constrainedWidth` 传给构建器与渲染器，再由
+        // `SynchronizedLyricText` 内部的 `.frame(maxWidth: .infinity)` 约束 —— 
+        // 多出来的这一层硬宽度反而让 SwiftUI 与构建器各算一次折行。
         // 焦点态：缩放 + 透明度 + 模糊。三者都跟随 focusStrength，所以
         // 行切换时是同一条曲线，不会各走各的。
         .scaleEffect(
@@ -310,12 +345,7 @@ struct AppleMusicLyricsPage: View {
         .blur(radius: blurRadius(focusStrength: focusStrength))
         .contentShape(Rectangle())
         .onTapGesture {
-            // 点行跳转：与旧 overlay 走同一个 seeker（statefulPlayer.seekTo:）。
-            // 跳转后位置会异步更新，随之而来的是 `onChange` 里的自动滚动；
-            // 这里顺带把节流时间戳推后一点，避免"点击的那一帧 + seek 生效的那一帧"
-            // 连续触发两段滚动动画。
-            lastAutoScrollTime = Date()
-            onSeek?(line.time)
+            handleTap(on: line, proxy: proxy)
         }
         .animation(
             .spring(duration: 0.45, bounce: 0.05, blendDuration: 0),
