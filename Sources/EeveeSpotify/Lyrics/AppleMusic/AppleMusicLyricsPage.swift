@@ -177,7 +177,7 @@ struct AppleMusicLyricsPage: View {
     /// 底部壳（进度条 + 时间 + 三键）的占位高度（同理）。
     private let shellFooterHeight: CGFloat = 116
     /// 标题栏顶端相对安全区的偏移。**负数 = 往上抬**；想再抬/降只改这一处。
-    private let headerTopInset: CGFloat = -20
+    private let headerTopInset: CGFloat = -30
     /// 底部淡出带高度：从「控件栏上方这么多」开始渐隐，到「控件栏顶部」完全透明。
     private let fadeBottomBand: CGFloat = 40
 
