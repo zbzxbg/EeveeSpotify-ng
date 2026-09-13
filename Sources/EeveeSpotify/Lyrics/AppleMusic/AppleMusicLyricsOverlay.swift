@@ -107,13 +107,19 @@ struct AppleMusicLyricsOverlayView: View {
                     onClose: nil,
                     onSeek: onSeek,
                     contentInsets: EdgeInsets(
-                        // 预览的上下边距要**基本对称**，否则"当前行居中"会被顶偏：
-                        // 页面已经按 `headerHeight`（卡片内顶部留白，实测 38pt）让过位，
-                        // 这里再写个小底边距，净效果就是"上面留 44、下面留 10" ——
-                        // 居中点因此比卡片正中高约 17pt（真机表现就是"歌词有点高"）。
+                        // ⚠️ 预览的底边距必须给够，否则"当前行居中"根本不会发生。
+                        //
+                        // 机制：ScrollView 只在**内容比视口高**时才能滚；中心对齐靠的是
+                        // 滚动偏移。卡片只有 320pt，歌词常常只有三四行（百余点），
+                        // 内容比视口矮 → 没有可滚范围 → `scrollTo(anchor: .center)`
+                        // 无从生效 → 内容只能贴顶，下面留一片空。
+                        // 真机表现就是"歌词那几个框太靠上 + 下面很空"。
+                        //
+                        // 120 这个值是按最坏情况倒推的：单行歌词也要让内容高过视口，
+                        // 这样任何一首歌的当前行都能居中。
                         top: showsProviderFooter ? 8 : 6,
                         leading: sideInset,
-                        bottom: showsProviderFooter ? 46 : 50,
+                        bottom: showsProviderFooter ? 46 : 120,
                         trailing: sideInset
                     ),
                     // 分档按「是不是全屏」决定：
@@ -147,10 +153,12 @@ struct AppleMusicLyricsOverlayView: View {
                     headerTopInset: showsProviderFooter ? -30 : 0,
                     // 预览不参与"划动收起壳"：那张小卡片上收起壳只会剩一片空白。
                     hidesShellOnScroll: showsProviderFooter,
-                    // 预览卡片只有 320pt 高，按比例算的底部淡出会变成 64pt 的一大条
-                    // （全屏 896pt 时同样比例只有 143pt 里的 20%，看着正常）。
-                    // 传一个更大的起点把带子压回去。
-                    fadeBottomOpaqueRatio: showsProviderFooter ? 0.86 : 0.93
+                    // 预览：底部淡出按**离底部的固定距离**压住，不再吃比例。
+                    //
+                    // 卡片只有 320pt，按比例算（0.86）会得到 45pt 的大淡出带；
+                    // 而底边距是 120pt（为了让内容可滚、当前行能居中），
+                    // 那片空白本来就不该参与淡出 —— 所以起点要落在最后一个可见行附近。
+                    fadeBottomOpaqueRatio: showsProviderFooter ? 0.86 : 0.62
                 )
             }
         }

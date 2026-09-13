@@ -114,19 +114,26 @@ enum WordByWordPlaybackControl {
     /// 展开到全屏歌词页。
     ///
     /// 「自己出壳」之后卡片上那个小箭头被我们盖住了，但**功能还在** ——
-    /// 找到原生那个"展开"控件、给它发一次点击即可。
+    /// 优先按无障碍 id 找（`lyrics-expand-button`，真机 dump 确认存在），
+    /// 找不到才退回按标签猜。
     @discardableResult
     static func expandToFullscreenLyrics() -> Bool {
-        tapNativeControl(
+        if tapControl(withIdentifier: "lyrics-expand-button", action: "expand lyrics") {
+            return true
+        }
+        return tapNativeControl(
             labels: ["expand", "full screen", "fullscreen", "展开", "全屏", "放大"],
             action: "expand lyrics"
         )
     }
 
-    /// 分享歌词。同样转发给原生分享按钮。
+    /// 分享歌词。同样优先按 id（`lyrics-share-button`）。
     @discardableResult
     static func shareLyrics() -> Bool {
-        tapNativeControl(
+        if tapControl(withIdentifier: "lyrics-share-button", action: "share lyrics") {
+            return true
+        }
+        return tapNativeControl(
             labels: ["share", "分享"],
             action: "share lyrics"
         )
@@ -171,11 +178,39 @@ enum WordByWordPlaybackControl {
 
     // MARK: 通用：点一个原生控件
 
+    /// 按**无障碍 id** 点一个原生控件。
+    ///
+    /// 比按标签找可靠得多 —— 标签是给 VoiceOver 看的、会随语言/文案变，
+    /// 而 id 是开发定义的稳定标识。真机 dump 已确认这几颗都有 id：
+    ///   · `lyrics-expand-button`  「将歌词界面扩展至全屏」
+    ///   · `lyrics-share-button`   「分享歌词」
+    ///   · `SPTNowPlayingNextTrackButton` / `SPTNowPlayingPreviousTrackButton`
+    ///
+    /// ⚠️ 为什么必须优先用 id：按标签全局找、取"面积最大"的做法**选错过**——
+    /// 卡片上的"展开"和 Now Playing 页那颗同名按钮同时在窗口里，
+    /// 结果选中了页面别处那颗（真机 dump：frame=(-36,692)；卡片那颗在 (334,360)），
+    /// 于是"点我们画的方框没反应"。
+    @discardableResult
+    static func tapControl(withIdentifier identifier: String, action: String) -> Bool {
+        guard let window = keyWindow else { return false }
+        var matches: [UIControl] = []
+        collectControls(byIdentifier: identifier, in: window, into: &matches)
+        guard let control = matches.first else {
+            writeDebugLog("[Shell] ⚠️ \(action) unavailable — id \"\(identifier)\" not found")
+            return false
+        }
+        writeDebugLog(
+            "[Shell] \(action) via id \"\(identifier)\""
+                + " label=\"\(control.accessibilityLabel ?? "")\""
+        )
+        sendTap(to: control)
+        return true
+    }
+
     /// 按无障碍标签点一个原生控件（自绘壳替原生按钮转发动作时用）。
     ///
-    /// 「自己出壳」之后，原生那些按钮被我们的不透明层盖住了 —— 它们看不见，
-    /// 但**仍然连着真实的功能**。所以转发动作最省事也最可靠的做法就是：
-    /// 找到那个控件、给它发一次点击。
+    /// ⚠️ 优先用 `tapControl(withIdentifier:action:)`：按标签找 + 取面积最大的策略
+    /// 在真机上**选错过对象**（见那个方法的注释）。这个方法保留给"没有 id"的场景。
     ///
     /// - Parameters:
     ///   - labels: 标签候选（小写、`contains` 匹配）。
@@ -203,6 +238,21 @@ enum WordByWordPlaybackControl {
         )
         sendTap(to: control)
         return true
+    }
+
+    private static func collectControls(
+        byIdentifier identifier: String,
+        in view: UIView,
+        into result: inout [UIControl]
+    ) {
+        if let control = view as? UIControl,
+           isOnScreen(control),
+           control.accessibilityIdentifier == identifier {
+            result.append(control)
+        }
+        for subview in view.subviews {
+            collectControls(byIdentifier: identifier, in: subview, into: &result)
+        }
     }
 
     // MARK: 关闭全屏
@@ -338,10 +388,17 @@ enum WordByWordPlaybackControl {
     /// 模糊匹配下"暂停键"会切到**专辑页** —— 那是命中了标签里带 "play/播放" 的
     /// 别的控件（例如"播放专辑"）。精确相等 + 排除词两道闸门能挡住它。
     private static let playPauseLabels = ["pause", "play", "暂停", "播放", "继续"]
-    /// 播放键要排掉的词：这些是"播放某个东西"的内容入口，不是传输控件。
+    /// 播放键要排掉的词。
+    ///
+    /// - 内容是"播放某个东西"的入口（专辑/歌单/电台 …），不是传输控件；
+    /// - **进度条也算**：真机 dump 抓到 `playPause -> ...ProgressBar6Slider
+    ///   label="曲目位置"` —— 它的标签里带"曲"、被模糊匹配命中过，
+    ///   结果"暂停键"去点了进度条（表现就是按下没反应或乱跳）。
     private static let playPauseExclusions = [
         "album", "playlist", "radio", "artist", "song radio", "mix",
         "专辑", "歌单", "歌手", "电台", "播放列表",
+        "曲目位置", "position", "slider", "进度",
+        "随机", "shuffle", "循环", "repeat", "队列", "queue", "设备",
     ]
     private static let nextLabels = ["next", "下一首", "下一曲", "下一个"]
     private static let previousLabels = ["previous", "prev", "上一首", "上一曲", "上一个"]
