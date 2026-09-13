@@ -204,21 +204,6 @@ final class AppleMusicLyricsOverlayHost {
     private var currentTrackTitle: String = ""
     private var currentTrackArtist: String = ""
 
-    /// 预览卡片的「壳」背景（只有内嵌预览用，全屏为 nil）。
-    ///
-    /// 背景：Spotify 在预览卡片那一层**只画一个纯专辑色**
-    /// （见 `SPTNowPlayingBackgroundViewModel.color()`），而我们的歌词区是模糊封面，
-    /// 于是"壳是纯色、肉是模糊"。这块视图就是把同一张模糊封面铺到卡片容器上。
-    private var shellBackdropView: LyricsBackdropView?
-    private weak var shellBackdropHost: UIView?
-    /// 被我们清掉底色的「卡片面板」视图 → 原色，`detachShellBackdrop` 时还原。
-    ///
-    /// 为什么需要清：`insertSubview(at: 0)` 只保证"在兄弟之间最靠后"，
-    /// **管不了容器自己刷的底色** —— 卡片的 `backgroundColor` 是不透明的专辑色，
-    /// 它画在所有子视图之下、却盖在我们的背景之上，表现就是卡片顶栏那条 39pt
-    /// （「歌词」+ 分享/展开按钮那一行）始终是纯专辑色。截图实测确认过。
-    private var clearedShellPanelColors: [UIView: UIColor] = [:]
-
     private init() {}
 
     /// 是否应该由本层接管（开关开启 + 系统版本够 + 有词级时间轴）。
@@ -256,8 +241,6 @@ final class AppleMusicLyricsOverlayHost {
             currentVersion = currentLyricsVersion
             currentLines = (currentLyricsDto?.toAppleMusicLyricLines()) ?? []
             refreshShellMetadata()
-            // 换歌了，壳背景也要换封面（`configure` 内部按 trackIdentifier 判断）。
-            refreshShellBackdrop()
             writeDebugLog("[AppleMusicLyrics] rebuilt with \(currentLines.count) line(s)")
             dumpLinesIfDebugEnabled(currentLines)
         }
@@ -362,154 +345,11 @@ final class AppleMusicLyricsOverlayHost {
     }
 
     func detach() {
-        detachShellBackdrop()
         guard hostingController != nil else { return }
         hostingController?.view.removeFromSuperview()
         hostingController = nil
         hostView = nil
         writeDebugLog("[AppleMusicLyrics] overlay detached")
-    }
-
-    // MARK: 预览卡片的「壳」背景
-
-    /// 内嵌预览专用：把模糊封面也铺到**卡片容器**上。
-    ///
-    /// 为什么必须单独一层：我们的歌词层挂在 `Lyrics_NPVCommunicatorImpl.LyricsOnlyView` 上，
-    /// 而**子视图出不了父视图 bounds**（`LyricsBackdropView.applyStyle` 的注释记过这个教训），
-    /// 所以卡片上"壳"的那一圈（顶部标题/按钮行、四周留白）永远轮不到我们的背景去画 ——
-    /// 那一圈显示的是 Spotify 的纯专辑色。这里把同一张模糊封面插到卡片容器的最底层：
-    ///   · `insertSubview(at: 0)` → 在容器底色之上、Spotify 自己的子视图（含分享/展开按钮）之下：
-    ///     背景统一了，按钮既没被挡也没被改；
-    ///   · `LyricsBackdropView` 自身 `isUserInteractionEnabled = false`，不吃触摸。
-    ///
-    /// - Parameter container: 卡片容器（取歌词视图的 superview）。传 nil 表示移除。
-    func updateShellBackdrop(in container: UIView?) {
-        guard let container else {
-            detachShellBackdrop()
-            return
-        }
-
-        // ⚠️ 清底色要放在最前面，**不能**放在下面那个 `guard backdrop.superview !== container`
-        // 之后：那个 guard 在"已经挂好了"时直接 return，清一次之后再没人补 ——
-        // 只要 Spotify 在换帧时又给我们上面那层刷回专辑色，就会闪回一次原色。
-        clearShellPanelBackgrounds(from: container)
-
-        let backdrop: LyricsBackdropView
-        if let existing = shellBackdropView {
-            backdrop = existing
-        } else {
-            backdrop = LyricsBackdropView()
-            shellBackdropView = backdrop
-        }
-
-        applyShellBackdropConfiguration(backdrop)
-
-        guard backdrop.superview !== container else { return }
-        backdrop.removeFromSuperview()
-        backdrop.translatesAutoresizingMaskIntoConstraints = false
-        // 插到最底层：不挡 Spotify 自己的按钮，也不动它们的层级。
-        // （容器自己那层底色由 `clearShellPanelBackgrounds` 负责清掉，否则会盖住它。）
-        container.insertSubview(backdrop, at: 0)
-        NSLayoutConstraint.activate([
-            backdrop.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            backdrop.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            backdrop.topAnchor.constraint(equalTo: container.topAnchor),
-            backdrop.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-        ])
-        shellBackdropHost = container
-
-        // 打出容器 + 祖先链（类名 + 尺寸）：万一"壳"不在 superview 这一层，
-        // 这份日志就是下次改挂载点的唯一依据。
-        writeDebugLog(
-            "[AppleMusicLyrics] shell backdrop in \(Self.describe(container))"
-                + " chain=\(Self.ancestorChain(of: container))"
-        )
-    }
-
-    /// 清掉卡片面板自己刷的不透明底色。
-    ///
-    /// 从容器往上走，把"不透明底色"的视图逐个清成透明 —— 卡片面板的颜色可能刷在
-    /// 容器本身，也可能刷在它上面那层同尺寸的中间视图上（实测两种都存在），
-    /// 所以两种都要处理。
-    ///
-    /// ⚠️ 这个方法**每帧**都会被调用（见 `LyricsWordByWord.x.swift` 里 tickHandler 的
-    /// 说明）：Spotify 会在换帧时把专辑色重新刷回去，只清一次就会闪回原色。
-    /// 已经清过的视图 `backgroundColor` 已是透明，会被 alpha 判据跳过，
-    /// 所以重复调用的开销只有几次属性读取。
-    ///
-    /// **不越界**：最多走 3 层，且遇到 `UITableView` / `UICollectionView` 就停 ——
-    /// 再往上就是滚动容器和页面级视图，清它们会波及卡片之外的东西。
-    func clearShellPanelBackgrounds(from container: UIView) {
-        var node: UIView? = container
-        var depth = 0
-
-        while let current = node, depth < 3 {
-            let className = NSStringFromClass(type(of: current))
-            if className.contains("TableView") || className.contains("CollectionView") { break }
-
-            if let color = current.backgroundColor, color.cgColor.alpha > 0.01 {
-                // 只记第一次的原值：清了之后它变透明，不会重复覆盖记录。
-                if clearedShellPanelColors[current] == nil {
-                    clearedShellPanelColors[current] = color
-                    writeDebugLog(
-                        "[AppleMusicLyrics] shell panel cleared "
-                            + "\(className) \(Self.describe(current)) color=\(color)"
-                    )
-                }
-                current.backgroundColor = .clear
-            }
-
-            node = current.superview
-            depth += 1
-        }
-    }
-
-    func detachShellBackdrop() {
-        // 底色必须还回去：它是 Spotify 自己的视图，我们只是借用期间清掉。
-        for (view, color) in clearedShellPanelColors {
-            view.backgroundColor = color
-        }
-        clearedShellPanelColors.removeAll()
-
-        guard let backdrop = shellBackdropView else { return }
-        backdrop.removeFromSuperview()
-        shellBackdropView = nil
-        shellBackdropHost = nil
-        writeDebugLog("[AppleMusicLyrics] shell backdrop detached")
-    }
-
-    /// 换歌时重新配置：`configure` 内部按 `trackIdentifier` 判断要不要重新拉封面图。
-    private func refreshShellBackdrop() {
-        guard let backdrop = shellBackdropView else { return }
-        applyShellBackdropConfiguration(backdrop)
-    }
-
-    /// 让壳背景与歌词区背景**用同一套参数**：同一张模糊封面、同一档卡片渐变。
-    private func applyShellBackdropConfiguration(_ backdrop: LyricsBackdropView) {
-        backdrop.style = .card
-        backdrop.solid = false
-        backdrop.isBackdropOpaque = true
-        backdrop.configure(
-            baseColor: .black,
-            showsArtwork: true,
-            material: NgzhwmSettingsViewModel.isLyricsBackdropMaterialEnabled
-        )
-    }
-
-    private static func describe(_ view: UIView) -> String {
-        NSStringFromClass(type(of: view))
-            + "(\(Int(view.bounds.width))x\(Int(view.bounds.height)))"
-    }
-
-    /// 从某视图向上列 5 层祖先（类名 + 尺寸）。
-    private static func ancestorChain(of view: UIView) -> String {
-        var names: [String] = []
-        var current: UIView? = view.superview
-        while let node = current, names.count < 5 {
-            names.append(describe(node))
-            current = node.superview
-        }
-        return names.joined(separator: " < ")
     }
 
     /// 换歌时更新壳上的曲名 / 歌手。

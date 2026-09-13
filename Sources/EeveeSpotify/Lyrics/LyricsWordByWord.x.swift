@@ -960,32 +960,10 @@ final class WordByWordHost {
                 showsProviderFooter: showsProviderFooter,
                 solidBackdrop: showsProviderFooter
             )
-            // 预览（无壳）：Spotify 在卡片那一层只画**纯专辑色**，而我们的歌词区是
-            // 模糊封面 —— 把同一张模糊封面也铺到卡片容器上，"壳"和"肉"才统一。
-            // 全屏自己有整屏背景，不需要这一层（传 nil 会把它摘掉）。
-            //
-            // ⚠️ 容器**不能**用 `view.superview`：实测那层比卡片矮 39pt
-            // （日志：`shell backdrop in UIView(374x261)`，而其父 `CardView(374x300)`），
-            // 差的正好是卡片顶部标题/按钮行的高度 —— 挂在那层上，卡片顶仍是纯专辑色。
-            // 所以按类名往上找 `CardView`，见 `cardContainer(for:)`。
-            AppleMusicLyricsOverlayHost.shared.updateShellBackdrop(
-                in: showsProviderFooter ? nil : Self.cardContainer(for: view)
-            )
             // 新层由主时钟驱动，旧 overlay 的回调必须清掉，否则两边同时渲染。
             WordByWordPlaybackClock.shared.onChange = nil
             WordByWordPlaybackClock.shared.tickHandler = { @MainActor ms in
                 AppleMusicLyricsOverlayHost.shared.tick(ms: ms)
-                // 预览卡片：**每帧**把容器自己刷的专辑底色清掉。
-                //
-                // 为什么不能只在挂载时清一次：Spotify 会在换帧时把那层专辑色重新
-                // 刷回去，清一次就会"闪回原色"（用户实测到的闪烁）。
-                // `updateShellBackdrop` 里已经清过的视图会被 alpha 判据跳过、
-                // 背景已挂好时还会提前 return，所以每帧调用的实际开销只有几次属性读取。
-                if !showsProviderFooter {
-                    AppleMusicLyricsOverlayHost.shared.clearShellPanelBackgrounds(
-                        from: Self.cardContainer(for: view)
-                    )
-                }
             }
             WordByWordPlaybackClock.shared.start()
             hostView = view
@@ -1108,29 +1086,6 @@ final class WordByWordHost {
         host.insertSubview(snapshot, aboveSubview: current)
         transitionStandInView = snapshot
         writeDebugLog("[Shell] stand-in installed for dismissal")
-    }
-
-    // MARK: 卡片容器
-
-    /// 预览卡片的容器。
-    ///
-    /// Spotify 把歌词视图放在 `...CardView` 里，中间还夹着一层比卡片**矮 39pt**
-    /// 的普通 UIView（那 39pt 正是卡片顶部标题/按钮行的高度）。挂在那层上，
-    /// 卡片顶部一条就还是 Spotify 的纯专辑色。所以按类名往上找 `CardView`；
-    /// 找不到才退回 `superview`（结构不同的版本上不至于完全不生效）。
-    static func cardContainer(for view: UIView) -> UIView {
-        var fallback: UIView?
-        var current: UIView? = view.superview
-        var depth = 0
-        while let node = current, depth < 4 {
-            if fallback == nil { fallback = node }
-            if NSStringFromClass(type(of: node)).contains("CardView") {
-                return node
-            }
-            current = node.superview
-            depth += 1
-        }
-        return fallback ?? view
     }
 }
 
