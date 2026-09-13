@@ -958,12 +958,26 @@ final class WordByWordHost {
                 in: view,
                 sideInset: sideInset,
                 showsProviderFooter: showsProviderFooter,
-                solidBackdrop: showsProviderFooter
+                solidBackdrop: showsProviderFooter,
+                backdropFrameOverride: showsProviderFooter
+                    ? nil
+                    : Self.previewCardRect(for: view)
             )
             // 新层由主时钟驱动，旧 overlay 的回调必须清掉，否则两边同时渲染。
             WordByWordPlaybackClock.shared.onChange = nil
+            var didLogPreviewRect = false
             WordByWordPlaybackClock.shared.tickHandler = { @MainActor ms in
                 AppleMusicLyricsOverlayHost.shared.tick(ms: ms)
+                // 预览：第一帧时把覆盖矩形与祖先链的裁切状态打一次日志。
+                //
+                // "画出去"能不能成，全看祖先链上有没有 `clipsToBounds = true`：
+                // 有任意一层裁切，我们画出去的部分就被切掉，表现就是"改了没效果"。
+                // 这行日志用来一眼分辨这两种情况，只打一次，不刷屏。
+                if !showsProviderFooter, !didLogPreviewRect {
+                    didLogPreviewRect = true
+                    Self.logPreviewCardRect(Self.previewCardRect(for: view), host: view)
+                    AppleMusicLyricsOverlayHost.shared.describeBackdropClipping()
+                }
             }
             WordByWordPlaybackClock.shared.start()
             hostView = view
@@ -1066,6 +1080,70 @@ final class WordByWordHost {
             return view
         }
         return overlay
+    }
+
+    // MARK: 预览卡片的矩形
+
+    /// 预览卡片在**宿主（歌词视图）坐标系**里的矩形。
+    ///
+    /// 用来让我们的背景"画出去"盖住卡片顶栏那条 39pt：
+    /// 卡片顶栏（「歌词」+ 分享/展开）与四周留白在歌词视图**之外**，
+    /// 子视图默认只能在自己的 bounds 里布局，所以那圈永远显示 Spotify 的专辑色。
+    ///
+    /// 不去猜任何魔法数字：从歌词视图往上找第一个"在竖直方向上比它大的祖先"
+    /// （日志实测是 `CardView`：374×300 vs 歌词视图 374×261），
+    /// 返回它在宿主坐标系里的 frame —— 于是矩形天然是 `(0, -39, 374, 300)`。
+    ///
+    /// 找不到更大祖先时返回 nil（那就保持原样：背景只铺满歌词区）。
+    static func previewCardRect(for host: UIView) -> CGRect? {
+        var current: UIView? = host.superview
+        var depth = 0
+        while let node = current, depth < 4 {
+            // 竖直方向必须真的比我们大：只比宽度没用（中间那层通常同宽）。
+            if node.bounds.height > host.bounds.height + 0.5,
+               node.bounds.width >= host.bounds.width - 0.5 {
+                let rect = node.convert(node.bounds, to: host)
+                return rect.insetBy(dx: -calibrationOverscan, dy: -calibrationOverscan)
+            }
+            current = node.superview
+            depth += 1
+        }
+        return nil
+    }
+
+    /// 覆盖矩形的四边外扩量。
+    ///
+    /// 为什么要外扩几pt：卡片是**圆角**的，而矩形覆盖会把圆角那一圈也涂成模糊封面，
+    /// 外扩是为了保证边缘不留缝（宁可略微溢出，也不要露出 Spotify 的底色）。
+    /// 太小会留缝、太大会糊到卡片外的内容上 —— 4pt 是保守值，需要时再调。
+    private static let calibrationOverscan: CGFloat = 4
+
+    /// 把矩形与祖先链的 `clipsToBounds` 打一次日志（只在开启日志记录时输出）。
+    ///
+    /// 这个方案成立的前提是"祖先链上没有人裁切"：只要有任意一层
+    /// `clipsToBounds = true`，我们画出去的部分就被切掉，表现就是"改了没效果"。
+    /// 这行日志就是用来一眼分辨这两种情况的。
+    static func logPreviewCardRect(_ rect: CGRect?, host: UIView) {
+        guard let rect else {
+            writeDebugLog("[PreviewBackdrop] no larger ancestor — 覆盖未启用")
+            return
+        }
+        var chain: [String] = []
+        var current: UIView? = host.superview
+        var depth = 0
+        while let node = current, depth < 4 {
+            chain.append(
+                "\(NSStringFromClass(type(of: node)))"
+                    + "(\(Int(node.bounds.width))x\(Int(node.bounds.height))"
+                    + ",clip=\(node.clipsToBounds))"
+            )
+            current = node.superview
+            depth += 1
+        }
+        writeDebugLog(
+            "[PreviewBackdrop] rect=\(NSStringFromCGRect(rect)) host=\(Int(host.bounds.width))x\(Int(host.bounds.height))"
+                + " chain=\(chain.joined(separator: " < "))"
+        )
     }
 
     private func installStandIn() {
