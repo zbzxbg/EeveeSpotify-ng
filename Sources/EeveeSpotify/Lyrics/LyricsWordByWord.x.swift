@@ -958,6 +958,15 @@ final class WordByWordHost {
                 showsProviderFooter: showsProviderFooter,
                 solidBackdrop: showsProviderFooter
             )
+            // 预览（无壳）：Spotify 在卡片那一层只画**纯专辑色**，而我们的歌词区是
+            // 模糊封面 —— 把同一张模糊封面也铺到卡片容器上，"壳"和"肉"才统一。
+            // 全屏自己有整屏背景，不需要这一层（传 nil 会把它摘掉）。
+            //
+            // 注意容器取的是 `view.superview`（歌词视图的父视图 = 卡片）。
+            // 子视图出不了父视图 bounds，所以"壳"那一圈只能靠换挂载点来覆盖。
+            AppleMusicLyricsOverlayHost.shared.updateShellBackdrop(
+                in: showsProviderFooter ? nil : view.superview
+            )
             // 新层由主时钟驱动，旧 overlay 的回调必须清掉，否则两边同时渲染。
             WordByWordPlaybackClock.shared.onChange = nil
             WordByWordPlaybackClock.shared.tickHandler = { @MainActor ms in

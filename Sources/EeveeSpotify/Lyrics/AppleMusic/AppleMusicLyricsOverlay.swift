@@ -200,6 +200,14 @@ final class AppleMusicLyricsOverlayHost {
     private var currentTrackTitle: String = ""
     private var currentTrackArtist: String = ""
 
+    /// 预览卡片的「壳」背景（只有内嵌预览用，全屏为 nil）。
+    ///
+    /// 背景：Spotify 在预览卡片那一层**只画一个纯专辑色**
+    /// （见 `SPTNowPlayingBackgroundViewModel.color()`），而我们的歌词区是模糊封面，
+    /// 于是"壳是纯色、肉是模糊"。这块视图就是把同一张模糊封面铺到卡片容器上。
+    private var shellBackdropView: LyricsBackdropView?
+    private weak var shellBackdropHost: UIView?
+
     private init() {}
 
     /// 是否应该由本层接管（开关开启 + 系统版本够 + 有词级时间轴）。
@@ -237,6 +245,8 @@ final class AppleMusicLyricsOverlayHost {
             currentVersion = currentLyricsVersion
             currentLines = (currentLyricsDto?.toAppleMusicLyricLines()) ?? []
             refreshShellMetadata()
+            // 换歌了，壳背景也要换封面（`configure` 内部按 trackIdentifier 判断）。
+            refreshShellBackdrop()
             writeDebugLog("[AppleMusicLyrics] rebuilt with \(currentLines.count) line(s)")
             dumpLinesIfDebugEnabled(currentLines)
         }
@@ -341,11 +351,104 @@ final class AppleMusicLyricsOverlayHost {
     }
 
     func detach() {
+        detachShellBackdrop()
         guard hostingController != nil else { return }
         hostingController?.view.removeFromSuperview()
         hostingController = nil
         hostView = nil
         writeDebugLog("[AppleMusicLyrics] overlay detached")
+    }
+
+    // MARK: 预览卡片的「壳」背景
+
+    /// 内嵌预览专用：把模糊封面也铺到**卡片容器**上。
+    ///
+    /// 为什么必须单独一层：我们的歌词层挂在 `Lyrics_NPVCommunicatorImpl.LyricsOnlyView` 上，
+    /// 而**子视图出不了父视图 bounds**（`LyricsBackdropView.applyStyle` 的注释记过这个教训），
+    /// 所以卡片上"壳"的那一圈（顶部标题/按钮行、四周留白）永远轮不到我们的背景去画 ——
+    /// 那一圈显示的是 Spotify 的纯专辑色。这里把同一张模糊封面插到卡片容器的最底层：
+    ///   · `insertSubview(at: 0)` → 在容器底色之上、Spotify 自己的子视图（含分享/展开按钮）之下：
+    ///     背景统一了，按钮既没被挡也没被改；
+    ///   · `LyricsBackdropView` 自身 `isUserInteractionEnabled = false`，不吃触摸。
+    ///
+    /// - Parameter container: 卡片容器（取歌词视图的 superview）。传 nil 表示移除。
+    func updateShellBackdrop(in container: UIView?) {
+        guard let container else {
+            detachShellBackdrop()
+            return
+        }
+
+        let backdrop: LyricsBackdropView
+        if let existing = shellBackdropView {
+            backdrop = existing
+        } else {
+            backdrop = LyricsBackdropView()
+            shellBackdropView = backdrop
+        }
+
+        applyShellBackdropConfiguration(backdrop)
+
+        guard backdrop.superview !== container else { return }
+        backdrop.removeFromSuperview()
+        backdrop.translatesAutoresizingMaskIntoConstraints = false
+        // 插到最底层：不挡 Spotify 自己的按钮，也不动它们的层级。
+        container.insertSubview(backdrop, at: 0)
+        NSLayoutConstraint.activate([
+            backdrop.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            backdrop.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            backdrop.topAnchor.constraint(equalTo: container.topAnchor),
+            backdrop.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+        ])
+        shellBackdropHost = container
+
+        // 打出容器 + 祖先链（类名 + 尺寸）：万一"壳"不在 superview 这一层，
+        // 这份日志就是下次改挂载点的唯一依据。
+        writeDebugLog(
+            "[AppleMusicLyrics] shell backdrop in \(Self.describe(container))"
+                + " chain=\(Self.ancestorChain(of: container))"
+        )
+    }
+
+    func detachShellBackdrop() {
+        guard let backdrop = shellBackdropView else { return }
+        backdrop.removeFromSuperview()
+        shellBackdropView = nil
+        shellBackdropHost = nil
+        writeDebugLog("[AppleMusicLyrics] shell backdrop detached")
+    }
+
+    /// 换歌时重新配置：`configure` 内部按 `trackIdentifier` 判断要不要重新拉封面图。
+    private func refreshShellBackdrop() {
+        guard let backdrop = shellBackdropView else { return }
+        applyShellBackdropConfiguration(backdrop)
+    }
+
+    /// 让壳背景与歌词区背景**用同一套参数**：同一张模糊封面、同一档卡片渐变。
+    private func applyShellBackdropConfiguration(_ backdrop: LyricsBackdropView) {
+        backdrop.style = .card
+        backdrop.solid = false
+        backdrop.isBackdropOpaque = true
+        backdrop.configure(
+            baseColor: .black,
+            showsArtwork: true,
+            material: NgzhwmSettingsViewModel.isLyricsBackdropMaterialEnabled
+        )
+    }
+
+    private static func describe(_ view: UIView) -> String {
+        NSStringFromClass(type(of: view))
+            + "(\(Int(view.bounds.width))x\(Int(view.bounds.height)))"
+    }
+
+    /// 从某视图向上列 5 层祖先（类名 + 尺寸）。
+    private static func ancestorChain(of view: UIView) -> String {
+        var names: [String] = []
+        var current: UIView? = view.superview
+        while let node = current, names.count < 5 {
+            names.append(describe(node))
+            current = node.superview
+        }
+        return names.joined(separator: " < ")
     }
 
     /// 换歌时更新壳上的曲名 / 歌手。
