@@ -37,7 +37,7 @@ enum WordByWordPlaybackControl {
             }
         }
 
-        if let button = findTransportButton(labels: playPauseLabels) {
+        if let button = findTransportButton(labels: playPauseLabels, exactMatch: true) {
             writeDebugLog("[Shell] togglePlayPause via native button")
             sendTap(to: button)
             return true
@@ -71,8 +71,20 @@ enum WordByWordPlaybackControl {
         return false
     }
 
+    /// 已播超过该秒数时，「上一首」先回到本曲开头（与 Spotify 原生一致）。
+    private static let previousRestartThreshold: Double = 5.0
+
     @discardableResult
     static func skipToPrevious() -> Bool {
+        // 标准语义：已播 ≥5s → 回本曲开头；不足 5s → 才切上一首。
+        // 位置读不到（nil）时直接落到原有逻辑，不影响可用性。
+        if let position = WordByWordPositionResolver.shared.currentPositionSeconds(),
+           position >= previousRestartThreshold {
+            writeDebugLog("[Shell] skipToPrevious -> restart current track (pos=\(position)s)")
+            WordByWordSeeker.seek(toMs: 0)
+            return true
+        }
+
         if let player = statefulPlayer as? NSObject {
             for name in ["skipToPrevious", "previous", "skipToPreviousTrack"] {
                 let selector = Selector(name)

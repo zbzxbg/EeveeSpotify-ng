@@ -167,10 +167,35 @@ struct AppleMusicLyricsPage: View {
     /// 两次自动滚动之间的最小间隔。
     private let minimumAutoScrollInterval: TimeInterval = 0.35
 
-    /// 顶部淡出结束位置（视口高度比例）—— 取自 MeloX 的 `topOpaque: 0.08`。
+    // MARK: 壳的占位 / 淡出带
+
+    /// 顶部壳（标题 + 歌手）的占位高度。
+    ///
+    /// 与 `scrollInsets.top` 用的是**同一个数**。抽成常量是为了让「淡出遮罩」和
+    /// 「歌词留白」永远对齐 —— 两处各写一份字面量，改一处就会错位。
+    private let shellHeaderHeight: CGFloat = 62
+    /// 底部壳（进度条 + 时间 + 三键）的占位高度（同理）。
+    private let shellFooterHeight: CGFloat = 116
+    /// 标题栏顶端相对安全区的偏移。**负数 = 往上抬**；想再抬/降只改这一处。
+    private let headerTopInset: CGFloat = -8
+    /// 底部淡出带高度：从「控件栏上方这么多」开始渐隐，到「控件栏顶部」完全透明。
+    private let fadeBottomBand: CGFloat = 40
+
+    // MARK: 划动时收起壳
+
+    /// 划动歌词时壳（标题栏 / 控件栏 / 关闭键）是否收起 —— 收起即「全屏歌词」。
+    @State private var isShellHidden = false
+    /// 待执行的「把壳调回来」任务；再次划动时取消，避免刚抬手就被旧定时器拉回来。
+    @State private var shellRestoreTask: Task<Void, Never>?
+    /// 松手后多久把壳调回来（这个窗口同时覆盖了松手后的惯性滚动阶段）。
+    private let shellRestoreDelay: TimeInterval = 2
+
+    /// **无壳（内嵌预览）兜底路径**的顶部淡出结束位置（视口高度比例）—— 取自
+    /// MeloX 的 `topOpaque: 0.08`。全屏有壳时不用它，改用 `fadeMaskStops`
+    /// 按壳的真实占位算。
     private var fadeTopRatio: CGFloat { 0.08 }
-    /// 底部开始淡出的位置。MeloX 用 0.84；全屏时下方还有控件栏要避让，
-    /// 所以按是否有页脚留白略微提前。
+    /// **无壳兜底路径**的底部开始淡出位置。MeloX 用 0.84；这里按是否有页脚留白
+    /// 略微提前。
     private var fadeBottomOpaqueRatio: CGFloat {
         showsProviderFooter ? 0.80 : 0.86
     }
@@ -200,13 +225,22 @@ struct AppleMusicLyricsPage: View {
             // 这两块**不参与滚动**，所以它们的高度必须在这里一次性让出来。
             let safeArea = geometry.safeAreaInsets
             let scrollInsets = EdgeInsets(
-                top: (headerContent == nil ? contentInsets.top : safeArea.top + 62)
-                    + contentInsets.top,
+                top: (headerContent == nil
+                    ? contentInsets.top
+                    : safeArea.top + shellHeaderHeight) + contentInsets.top,
                 leading: contentInsets.leading,
-                bottom: (footerContent == nil ? contentInsets.bottom : safeArea.bottom + 116)
-                    + contentInsets.bottom,
+                bottom: (footerContent == nil
+                    ? contentInsets.bottom
+                    : safeArea.bottom + shellFooterHeight) + contentInsets.bottom,
                 trailing: contentInsets.trailing
             )
+
+            // 上下淡出带的渐变停靠点。
+            //   上：从「歌曲标题顶部」透明 → 到「歌手名字下方」完全不透明
+            //   下：从「控件栏上方 fadeBottomBand」完全不透明 → 到「控件栏顶部」透明
+            // 中间整段清晰。以前直接用整屏比例（0.08 / 0.80 / 1.0），淡出落在整屏的
+            // 顶和底，跟壳的位置没关系 —— 现在改成按壳的真实占位算。
+            let maskStops = fadeMaskStops(size: geometry.size, safeArea: safeArea)
 
             ZStack {
                 background
@@ -284,17 +318,22 @@ struct AppleMusicLyricsPage: View {
                     // SwiftUI 的 DragGesture 只有 onChanged/onEnded，拿不到
                     // UIScrollView 那套 willBeginDragging / didEndDecelerating，
                     // 所以用"最后一次拖动时间 + 固定窗口"近似覆盖惯性滚动阶段。
+                    //
+                    // 同一对手势顺带负责「划动时收起壳」：划动中立刻收起（＝全屏歌词），
+                    // 松手后 `shellRestoreDelay` 秒再调回来。
                     .simultaneousGesture(
                         DragGesture(minimumDistance: 6)
                             .onChanged { _ in
                                 lastDragTime = Date()
                                 autoScrollPauseUntil = Date()
                                     .addingTimeInterval(postDragPauseDuration)
+                                hideShellWhileScrolling()
                             }
                             .onEnded { _ in
                                 lastDragTime = Date()
                                 autoScrollPauseUntil = Date()
                                     .addingTimeInterval(postDragPauseDuration)
+                                scheduleShellRestore()
                             }
                     )
                     // 上下边缘淡出。
@@ -304,21 +343,11 @@ struct AppleMusicLyricsPage: View {
                     // 这里改用 MeloX 的做法：**遮罩歌词内容本身**，背景不参与 ——
                     // 这样不会出现"背景渐变换色 + 内容渐变"两层叠加变脏的问题。
                     //
-                    // 比例取自 MeloX 的 `lyricsMaskLocations`：
-                    //   顶部 · 底部完全不透明 · 底部开始淡出位置
-                    //   0.08 · 0.84 · 1.0
-                    // 全屏模式下底部留白更多（要给控件栏让位），所以淡出起点略提前。
+                    // 停靠点：有壳（全屏）时按壳的真实占位算，见 `fadeMaskStops`；
+                    // 无壳（内嵌预览）时退回 MeloX 的整屏比例 0.08 / 0.84 / 1.0。
                     .mask(
                         LinearGradient(
-                            stops: [
-                                .init(color: .clear, location: 0),
-                                .init(color: .black, location: fadeTopRatio),
-                                .init(
-                                    color: .black,
-                                    location: fadeBottomOpaqueRatio
-                                ),
-                                .init(color: .clear, location: 1),
-                            ],
+                            stops: maskStops,
                             startPoint: .top,
                             endPoint: .bottom
                         )
@@ -326,6 +355,7 @@ struct AppleMusicLyricsPage: View {
                 }
 
                 // 右上角：自绘关闭键优先，其次才是内置的圆按钮。
+                // 划动收起壳时它一起淡出 ——「全屏歌词」不该还留着一个按钮。
                 if let closeContent {
                     VStack {
                         HStack {
@@ -336,6 +366,8 @@ struct AppleMusicLyricsPage: View {
                     }
                     .padding(.top, safeArea.top + 6)
                     .padding(.trailing, 12)
+                    .opacity(isShellHidden ? 0 : 1)
+                    .allowsHitTesting(!isShellHidden)
                 } else if let onClose {
                     closeButton(onClose)
                 }
@@ -344,10 +376,14 @@ struct AppleMusicLyricsPage: View {
                 //
                 // 这两块**不参与滚动**，所以它们不走 `scrollInsets`，而是直接贴在
                 // 安全区边缘；歌词的留白由 `scrollInsets` 负责让出来。
+                //
+                // 划动歌词时整块淡出（＝全屏歌词），松手 `shellRestoreDelay` 秒后回来。
+                // 用透明度而不是 `if`：`if` 会把两块从层级里摘掉，歌词的可视高度跟着
+                // 变化、滚动位置会在收起/恢复之间跳一下。
                 VStack(spacing: 0) {
                     if let headerContent {
                         headerContent
-                            .padding(.top, safeArea.top + 6)
+                            .padding(.top, safeArea.top + headerTopInset)
                     }
                     Spacer(minLength: 0)
                     if let footerContent {
@@ -355,6 +391,8 @@ struct AppleMusicLyricsPage: View {
                             .padding(.bottom, max(safeArea.bottom, 8))
                     }
                 }
+                .opacity(isShellHidden ? 0 : 1)
+                .allowsHitTesting(!isShellHidden)
             }
         }
     }
@@ -376,6 +414,80 @@ struct AppleMusicLyricsPage: View {
             return false
         }
         return true
+    }
+
+    // MARK: 划动时收起 / 恢复壳
+
+    /// 划动中：立刻把壳收起来（标题栏 + 控件栏 + 关闭键淡出），歌词即为全屏。
+    private func hideShellWhileScrolling() {
+        shellRestoreTask?.cancel()
+        shellRestoreTask = nil
+        guard !isShellHidden else { return }
+        withAnimation(.easeOut(duration: 0.18)) {
+            isShellHidden = true
+        }
+    }
+
+    /// 松手：`shellRestoreDelay` 秒后把壳调回来。
+    ///
+    /// 用「延迟任务」而不是立即恢复，是因为 SwiftUI 拿不到惯性滚动的结束时机
+    /// （见上面 DragGesture 那段说明）—— 这个固定窗口同时也盖住了减速阶段。
+    private func scheduleShellRestore() {
+        shellRestoreTask?.cancel()
+        shellRestoreTask = Task { @MainActor in
+            try? await Task.sleep(
+                nanoseconds: UInt64(shellRestoreDelay * 1_000_000_000)
+            )
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeIn(duration: 0.22)) {
+                isShellHidden = false
+            }
+        }
+    }
+
+    // MARK: 淡出遮罩停靠点
+
+    /// 上下淡出带的渐变停靠点（相对滚动视图高度，取值 0…1）。
+    ///
+    /// 有壳（全屏）时的口径：
+    ///   · 上淡出：标题顶部（透明）→ 标题栏底部（不透明）
+    ///   · 下淡出：控件栏顶部上方 `fadeBottomBand`（不透明）→ 控件栏顶部（透明）
+    /// 中间整段保持完全不透明 —— 也就是"歌词只在标题栏下方到控件栏上方之间淡出"，
+    /// 而不是像以前那样贴在整屏的顶和底。
+    ///
+    /// 无壳（内嵌预览）时退回整屏比例，与改动前完全一致。
+    private func fadeMaskStops(
+        size: CGSize,
+        safeArea: EdgeInsets
+    ) -> [Gradient.Stop] {
+        let height = max(size.height, 1)
+
+        guard headerContent != nil || footerContent != nil else {
+            return [
+                .init(color: .clear, location: 0),
+                .init(color: .black, location: fadeTopRatio),
+                .init(color: .black, location: fadeBottomOpaqueRatio),
+                .init(color: .clear, location: 1),
+            ]
+        }
+
+        let headerTop = safeArea.top + headerTopInset
+        let headerBottom = safeArea.top + shellHeaderHeight
+        let footerTop = height - (safeArea.bottom + shellFooterHeight)
+        let bottomFadeStart = footerTop - fadeBottomBand
+
+        // 位置必须单调不减，否则 LinearGradient 会出现硬边（小屏 / 大字号时可能越界）。
+        let topClear = min(max(headerTop / height, 0), 1)
+        let topOpaque = min(max(headerBottom / height, topClear), 1)
+        let bottomOpaque = min(max(bottomFadeStart / height, topOpaque), 1)
+        let bottomClear = min(max(footerTop / height, bottomOpaque), 1)
+
+        return [
+            .init(color: .clear, location: topClear),
+            .init(color: .black, location: topOpaque),
+            .init(color: .black, location: bottomOpaque),
+            .init(color: .clear, location: bottomClear),
+        ]
     }
 
     // MARK: 歌词提供者页脚
