@@ -177,7 +177,7 @@ final class LyricsBackdropView: UIView {
     ///   3. `scrimView`（可选系统材质）
     ///   4. `gradientLayer` ← **盖在最上面**，用的就是这个 alpha
     ///
-    /// 也就是说"整块背景透不透"由**第 1 层**决定（那是 `opaque` 开关的事），
+    /// 也就是说"整块背景透不透"由**第 1 层**决定（那是 `isBackdropOpaque` 开关的事），
     /// 而这一层只是叠在封面**之上**的一层黑纱。alpha = 1.0 等于用一层纯黑把
     /// 封面完全盖掉 —— 全屏就成了死黑一块，预览却正常（预览那档是 0.30）。
     /// 这正是"全屏只有黑背景、预览没问题"的原因。
@@ -207,6 +207,10 @@ final class LyricsBackdropView: UIView {
 
     /// 是否完全不透明（全屏 + 我们接管渲染时）。
     ///
+    /// ⚠️ 名字里必须带 `backdrop`：**不能叫 `opaque`**。
+    /// `UIView` 上本来就有 `opaque`（Swift 里已重命名为 `isOpaque`），
+    /// 用那个名字等于在子类里重定义父类属性 —— 既缺 `override`，又用了被弃用的旧名。
+    ///
     /// ⚠️ 与 `solid` 的区别，以及为什么必须有这个开关：
     ///
     /// `solid` 只管**封面层内部**那层渐变的暗化度；而"这一整块背景透不透"还取决于
@@ -221,9 +225,9 @@ final class LyricsBackdropView: UIView {
     /// 所以：**只有"我们确实替换了原生内容"时才允许不透明**。
     /// Apple Music 层（自己画歌词 + 自绘壳）→ `true`；
     /// 旧 overlay、以及数据不可用的透明状态 → `false`。
-    var opaque: Bool = false {
+    var isBackdropOpaque: Bool = false {
         didSet {
-            guard opaque != oldValue else { return }
+            guard isBackdropOpaque != oldValue else { return }
             applyOpacity()
         }
     }
@@ -292,7 +296,7 @@ final class LyricsBackdropView: UIView {
         applyOpacity()
 
         showsScrim = showsArtwork && material
-        scrimView.isHidden = !opaque || !showsScrim
+        scrimView.isHidden = !isBackdropOpaque || !showsScrim
         if showsArtwork && material {
             // 本工程 deployment target 是 iOS 14，材质系列（.systemUltraThinMaterialDark）
             // 从 iOS 13 起就有，不需要 #available 分支。
@@ -334,18 +338,18 @@ final class LyricsBackdropView: UIView {
 
     /// 底色是否完全不透明。
     ///
-    /// `opaque == false` 时整块背景（含封面层与暗化渐变）一起透明 —— 这是
-    /// "把屏幕交还给 Spotify 原生界面"的唯一开关，见 `opaque` 的注释。
+    /// `isBackdropOpaque == false` 时整块背景（含封面层与暗化渐变）一起透明 —— 这是
+    /// "把屏幕交还给 Spotify 原生界面"的唯一开关，见 `isBackdropOpaque` 的注释。
     private func applyOpacity() {
-        backgroundColor = opaque ? baseColor : .clear
+        backgroundColor = isBackdropOpaque ? baseColor : .clear
 
-        let transparent = !opaque
+        let transparent = !isBackdropOpaque
         blurredImageView.isHidden = transparent
         gradientLayer.isHidden = transparent
         scrimView.isHidden = transparent || !showsScrim
 
-        // 透明时不再铺封面；重新变为不透明时补上（`configure` 之后才切 `opaque` 的情况）。
-        if opaque, blurredImageView.image == nil {
+        // 透明时不再铺封面；重新变为不透明时补上（`configure` 之后才切开关的情况）。
+        if isBackdropOpaque, blurredImageView.image == nil {
             loadArtworkIfNeeded()
         }
     }

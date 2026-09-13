@@ -484,7 +484,7 @@ private struct LyricsBackdropRepresentable: UIViewRepresentable {
         view.solid = solid
         // Apple Music 层是"我们替换了原生内容"的那条路：必须不透明，
         // 否则会露出底下 Spotify 原生的歌词与控件，和我们自己画的叠在一起。
-        view.opaque = true
+        view.isBackdropOpaque = true
         view.configure(
             baseColor: .black,
             showsArtwork: true,
@@ -498,6 +498,6 @@ private struct LyricsBackdropRepresentable: UIViewRepresentable {
         // 不用重建 hosting controller。
         uiView.style = style
         uiView.solid = solid
-        uiView.opaque = true
+        uiView.isBackdropOpaque = true
     }
 }
