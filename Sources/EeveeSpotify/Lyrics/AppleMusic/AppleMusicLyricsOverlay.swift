@@ -158,7 +158,17 @@ struct AppleMusicLyricsOverlayView: View {
                     // 卡片只有 320pt，按比例算（0.86）会得到 45pt 的大淡出带；
                     // 而底边距是 120pt（为了让内容可滚、当前行能居中），
                     // 那片空白本来就不该参与淡出 —— 所以起点要落在最后一个可见行附近。
-                    fadeBottomOpaqueRatio: showsProviderFooter ? 0.86 : 0.62
+                    fadeBottomOpaqueRatio: showsProviderFooter ? 0.86 : 0.62,
+                    // ⚠️ 预览必须传 0：它**没有控件栏**，而淡出遮罩是按
+                    // `高度 − footerHeight` 算起点的。写死 116 会让 320pt 高的卡片
+                    // 从 y≈204 就开始淡出 —— 这才是"下淡出太高"的真正原因
+                    // （注意 `fadeBottomOpaqueRatio` 在预览里其实走不到，
+                    // 因为预览也有 headerContent，用的是按壳占位算的 `fadeMaskStops`）。
+                    footerHeight: showsProviderFooter ? 116 : 0,
+                    // 预览的"底部淡出带"= 0：卡片底部 120pt 是**为了让内容可滚
+                    // 而留的空白**（当前行才能居中），在那片空白上淡出等于白淡，
+                    // 还会顺手把最后一行也压暗。让歌词一直清晰到卡片下缘即可。
+                    fadeBottomBand: showsProviderFooter ? 40 : 0
                 )
             }
         }

@@ -134,7 +134,9 @@ struct AppleMusicLyricsPage: View {
         headerHeight: CGFloat = 62,
         headerTopInset: CGFloat = -30,
         hidesShellOnScroll: Bool = true,
-        fadeBottomOpaqueRatio: CGFloat = 0.86
+        fadeBottomOpaqueRatio: CGFloat = 0.86,
+        footerHeight: CGFloat = 116,
+        fadeBottomBand: CGFloat = 40
     ) {
         self.lines = lines
         self.playbackTime = playbackTime
@@ -155,6 +157,8 @@ struct AppleMusicLyricsPage: View {
         self.headerTopInset = headerTopInset
         self.hidesShellOnScroll = hidesShellOnScroll
         self.fadeBottomOpaqueRatio = fadeBottomOpaqueRatio
+        self.footerHeight = footerHeight
+        self.fadeBottomBand = fadeBottomBand
     }
 
     private static var profile: AppleMusicLyricsMotionProfile { .iOS26_6 }
@@ -177,13 +181,12 @@ struct AppleMusicLyricsPage: View {
 
     // MARK: 壳的占位 / 淡出带
 
-    /// 底部壳（进度条 + 时间 + 三键）的占位高度。
-    ///
-    /// ⚠️ 顶部那个占位高度已经改成可传入的 `headerHeight`：全屏是两行文字（≈62），
-    /// 内嵌预览只有一行「歌词」+ 两个按钮（≈39），写死会把预览的歌词推下去一截。
-    private let shellFooterHeight: CGFloat = 116
     /// 底部淡出带高度：从「控件栏上方这么多」开始渐隐，到「控件栏顶部」完全透明。
-    private let fadeBottomBand: CGFloat = 40
+    ///
+    /// ⚠️ 预览传 0：它底部的 120pt 是**为了让内容可滚而留的空白**（当前行才能居中），
+    /// 在那片空白上淡出等于白淡 —— 反而会把最后一行也一起吃掉。
+    /// 预览就让 lyrics 一直清晰到卡片下缘。
+    var fadeBottomBand: CGFloat = 40
 
     // MARK: 划动时收起壳
 
@@ -200,6 +203,14 @@ struct AppleMusicLyricsPage: View {
     /// ⚠️ **内嵌预览必须传 0**：卡片里 `safeArea.top == 0`，再抬 -30 就把整条标题栏
     /// 推到卡片外面去 —— 真机上表现就是"预览歌词一个按钮都没有"（标题栏整个被裁掉）。
     var headerTopInset: CGFloat = -30
+
+    /// 底部壳的高度（淡出遮罩拿它算"从哪开始淡"）。
+    ///
+    /// 全屏 = 116（进度条 + 时间 + 三键）；**内嵌预览 = 0**（它没有控件栏）。
+    /// 写死 116 时，320pt 高的预览卡片会从 y≈204 就开始淡出 —— 那正是
+    /// "下淡出太高"的原因。注意这条路径与 `fadeBottomOpaqueRatio` **无关**：
+    /// 预览现在也有 `headerContent`，走的是按壳占位算的 `fadeMaskStops`。
+    var footerHeight: CGFloat = 116
 
     /// 是否启用"划动时收起壳"（收起即「全屏歌词」）。
     ///
@@ -262,7 +273,7 @@ struct AppleMusicLyricsPage: View {
                 leading: contentInsets.leading,
                 bottom: (footerContent == nil
                     ? contentInsets.bottom
-                    : safeArea.bottom + shellFooterHeight) + contentInsets.bottom,
+                    : safeArea.bottom + footerHeight) + contentInsets.bottom,
                 trailing: contentInsets.trailing
             )
 
@@ -532,7 +543,7 @@ struct AppleMusicLyricsPage: View {
 
         let headerTop = safeArea.top + headerTopInset
         let headerBottom = safeArea.top + headerHeight
-        let footerTop = height - (safeArea.bottom + shellFooterHeight)
+        let footerTop = height - (safeArea.bottom + footerHeight)
         let bottomFadeStart = footerTop - fadeBottomBand
 
         // 位置必须单调不减，否则 LinearGradient 会出现硬边（小屏 / 大字号时可能越界）。
