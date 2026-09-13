@@ -331,6 +331,13 @@ final class AppleMusicLyricsOverlayHost {
                 + " solidBackdrop=\(solidBackdrop)"
                 + " shell=\(showsProviderFooter)"
         )
+
+        // 全屏自绘壳挂上后，把"这一刻窗口里所有可点控件 + 每个动作会选中谁"
+        // 打进日志。三键的目标是靠标签选的，真机上出现过选错/选空，
+        // 这份 dump 是唯一能看清原因的东西。只在开了日志记录时输出。
+        if showsProviderFooter {
+            WordByWordPlaybackControl.dumpControlCandidates()
+        }
     }
 
     func detach() {
@@ -475,6 +482,9 @@ private struct LyricsBackdropRepresentable: UIViewRepresentable {
         let view = LyricsBackdropView()
         view.style = style
         view.solid = solid
+        // Apple Music 层是"我们替换了原生内容"的那条路：必须不透明，
+        // 否则会露出底下 Spotify 原生的歌词与控件，和我们自己画的叠在一起。
+        view.opaque = true
         view.configure(
             baseColor: .black,
             showsArtwork: true,
@@ -488,5 +498,6 @@ private struct LyricsBackdropRepresentable: UIViewRepresentable {
         // 不用重建 hosting controller。
         uiView.style = style
         uiView.solid = solid
+        uiView.opaque = true
     }
 }

@@ -130,6 +130,94 @@ enum WordByWordPlaybackControl {
         return false
     }
 
+    // MARK: 诊断
+
+    /// 把窗口里所有"可点的控件"连同它们的标签、位置打出来，并说明每个动作
+    /// **会**选中哪一个。
+    ///
+    /// 用途：现在自绘壳的三键是靠"标签 + 面积最大"选目标的，真机上出现了
+    /// "暂停键切去专辑""上一首没反应"这类现象 —— 那说明选错了控件。
+    /// 光靠猜类名/标签改不动，必须看清那一刻窗口里到底有哪些控件、各自在哪。
+    ///
+    /// 只在「开启日志记录」打开时输出（`writeDebugLog` 自己受开关控制）。
+    /// 在全屏壳挂载时调用一次。
+    static func dumpControlCandidates() {
+        guard let window = keyWindow else {
+            writeDebugLog("[ShellDump] no key window")
+            return
+        }
+
+        let screen = window.bounds
+        writeDebugLog(
+            "[ShellDump] ---- controls (window \(Int(screen.width))x\(Int(screen.height))) ----"
+        )
+
+        var found: [UIControl] = []
+        collectAllControls(in: window, into: &found)
+
+        guard !found.isEmpty else {
+            writeDebugLog("[ShellDump] no on-screen UIControl at all")
+            writeDebugLog("[ShellDump] ---- end ----")
+            return
+        }
+
+        for control in found {
+            let frame = control.convert(control.bounds, to: window)
+            writeDebugLog(
+                "[ShellDump] \(kind(control))"
+                    + " label=\"\(control.accessibilityLabel ?? "")\""
+                    + " id=\"\(control.accessibilityIdentifier ?? "")\""
+                    + " title=\"\((control as? UIButton)?.title(for: .normal) ?? "")\""
+                    + " frame=(\(Int(frame.minX)),\(Int(frame.minY))"
+                    + " \(Int(frame.width))x\(Int(frame.height)))"
+            )
+        }
+
+        // 每个动作最终会选中谁 —— 这是排查"按错按钮"最直接的一行。
+        report(action: "playPause", labels: playPauseLabels, in: window)
+        report(action: "next", labels: nextLabels, in: window)
+        report(action: "previous", labels: previousLabels, in: window)
+        report(action: "close", labels: closeLabels, exact: true, in: window)
+
+        writeDebugLog("[ShellDump] ---- end ----")
+    }
+
+    private static func report(
+        action: String,
+        labels: [String],
+        exact: Bool = false,
+        in window: UIWindow
+    ) {
+        guard let control = findTransportButton(labels: labels, exactMatch: exact) else {
+            writeDebugLog("[ShellDump] \(action) -> nil")
+            return
+        }
+        let frame = control.convert(control.bounds, to: window)
+        writeDebugLog(
+            "[ShellDump] \(action) -> \(kind(control))"
+                + " label=\"\(control.accessibilityLabel ?? "")\""
+                + " frame=(\(Int(frame.minX)),\(Int(frame.minY))"
+                + " \(Int(frame.width))x\(Int(frame.height)))"
+        )
+    }
+
+    /// 控件的类名（诊断与去重都用它）。
+    private static func kind(_ view: UIView) -> String {
+        NSStringFromClass(type(of: view))
+    }
+
+    private static func collectAllControls(
+        in view: UIView,
+        into result: inout [UIControl]
+    ) {
+        if let control = view as? UIControl, isOnScreen(control) {
+            result.append(control)
+        }
+        for subview in view.subviews {
+            collectAllControls(in: subview, into: &result)
+        }
+    }
+
     // MARK: 内部
 
     /// 播放键的标签：**当前状态是"播放中"时它叫 Pause**，所以两组都要匹配。

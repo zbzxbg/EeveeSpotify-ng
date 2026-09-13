@@ -166,19 +166,25 @@ final class LyricsBackdropView: UIView {
     /// 比卡片的「中间 0.12 / 两端 0.42」整体更暗一点：全屏是"深色舞台 + 白字 +
     /// 白色原生控件"，底越暗，白的图标与文字越清楚。
     private let stageScrimAlpha: CGFloat = 0.30
-    /// 舞台式的**实心档**：全屏时必须靠这一层完全盖住底下的 Spotify 页面。
+    /// 舞台式的**全屏暗化度**：压在最上面的那层渐变的 alpha。
     ///
-    /// ⚠️ 为什么是 1.0（完全不透明），而不是"够暗就行"：
+    /// ⚠️ 这个值曾经是 `1.0`，理由是"全屏必须盖住底下的 Spotify 页面"——
+    /// **那个理由是错的，而且它正好把封面涂死了**：
     ///
-    /// 自己出壳之后，Spotify 原生那一页仍在我们的层**下面**，而它的标题栏 / 进度条 /
-    /// 播放键并不在根视图的直接子视图里（`vc.view` 的直接子视图只有我们这一层），
-    /// 所以没有"把原生控件抬到我们上面"这种操作 —— 只能把它整块盖死。
-    /// 半透明会露出底下那个几乎不透明的原生页面（于是又变成"只有歌词、没有控件"）。
+    /// 本视图的图层顺序是
+    ///   1. `backgroundColor`（不透明，图片路径下是 `.black`）
+    ///   2. `blurredImageView`（模糊封面）
+    ///   3. `scrimView`（可选系统材质）
+    ///   4. `gradientLayer` ← **盖在最上面**，用的就是这个 alpha
     ///
-    /// 1.0 意味着这一层只由模糊封面自己提供明暗：`baseColor = .black` 的纯黑底
-    /// 之上，`blurredImageView` 用 `alpha = 1` 铺满（见 `configure` 的注释），
-    /// 所以真正的"底色"是封面本身，不是一块死黑。
-    private let solidStageScrimAlpha: CGFloat = 1.0
+    /// 也就是说"整块背景透不透"由**第 1 层**决定（那是 `opaque` 开关的事），
+    /// 而这一层只是叠在封面**之上**的一层黑纱。alpha = 1.0 等于用一层纯黑把
+    /// 封面完全盖掉 —— 全屏就成了死黑一块，预览却正常（预览那档是 0.30）。
+    /// 这正是"全屏只有黑背景、预览没问题"的原因。
+    ///
+    /// 现在 0.55：封面仍透出约 45%（有封面的颜色与层次），整体足够暗，
+    /// 白字与白色控件依然清楚。不透明的责任交回第 1 层。
+    private let solidStageScrimAlpha: CGFloat = 0.55
     /// 描边 overscan 比例，避免模糊后边缘透出底色。
     private let overscan: CGFloat = 1.12
 
@@ -190,11 +196,35 @@ final class LyricsBackdropView: UIView {
         }
     }
 
-    /// 是否走"实心"档（目前只有全屏用）。与 `style` 独立：舞台式也有"够不够实"之分。
+    /// 是否走"实心"档（目前只有全屏 + 我们真正接管渲染时用）。
+    /// 与 `style` 独立：舞台式也有"够不够实"之分。
     var solid: Bool = false {
         didSet {
             guard solid != oldValue else { return }
             applyGradientColors()
+        }
+    }
+
+    /// 是否完全不透明（全屏 + 我们接管渲染时）。
+    ///
+    /// ⚠️ 与 `solid` 的区别，以及为什么必须有这个开关：
+    ///
+    /// `solid` 只管**封面层内部**那层渐变的暗化度；而"这一整块背景透不透"还取决于
+    /// `backgroundColor`。旧 UIKit overlay（逐词歌词关掉时走的那条路）把
+    /// `backgroundColor` 设成了**不透明的专辑纯色**，于是它整块盖住了 Spotify 原生
+    /// 那一页 —— 标题栏、进度条、播放键全被压掉，屏幕上只剩歌词和一块底色。
+    ///
+    /// 而那条路的设计意图本来是"**数据不可用就整块透明、交还原生**"
+    /// （见 `LyricsWordByWordOverlayView.setCurrentTime` 的 guard）。不透明底色把这个
+    /// 退路堵死了。
+    ///
+    /// 所以：**只有"我们确实替换了原生内容"时才允许不透明**。
+    /// Apple Music 层（自己画歌词 + 自绘壳）→ `true`；
+    /// 旧 overlay、以及数据不可用的透明状态 → `false`。
+    var opaque: Bool = false {
+        didSet {
+            guard opaque != oldValue else { return }
+            applyOpacity()
         }
     }
 
@@ -259,9 +289,10 @@ final class LyricsBackdropView: UIView {
     ) {
         // 左侧的 `self.` 不能省：参数名与属性同名时，不带 self 会解析成参数。
         self.baseColor = color
-        backgroundColor = color
+        applyOpacity()
 
-        scrimView.isHidden = !(showsArtwork && material)
+        showsScrim = showsArtwork && material
+        scrimView.isHidden = !opaque || !showsScrim
         if showsArtwork && material {
             // 本工程 deployment target 是 iOS 14，材质系列（.systemUltraThinMaterialDark）
             // 从 iOS 13 起就有，不需要 #available 分支。
@@ -296,6 +327,28 @@ final class LyricsBackdropView: UIView {
 
     private var lastLoadedTrackKey: String?
     private var isLoading = false
+
+    /// 系统材质层当前是否应该显示（由 `configure` 的 `showsArtwork && material` 决定）。
+    /// 记成状态是因为 `applyOpacity()` 也要用它 —— 材质层的显隐由两个条件共同决定。
+    private var showsScrim = false
+
+    /// 底色是否完全不透明。
+    ///
+    /// `opaque == false` 时整块背景（含封面层与暗化渐变）一起透明 —— 这是
+    /// "把屏幕交还给 Spotify 原生界面"的唯一开关，见 `opaque` 的注释。
+    private func applyOpacity() {
+        backgroundColor = opaque ? baseColor : .clear
+
+        let transparent = !opaque
+        blurredImageView.isHidden = transparent
+        gradientLayer.isHidden = transparent
+        scrimView.isHidden = transparent || !showsScrim
+
+        // 透明时不再铺封面；重新变为不透明时补上（`configure` 之后才切 `opaque` 的情况）。
+        if opaque, blurredImageView.image == nil {
+            loadArtworkIfNeeded()
+        }
+    }
 
     private func applyGradientColors() {
         if style == .stage {

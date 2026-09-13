@@ -677,6 +677,25 @@ final class LyricsWordByWordOverlayView: UIView, UIScrollViewDelegate {
     ///
     /// 每帧调用，但只在「首次 / 换歌 / 改设置 / 底色来源变化」时真正干活。
     private func configureBackdropIfNeeded() {
+        // ── 非卡拉 OK 状态：**整块透明，把屏幕交还给 Spotify 原生界面** ──────────
+        //
+        // 什么时候走到这里：逐词歌词关掉、或这一首歌没有可用的词级时间轴。
+        // 此时这一层不该画任何东西 —— 连背景也不该画。
+        //
+        // ⚠️ 这里以前会铺一块**不透明的底色**（`backgroundColor = targetBackground`）。
+        // 那一块把 Spotify 原生那一页整个盖住了：标题栏、进度条、播放键全部被压掉，
+        // 屏幕上只剩我们的歌词和一块专辑色 —— 也就是"关掉更好的逐词歌词之后
+        // 界面全没了"的真正原因。
+        //
+        // 而这一层本来的设计意图就是"渲染不了就交还"（见下面 `setCurrentTime` 里
+        // 那个 guard 的注释）。不透明底色把这个退路堵死了。现在补回来。
+        guard NgzhwmSettingsViewModel.isWordByWordLyricsEnabled,
+              hasUsableWordLevelData(currentLyricsDto) else {
+            backgroundColor = .clear
+            backdropView.isHidden = true
+            return
+        }
+
         // resolvedBackgroundColor 是缓存，用户改「定制」里的颜色时它不会变，
         // 所以不能沿用旧的 `backgroundColor != targetBackground` 判断，
         // 要把影响外观的几项一起编进 key。
@@ -888,15 +907,18 @@ final class WordByWordHost {
         NgzhwmSettingsViewModel.isWordByWordLyricsEnabled
     }
 
-    /// contentView: overlay 挂到哪个视图（默认 VC 的 view；全屏歌词挂到内容子视图）。
-    /// keepAboveView: 需要保留在 overlay 之上的原生控件（全屏歌词的分享/更多按钮），必须是 contentView 的直接子视图。
+    /// contentView: overlay 挂到哪个视图（默认 VC 的 view）。
     /// sideInset: 覆盖层歌词行的左右边距（全屏可用更大值，默认用 overlay 自己的）。
     /// showsProviderFooter: 是否在底部显示「歌词提供者」（全屏显示，内嵌不显示）。
     /// showsTranslation: 是否显示行级译文（全屏显示；内嵌「预览歌词」不显示）。
+    ///
+    /// 这里曾经还有一个 `keepAboveView`（把原生 header 抬到 overlay 之上）。
+    /// 已删除：它依赖"原生控件是本视图的直接子视图"这个**不成立**的假设，
+    /// 而且取 header 用的 `Ivars` 在 Modern 全屏页上会命中不存在的 ivar（崩）。
+    /// 旧 overlay 的显隐现在完全由"有没有逐词数据"决定，不需要它。
     func attach(
         to controller: UIViewController,
         contentView: UIView? = nil,
-        keepAboveView: UIView? = nil,
         sideInset: CGFloat? = nil,
         showsProviderFooter: Bool = false,
         showsTranslation: Bool = true
@@ -966,12 +988,15 @@ final class WordByWordHost {
         overlayView.setBackdropStyle(showsProviderFooter ? .stage : .card)
         overlayView.setSideInset(sideInset)
         view.addSubview(overlayView)
-        if let keepAboveView, keepAboveView.superview === view {
-            // 保留原生控件栏在 overlay 之上（按钮仍可见可点）
-            view.bringSubviewToFront(keepAboveView)
-        } else {
-            view.bringSubviewToFront(overlayView)
-        }
+        // 挂到最前。
+        //
+        // ⚠️ 这个 `bringSubviewToFront` 与"会不会盖住 Spotify 原生界面"**无关** ——
+        // 原生那一页（`ElementView`）不在这条视图链上，抬谁的层级都影响不到它。
+        // 会不会盖住，只取决于这一层自己画不画东西：
+        //   · 有逐词数据 → 画歌词 + 背景，此时理应盖住原生歌词（我们替换了它）；
+        //   · 没有 → `configureBackdropIfNeeded` 与 `setCurrentTime` 的 guard 会把
+        //     整层变透明并让触摸穿透，原生界面与控件原样可用。
+        view.bringSubviewToFront(overlayView)
 
         overlay = overlayView
         hostView = view
@@ -1129,17 +1154,19 @@ class LyricsWordByWordFullscreenLegacyHostHook: ClassHook<UIViewController> {
         let vc = target
         onMainThreadSync {
             DispatchQueue.main.async {
-                // 挂到 vc.view（整屏）让背景铺满。
+                // 挂到 vc.view（整屏）。
                 //
-                // 原生 headerView 用 `keepAboveView` 保留在 overlay 之上 —— 注意这是
-                // **旧 UIKit overlay 分支**才有的参数，Apple Music 层走不到这里；
-                // 而且它也只在 header 真的是 contentView 直接子视图时才生效。
-                // Modern 路径的 dump 已证明这类假设不可靠，所以那边一个原生视图都不碰
-                // （见 `LyricsWordByWordFullscreenModernHostHook`）。
-                let header = Ivars<UIView>(vc.view).headerView
+                // ⚠️ 这里以前会取 `Ivars<UIView>(vc.view).headerView` 并当作
+                // `keepAboveView` 传下去，想让原生 header 浮在我们的 overlay 之上。
+                // 那个做法已被证伪，参数整个删掉了：
+                //   · Modern 全屏页上根本没有这个 ivar（`Ivars` 访问不存在的 ivar 是会崩的，
+                //     靠的只是"老版本上恰好存在"这种运气）；
+                //   · 就算取到，原生控件也不在这条视图链上，抬层级影响不到它们。
+                //
+                // 现在旧 overlay 的显隐完全由"有没有逐词数据"决定：有就画（盖住原生歌词），
+                // 没有就整层透明 + 触摸穿透（原生界面与控件原样可用）。
                 WordByWordHost.shared.attach(
                     to: vc,
-                    keepAboveView: header,
                     sideInset: 24,
                     showsProviderFooter: true
                 )
