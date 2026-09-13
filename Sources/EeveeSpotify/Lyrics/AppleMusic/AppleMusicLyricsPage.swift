@@ -130,7 +130,8 @@ struct AppleMusicLyricsPage: View {
         primaryColor: Color = .white,
         headerContent: AnyView? = nil,
         footerContent: AnyView? = nil,
-        closeContent: AnyView? = nil
+        closeContent: AnyView? = nil,
+        headerHeight: CGFloat = 62
     ) {
         self.lines = lines
         self.playbackTime = playbackTime
@@ -147,6 +148,7 @@ struct AppleMusicLyricsPage: View {
         self.headerContent = headerContent
         self.footerContent = footerContent
         self.closeContent = closeContent
+        self.headerHeight = headerHeight
     }
 
     private static var profile: AppleMusicLyricsMotionProfile { .iOS26_6 }
@@ -169,12 +171,10 @@ struct AppleMusicLyricsPage: View {
 
     // MARK: 壳的占位 / 淡出带
 
-    /// 顶部壳（标题 + 歌手）的占位高度。
+    /// 底部壳（进度条 + 时间 + 三键）的占位高度。
     ///
-    /// 与 `scrollInsets.top` 用的是**同一个数**。抽成常量是为了让「淡出遮罩」和
-    /// 「歌词留白」永远对齐 —— 两处各写一份字面量，改一处就会错位。
-    private let shellHeaderHeight: CGFloat = 62
-    /// 底部壳（进度条 + 时间 + 三键）的占位高度（同理）。
+    /// ⚠️ 顶部那个占位高度已经改成可传入的 `headerHeight`：全屏是两行文字（≈62），
+    /// 内嵌预览只有一行「歌词」+ 两个按钮（≈39），写死会把预览的歌词推下去一截。
     private let shellFooterHeight: CGFloat = 116
     /// 标题栏顶端相对安全区的偏移。**负数 = 往上抬**；想再抬/降只改这一处。
     private let headerTopInset: CGFloat = -30
@@ -183,7 +183,14 @@ struct AppleMusicLyricsPage: View {
 
     // MARK: 划动时收起壳
 
-    /// 划动歌词时壳（标题栏 / 控件栏 / 关闭键）是否收起 —— 收起即「全屏歌词」。
+    /// 自绘标题栏的实际高度。默认是全屏那套（曲名 + 歌手 ≈ 62）。
+    ///
+    /// 内嵌预览传"卡片标题栏高度"（卡片高度 − 歌词视图高度，实测 39pt）——
+    /// 预览的标题栏只有一行「歌词」+ 两个按钮，跟全屏那两行文字不是一个高度，
+    /// 写死 62 会把预览的歌词往下推一截。
+    let headerHeight: CGFloat
+
+    /// 自绘的壳（标题栏 + 控件栏）是否被划动收起 —— 收起即「全屏歌词」。
     @State private var isShellHidden = false
     /// 待执行的「把壳调回来」任务；再次划动时取消，避免刚抬手就被旧定时器拉回来。
     @State private var shellRestoreTask: Task<Void, Never>?
@@ -227,7 +234,7 @@ struct AppleMusicLyricsPage: View {
             let scrollInsets = EdgeInsets(
                 top: (headerContent == nil
                     ? contentInsets.top
-                    : safeArea.top + shellHeaderHeight) + contentInsets.top,
+                    : safeArea.top + headerHeight) + contentInsets.top,
                 leading: contentInsets.leading,
                 bottom: (footerContent == nil
                     ? contentInsets.bottom
@@ -494,7 +501,7 @@ struct AppleMusicLyricsPage: View {
         }
 
         let headerTop = safeArea.top + headerTopInset
-        let headerBottom = safeArea.top + shellHeaderHeight
+        let headerBottom = safeArea.top + headerHeight
         let footerTop = height - (safeArea.bottom + shellFooterHeight)
         let bottomFadeStart = footerTop - fadeBottomBand
 

@@ -37,7 +37,11 @@ enum WordByWordPlaybackControl {
             }
         }
 
-        if let button = findTransportButton(labels: playPauseLabels, exactMatch: true) {
+        if let button = findTransportButton(
+            labels: playPauseLabels,
+            excluding: playPauseExclusions,
+            exactMatch: true
+        ) {
             writeDebugLog("[Shell] togglePlayPause via native button")
             sendTap(to: button)
             return true
@@ -61,7 +65,7 @@ enum WordByWordPlaybackControl {
             }
         }
 
-        if let button = findTransportButton(labels: nextLabels) {
+        if let button = findTransportButton(labels: nextLabels, excluding: playPauseExclusions) {
             writeDebugLog("[Shell] skipToNext via native button")
             sendTap(to: button)
             return true
@@ -95,7 +99,7 @@ enum WordByWordPlaybackControl {
             }
         }
 
-        if let button = findTransportButton(labels: previousLabels) {
+        if let button = findTransportButton(labels: previousLabels, excluding: playPauseExclusions) {
             writeDebugLog("[Shell] skipToPrevious via native button")
             sendTap(to: button)
             return true
@@ -103,6 +107,65 @@ enum WordByWordPlaybackControl {
 
         writeDebugLog("[Shell] ⚠️ skipToPrevious unavailable")
         return false
+    }
+
+    // MARK: 预览卡片：展开 / 分享
+
+    /// 展开到全屏歌词页。
+    ///
+    /// 「自己出壳」之后卡片上那个小箭头被我们盖住了，但**功能还在** ——
+    /// 找到原生那个"展开"控件、给它发一次点击即可。
+    @discardableResult
+    static func expandToFullscreenLyrics() -> Bool {
+        tapNativeControl(
+            labels: ["expand", "full screen", "fullscreen", "展开", "全屏", "放大"],
+            action: "expand lyrics"
+        )
+    }
+
+    /// 分享歌词。同样转发给原生分享按钮。
+    @discardableResult
+    static func shareLyrics() -> Bool {
+        tapNativeControl(
+            labels: ["share", "分享"],
+            action: "share lyrics"
+        )
+    }
+
+    // MARK: 通用：点一个原生控件
+
+    /// 按无障碍标签点一个原生控件（自绘壳替原生按钮转发动作时用）。
+    ///
+    /// 「自己出壳」之后，原生那些按钮被我们的不透明层盖住了 —— 它们看不见，
+    /// 但**仍然连着真实的功能**。所以转发动作最省事也最可靠的做法就是：
+    /// 找到那个控件、给它发一次点击。
+    ///
+    /// - Parameters:
+    ///   - labels: 标签候选（小写、`contains` 匹配）。
+    ///   - excluding: 需要排除的词（例如找"播放"时要排掉"播放专辑"）。
+    ///   - exact: true 时要求整体相等，用于 "close" 这类容易误伤的短词。
+    ///   - action: 日志里显示的动作名。
+    @discardableResult
+    static func tapNativeControl(
+        labels: [String],
+        excluding: [String] = [],
+        exact: Bool = false,
+        action: String
+    ) -> Bool {
+        guard let control = findTransportButton(
+            labels: labels,
+            excluding: excluding,
+            exactMatch: exact
+        ) else {
+            writeDebugLog("[Shell] ⚠️ \(action) unavailable — no matching control")
+            return false
+        }
+        writeDebugLog(
+            "[Shell] \(action) via native control"
+                + " \(kind(control)) label=\"\(control.accessibilityLabel ?? "")\""
+        )
+        sendTap(to: control)
+        return true
     }
 
     // MARK: 关闭全屏
@@ -233,7 +296,16 @@ enum WordByWordPlaybackControl {
     // MARK: 内部
 
     /// 播放键的标签：**当前状态是"播放中"时它叫 Pause**，所以两组都要匹配。
+    ///
+    /// 这里用 `exactMatch: true`（配合下面的排除词），原因是真机实测：
+    /// 模糊匹配下"暂停键"会切到**专辑页** —— 那是命中了标签里带 "play/播放" 的
+    /// 别的控件（例如"播放专辑"）。精确相等 + 排除词两道闸门能挡住它。
     private static let playPauseLabels = ["pause", "play", "暂停", "播放", "继续"]
+    /// 播放键要排掉的词：这些是"播放某个东西"的内容入口，不是传输控件。
+    private static let playPauseExclusions = [
+        "album", "playlist", "radio", "artist", "song radio", "mix",
+        "专辑", "歌单", "歌手", "电台", "播放列表",
+    ]
     private static let nextLabels = ["next", "下一首", "下一曲", "下一个"]
     private static let previousLabels = ["previous", "prev", "上一首", "上一曲", "上一个"]
     /// 关闭/收起。**必须精确匹配**：`contains` 会把 "Close Friends"（Spotify 的
@@ -245,16 +317,26 @@ enum WordByWordPlaybackControl {
     /// 只找 `UIControl`（能发事件），并且要求它在屏幕上（`window != nil`、尺寸非零），
     /// 避免命中离屏的备份视图或无障碍占位元素。
     ///
-    /// - Parameter exactMatch: true 时要求标签**整体相等**（忽略大小写与空白），
-    ///   用于 "close" 这种容易误伤的短词。
+    /// - Parameters:
+    ///   - exactMatch: true 时要求标签**整体相等**（忽略大小写与空白），
+    ///     用于 "close" 这种容易误伤的短词。
+    ///   - excluding: 命中这些词的控件直接跳过。用于"找播放键但排掉播放专辑/
+    ///     播放列表"这类场景 —— 这正是真机上"暂停键切去专辑"的成因。
     private static func findTransportButton(
         labels: [String],
+        excluding: [String] = [],
         exactMatch: Bool = false
     ) -> UIControl? {
         guard let window = keyWindow else { return nil }
 
         var matches: [UIControl] = []
-        collectControls(in: window, labels: labels, exactMatch: exactMatch, into: &matches)
+        collectControls(
+            in: window,
+            labels: labels,
+            excluding: excluding,
+            exactMatch: exactMatch,
+            into: &matches
+        )
 
         guard !matches.isEmpty else { return nil }
         // 取面积最大的那个：真正的大按钮 > 列表里的同义小图标。
@@ -266,16 +348,24 @@ enum WordByWordPlaybackControl {
     private static func collectControls(
         in view: UIView,
         labels: [String],
+        excluding: [String],
         exactMatch: Bool,
         into result: inout [UIControl]
     ) {
         if let control = view as? UIControl,
            isOnScreen(control),
-           matchesLabel(control, labels: labels, exactMatch: exactMatch) {
+           matchesLabel(control, labels: labels, exactMatch: exactMatch),
+           !matchesLabel(control, labels: excluding, exactMatch: false) {
             result.append(control)
         }
         for subview in view.subviews {
-            collectControls(in: subview, labels: labels, exactMatch: exactMatch, into: &result)
+            collectControls(
+                in: subview,
+                labels: labels,
+                excluding: excluding,
+                exactMatch: exactMatch,
+                into: &result
+            )
         }
     }
 

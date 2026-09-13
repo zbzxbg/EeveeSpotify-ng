@@ -954,11 +954,30 @@ final class WordByWordHost {
             // 现在的策略：原生 UI 全部原样保留，我们只负责把自己那块背景做够暗，
             // 让它盖住底下的东西（`LyricsBackdropView.solidStageScrimAlpha`）。
             // 这个判据用的是 showsProviderFooter —— 它只在全屏页为 true。
+            // ── 挂载点：预览挂到**卡片容器**上，自己出壳 ─────────────────────
+            //
+            // 预览卡片的"壳"（顶部 `歌词` + 分享/展开那一行、四周留白）是 Spotify 的
+            // Element 框架画的，而我们的层原来是挂在**歌词视图**（卡片里的一块内容）上。
+            // 子视图盖不住父视图自己的背景，所以那一行 39pt 永远是专辑纯色 ——
+            // 试过五种"盖住它"的办法（塞背景层 / 清容器底色 / 每帧重清 /
+            // 画出 bounds 之外 / 改注入的背景色）全部无效，原因就在这。
+            //
+            // 现在换思路：把我们的层挂到**卡片容器**上、铺满整张卡片。
+            // 壳这一层从此由我们画（`previewHeader` 就是那一行），粉杠问题不复存在。
+            //
+            // 全屏不受影响：它本来就挂 vc.view，并且自己画了整套壳。
+            let mountView = showsProviderFooter ? view : (Self.cardContainer(for: view) ?? view)
+            // 卡片比歌词视图高出来的那段（实测 39pt）= 我们自绘标题栏要占的高度。
+            // 全屏传 62（曲名 + 歌手两行，与页面默认值一致）。
+            let headerInset = showsProviderFooter
+                ? 62
+                : max(mountView.bounds.height - view.bounds.height, 0)
             AppleMusicLyricsOverlayHost.shared.update(
-                in: view,
+                in: mountView,
                 sideInset: sideInset,
                 showsProviderFooter: showsProviderFooter,
-                solidBackdrop: showsProviderFooter
+                solidBackdrop: showsProviderFooter,
+                previewHeaderInset: headerInset
             )
             // 新层由主时钟驱动，旧 overlay 的回调必须清掉，否则两边同时渲染。
             WordByWordPlaybackClock.shared.onChange = nil
@@ -1066,6 +1085,38 @@ final class WordByWordHost {
             return view
         }
         return overlay
+    }
+
+    // MARK: 预览卡片容器
+
+    /// 预览卡片的容器：从歌词视图往上找第一个**比它高**的祖先。
+    ///
+    /// 为什么按"更高"而不是按类名：日志实测那两层是
+    /// `Lyrics_NPVCommunicatorImpl.CardView(374x300)` ← 歌词视图 `(374x261)`，
+    /// 差 39pt 正好是卡片顶部标题栏那一行。用尺寸关系判断比写死类名稳 ——
+    /// 类名会随版本变，而"卡片比里面的歌词内容高"这个关系不会。
+    ///
+    /// 找不到就返回 nil（调用方退回原挂载点，不至于完全不工作）。
+    static func cardContainer(for view: UIView) -> UIView? {
+        var current: UIView? = view.superview
+        var depth = 0
+        // 只往上找 4 层：再往上就是滚动容器（cell / collection view），挂那儿就出界了。
+        while let node = current, depth < 4 {
+            if node.bounds.height > view.bounds.height + 0.5,
+               node.bounds.width >= view.bounds.width - 0.5 {
+                writeDebugLog(
+                    "[PreviewShell] card container="
+                        + "\(NSStringFromClass(type(of: node)))"
+                        + " \(Int(node.bounds.width))x\(Int(node.bounds.height))"
+                        + " lyrics=\(Int(view.bounds.width))x\(Int(view.bounds.height))"
+                )
+                return node
+            }
+            current = node.superview
+            depth += 1
+        }
+        writeDebugLog("[PreviewShell] ⚠️ no card container found — falling back to lyrics view")
+        return nil
     }
 
     private func installStandIn() {

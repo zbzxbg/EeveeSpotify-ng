@@ -53,6 +53,12 @@ struct AppleMusicLyricsOverlayView: View {
     var showsProviderFooter: Bool
     /// 左右内边距。同样是 `var`，理由见上。
     var sideInset: CGFloat
+    /// 预览卡片顶部标题栏的高度（卡片高度 − 歌词视图高度，实测 39pt）。
+    ///
+    /// 只有预览用：这段高度本来是 Spotify 的标题栏（`歌词` + 分享 + 展开），
+    /// 现在由我们自己画（`previewHeader`），所以歌词内容要让出同样多的高度，
+    /// 否则会被顶进我们画的标题栏里。
+    var previewHeaderInset: CGFloat = 0
     /// 点行跳转。
     let onSeek: ((TimeInterval) -> Void)?
     /// 曲名 / 歌手 —— 自绘壳的标题栏用。
@@ -101,6 +107,8 @@ struct AppleMusicLyricsOverlayView: View {
                     onClose: nil,
                     onSeek: onSeek,
                     contentInsets: EdgeInsets(
+                        // 预览：卡片标题栏（`previewHeader`）的高度已经由 `headerHeight`
+                        // 让出来了，这里只留一点点呼吸位。
                         top: showsProviderFooter ? 8 : 6,
                         leading: sideInset,
                         bottom: showsProviderFooter ? 46 : 10,
@@ -122,15 +130,62 @@ struct AppleMusicLyricsOverlayView: View {
                     provider: currentLyricsProvider,
                     showsProviderFooter: showsProviderFooter,
                     primaryColor: primaryColor,
-                    headerContent: showsShell ? AnyView(shellHeader) : nil,
+                    headerContent: AnyView(showsProviderFooter ? shellHeader : previewHeader),
                     footerContent: showsShell ? AnyView(shellFooter) : nil,
-                    closeContent: showsShell ? AnyView(shellClose) : nil
+                    closeContent: showsShell ? AnyView(shellClose) : nil,
+                    // 全屏：曲名 + 歌手两行（62）；预览：一行「歌词」+ 两个按钮（39，
+                    // 由宿主按"卡片高度 − 歌词视图高度"实测传入）。
+                    headerHeight: previewHeaderInset > 0 ? previewHeaderInset : 62
                 )
             }
         }
     }
 
     // MARK: 自绘壳
+
+    /// 预览卡片顶部那一行：`歌词` + 分享 + 展开。
+    ///
+    /// 为什么预览也要自己画：卡片面板是 Spotify 的 Element 框架刷的专辑纯色，
+    /// 而我们的层是它的子视图 —— **子视图盖不住父视图自己的背景**，
+    /// 所以那一行 39pt 永远是粉的（试过五种改法都无效）。
+    /// 现在换个思路：把我们的层挂到**卡片容器**上（而不是歌词视图），
+    /// 整张卡片都由我们画，"壳"就不存在了。
+    ///
+    /// 两个按钮的动作转发给原生控件（见 `WordByWordPlaybackControl` 里那两个方法）。
+    private var previewHeader: some View {
+        HStack(spacing: 0) {
+            Text("lyrics".localized)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(primaryColor)
+                .lineLimit(1)
+
+            Spacer(minLength: 8)
+
+            Button {
+                WordByWordPlaybackControl.shareLyrics()
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(primaryColor.opacity(0.92))
+                    .frame(width: 40, height: 32)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                WordByWordPlaybackControl.expandToFullscreenLyrics()
+            } label: {
+                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(primaryColor.opacity(0.92))
+                    .frame(width: 40, height: 32)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
 
     /// 顶部：曲名 + 歌手（居中，与 Spotify 原生一致）。
     private var shellHeader: some View {
@@ -200,8 +255,8 @@ final class AppleMusicLyricsOverlayHost {
     private var currentShowsProviderFooter: Bool = false
     /// 当前背景是不是"实心"档（全屏用）。变了要就地更新 rootView。
     private var currentSolidBackdrop: Bool = false
-    /// 当前背景的绘制覆盖范围（预览 = 整张卡片；全屏 = nil）。
-    private var currentBackdropFrameOverride: CGRect?
+    /// 当前预览卡片标题栏的高度（全屏时为 0）。
+    private var currentPreviewHeaderInset: CGFloat = 0
     /// 换歌时要跟着变的壳文本。
     private var currentTrackTitle: String = ""
     private var currentTrackArtist: String = ""
@@ -236,7 +291,8 @@ final class AppleMusicLyricsOverlayHost {
         in view: UIView,
         sideInset: CGFloat,
         showsProviderFooter: Bool,
-        solidBackdrop: Bool = false
+        solidBackdrop: Bool = false,
+        previewHeaderInset: CGFloat = 0
     ) {
         // 数据变了就重建视图（换歌 / 重新取词）。
         if currentVersion != currentLyricsVersion {
@@ -260,6 +316,7 @@ final class AppleMusicLyricsOverlayHost {
         // 改成 var 属性写入后，SwiftUI 只重新计算布局，页面身份与滚动位置都保留。
         let insetChanged = sideInset != currentSideInset
         let footerChanged = showsProviderFooter != currentShowsProviderFooter
+        let headerInsetChanged = previewHeaderInset != currentPreviewHeaderInset
         // 全屏 ↔ 预览会换背景档（card ↔ stage，以及实心档），这里要一起处理。
         let backdropChanged = solidBackdrop != currentSolidBackdrop
             || (showsProviderFooter ? LyricsBackdropView.Style.stage : .card)
@@ -273,10 +330,12 @@ final class AppleMusicLyricsOverlayHost {
             currentSideInset = sideInset
             currentShowsProviderFooter = showsProviderFooter
             currentSolidBackdrop = solidBackdrop
+            currentPreviewHeaderInset = previewHeaderInset
 
-            if insetChanged || footerChanged {
+            if insetChanged || footerChanged || headerInsetChanged {
                 hostingController.rootView.sideInset = sideInset
                 hostingController.rootView.showsProviderFooter = showsProviderFooter
+                hostingController.rootView.previewHeaderInset = previewHeaderInset
             }
             // 换歌时壳上的曲名 / 歌手也要跟着换（歌词数据变了就说明换歌了）。
             if hostingController.rootView.trackTitle != currentTrackTitle {
@@ -284,6 +343,14 @@ final class AppleMusicLyricsOverlayHost {
             }
             if hostingController.rootView.trackArtist != currentTrackArtist {
                 hostingController.rootView.trackArtist = currentTrackArtist
+            }
+            // ⚠️ 每帧置于最前，不只是挂载时。
+            //
+            // 预览挂在卡片容器上时，卡片里的原生内容（歌词视图、Element 那些层）
+            // 会在换帧时重排 subviews，把我们挤回下面 —— 表现就是"壳又被盖住了"。
+            // 开销只是一次数组操作。
+            if hostingController.view.superview === view {
+                view.bringSubviewToFront(hostingController.view)
             }
             return
         }
@@ -296,6 +363,7 @@ final class AppleMusicLyricsOverlayHost {
             hosting.rootView.solidBackdrop = solidBackdrop
             hosting.rootView.sideInset = sideInset
             hosting.rootView.showsProviderFooter = showsProviderFooter
+            hosting.rootView.previewHeaderInset = previewHeaderInset
             // 壳文本也一起对齐（换歌 + 换挂载点可能同时发生）。
             hosting.rootView.trackTitle = currentTrackTitle
             hosting.rootView.trackArtist = currentTrackArtist
@@ -306,7 +374,8 @@ final class AppleMusicLyricsOverlayHost {
                     lines: lines,
                     sideInset: sideInset,
                     showsProviderFooter: showsProviderFooter,
-                    solidBackdrop: solidBackdrop
+                    solidBackdrop: solidBackdrop,
+                    previewHeaderInset: previewHeaderInset
                 )
             )
             hosting.view.backgroundColor = .clear
@@ -328,6 +397,12 @@ final class AppleMusicLyricsOverlayHost {
             hosting.view.topAnchor.constraint(equalTo: view.topAnchor),
             hosting.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
+        // ⚠️ 必须**每帧**置于最前，而不只是挂载时。
+        //
+        // 预览时我们挂在卡片容器上，而卡片里的原生内容（歌词视图、Element 那些层）
+        // 会在换帧时重排 subviews —— 一次 `bringSubviewToFront` 会被它们挤回下面，
+        // 表现就是"粉杠又回来了 / 我们的壳被盖住"。这里的开销只是一次数组操作。
+        view.bringSubviewToFront(hosting.view)
 
         hostingController = hosting
         hostView = view
@@ -419,7 +494,8 @@ final class AppleMusicLyricsOverlayHost {
         lines: [LyricLine],
         sideInset: CGFloat,
         showsProviderFooter: Bool,
-        solidBackdrop: Bool
+        solidBackdrop: Bool,
+        previewHeaderInset: CGFloat
     ) -> AppleMusicLyricsOverlayView {
         AppleMusicLyricsOverlayView(
             lines: lines,
@@ -427,6 +503,7 @@ final class AppleMusicLyricsOverlayHost {
             solidBackdrop: solidBackdrop,
             showsProviderFooter: showsProviderFooter,
             sideInset: sideInset,
+            previewHeaderInset: previewHeaderInset,
             onSeek: { time in
                 // ⚠️ 必须 rounded() 而不是 Int() 截断，并额外 +5ms。
                 //
