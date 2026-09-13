@@ -132,6 +132,43 @@ enum WordByWordPlaybackControl {
         )
     }
 
+    /// 诊断：把"展开 / 分享"的**全部候选**连标签和 frame 打出来。
+    ///
+    /// 用途：真机上出现"点我们画的小方框没反应、点 `歌词` 两个字反而能进全屏"，
+    /// 那说明我们找到的控件**不是卡片上那一颗**（很可能是页面别处同名按钮）。
+    /// 这份 dump 把候选和它们的位置摊开，一眼就能看出该选哪一个 ——
+    /// 之后按"在卡片范围内 / 离卡片最近"来挑即可，不用再猜。
+    static func dumpPreviewActionCandidates() {
+        guard let window = keyWindow else { return }
+        dumpCandidates(
+            title: "expand",
+            labels: ["expand", "full screen", "fullscreen", "展开", "全屏", "放大"],
+            in: window
+        )
+        dumpCandidates(title: "share", labels: ["share", "分享"], in: window)
+    }
+
+    private static func dumpCandidates(title: String, labels: [String], in window: UIWindow) {
+        var matches: [UIControl] = []
+        collectControls(
+            in: window,
+            labels: labels,
+            excluding: [],
+            exactMatch: false,
+            into: &matches
+        )
+        writeDebugLog("[ShellDump] \(title) candidates: \(matches.count)")
+        for control in matches.prefix(8) {
+            let frame = control.convert(control.bounds, to: window)
+            writeDebugLog(
+                "[ShellDump]   \(title) \(kind(control))"
+                    + " label=\"\(control.accessibilityLabel ?? "")\""
+                    + " frame=(\(Int(frame.minX)),\(Int(frame.minY))"
+                    + " \(Int(frame.width))x\(Int(frame.height)))"
+            )
+        }
+    }
+
     // MARK: 通用：点一个原生控件
 
     /// 按无障碍标签点一个原生控件（自绘壳替原生按钮转发动作时用）。

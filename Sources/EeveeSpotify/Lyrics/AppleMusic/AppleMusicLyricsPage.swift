@@ -133,7 +133,8 @@ struct AppleMusicLyricsPage: View {
         closeContent: AnyView? = nil,
         headerHeight: CGFloat = 62,
         headerTopInset: CGFloat = -30,
-        hidesShellOnScroll: Bool = true
+        hidesShellOnScroll: Bool = true,
+        fadeBottomOpaqueRatio: CGFloat = 0.86
     ) {
         self.lines = lines
         self.playbackTime = playbackTime
@@ -153,6 +154,7 @@ struct AppleMusicLyricsPage: View {
         self.headerHeight = headerHeight
         self.headerTopInset = headerTopInset
         self.hidesShellOnScroll = hidesShellOnScroll
+        self.fadeBottomOpaqueRatio = fadeBottomOpaqueRatio
     }
 
     private static var profile: AppleMusicLyricsMotionProfile { .iOS26_6 }
@@ -217,15 +219,17 @@ struct AppleMusicLyricsPage: View {
         hidesShellOnScroll && isShellHidden
     }
 
-    /// **无壳（内嵌预览）兜底路径**的顶部淡出结束位置（视口高度比例）—— 取自
+    /// **无壳兜底路径**的顶部淡出结束位置（视口高度比例）—— 取自
     /// MeloX 的 `topOpaque: 0.08`。全屏有壳时不用它，改用 `fadeMaskStops`
     /// 按壳的真实占位算。
-    private var fadeTopRatio: CGFloat { 0.08 }
-    /// **无壳兜底路径**的底部开始淡出位置。MeloX 用 0.84；这里按是否有页脚留白
-    /// 略微提前。
-    private var fadeBottomOpaqueRatio: CGFloat {
-        showsProviderFooter ? 0.80 : 0.86
-    }
+    var fadeTopRatio: CGFloat = 0.08
+    /// **无壳兜底路径**的底部开始淡出位置。MeloX 用 0.84。
+    ///
+    /// ⚠️ 这是**比例**，所以容器越矮、淡出带越大：全屏 896pt 时 0.84 对应
+    /// 约 143pt 的淡出带，看着正常；预览卡片只有 320pt，同样比例就变成
+    /// **64pt 的淡出带**，占了卡片五分之一 —— 真机表现就是"预览的下淡出太高"。
+    /// 预览传一个更大的值（更晚开始淡出），把带子压回合理高度。
+    var fadeBottomOpaqueRatio: CGFloat = 0.86
 
     /// 当前播放位置（由纯逻辑时间轴给出，不在这里自己算）。
     private var position: LyricPlaybackPosition {

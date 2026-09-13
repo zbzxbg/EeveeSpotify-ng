@@ -107,11 +107,13 @@ struct AppleMusicLyricsOverlayView: View {
                     onClose: nil,
                     onSeek: onSeek,
                     contentInsets: EdgeInsets(
-                        // 预览：卡片标题栏（`previewHeader`）的高度已经由 `headerHeight`
-                        // 让出来了，这里只留一点点呼吸位。
+                        // 预览的上下边距要**基本对称**，否则"当前行居中"会被顶偏：
+                        // 页面已经按 `headerHeight`（卡片内顶部留白，实测 38pt）让过位，
+                        // 这里再写个小底边距，净效果就是"上面留 44、下面留 10" ——
+                        // 居中点因此比卡片正中高约 17pt（真机表现就是"歌词有点高"）。
                         top: showsProviderFooter ? 8 : 6,
                         leading: sideInset,
-                        bottom: showsProviderFooter ? 46 : 10,
+                        bottom: showsProviderFooter ? 46 : 50,
                         trailing: sideInset
                     ),
                     // 分档按「是不是全屏」决定：
@@ -144,7 +146,11 @@ struct AppleMusicLyricsOverlayView: View {
                     // 会把整条标题栏推到卡片外面 —— 表现就是"预览一个按钮都没有"。
                     headerTopInset: showsProviderFooter ? -30 : 0,
                     // 预览不参与"划动收起壳"：那张小卡片上收起壳只会剩一片空白。
-                    hidesShellOnScroll: showsProviderFooter
+                    hidesShellOnScroll: showsProviderFooter,
+                    // 预览卡片只有 320pt 高，按比例算的底部淡出会变成 64pt 的一大条
+                    // （全屏 896pt 时同样比例只有 143pt 里的 20%，看着正常）。
+                    // 传一个更大的起点把带子压回去。
+                    fadeBottomOpaqueRatio: showsProviderFooter ? 0.86 : 0.93
                 )
             }
         }

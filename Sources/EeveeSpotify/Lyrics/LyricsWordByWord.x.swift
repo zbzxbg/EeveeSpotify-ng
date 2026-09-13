@@ -979,6 +979,15 @@ final class WordByWordHost {
                 solidBackdrop: showsProviderFooter,
                 previewHeaderInset: headerInset
             )
+            // 预览：把"展开 / 分享"的全部候选控件（标签 + frame）打一次日志。
+            //
+            // 为什么要这个：真机上出现过"点我们画的小方框没反应、点 `歌词` 两个字
+            // 反而能进全屏"。那说明 `expandToFullscreenLyrics()` 找到的控件**不是**
+            // 卡片上那一颗（很可能是页面别处的同名按钮，位置完全不同）。
+            // 有了候选清单，就能按"在卡片范围内"来挑，不必再猜。
+            if !showsProviderFooter {
+                WordByWordPlaybackControl.dumpPreviewActionCandidates()
+            }
             // 新层由主时钟驱动，旧 overlay 的回调必须清掉，否则两边同时渲染。
             WordByWordPlaybackClock.shared.onChange = nil
             WordByWordPlaybackClock.shared.tickHandler = { @MainActor ms in
