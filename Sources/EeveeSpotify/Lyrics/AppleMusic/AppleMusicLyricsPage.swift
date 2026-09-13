@@ -131,7 +131,9 @@ struct AppleMusicLyricsPage: View {
         headerContent: AnyView? = nil,
         footerContent: AnyView? = nil,
         closeContent: AnyView? = nil,
-        headerHeight: CGFloat = 62
+        headerHeight: CGFloat = 62,
+        headerTopInset: CGFloat = -30,
+        hidesShellOnScroll: Bool = true
     ) {
         self.lines = lines
         self.playbackTime = playbackTime
@@ -149,6 +151,8 @@ struct AppleMusicLyricsPage: View {
         self.footerContent = footerContent
         self.closeContent = closeContent
         self.headerHeight = headerHeight
+        self.headerTopInset = headerTopInset
+        self.hidesShellOnScroll = hidesShellOnScroll
     }
 
     private static var profile: AppleMusicLyricsMotionProfile { .iOS26_6 }
@@ -176,8 +180,6 @@ struct AppleMusicLyricsPage: View {
     /// ⚠️ 顶部那个占位高度已经改成可传入的 `headerHeight`：全屏是两行文字（≈62），
     /// 内嵌预览只有一行「歌词」+ 两个按钮（≈39），写死会把预览的歌词推下去一截。
     private let shellFooterHeight: CGFloat = 116
-    /// 标题栏顶端相对安全区的偏移。**负数 = 往上抬**；想再抬/降只改这一处。
-    private let headerTopInset: CGFloat = -30
     /// 底部淡出带高度：从「控件栏上方这么多」开始渐隐，到「控件栏顶部」完全透明。
     private let fadeBottomBand: CGFloat = 40
 
@@ -190,12 +192,30 @@ struct AppleMusicLyricsPage: View {
     /// 写死 62 会把预览的歌词往下推一截。
     let headerHeight: CGFloat
 
+    /// 标题栏顶端相对安全区的偏移。**负数 = 往上抬**。
+    ///
+    /// 全屏默认 -30：那一页标题上方本来就有 Spotify 自己的留白，抬一点才对得上。
+    /// ⚠️ **内嵌预览必须传 0**：卡片里 `safeArea.top == 0`，再抬 -30 就把整条标题栏
+    /// 推到卡片外面去 —— 真机上表现就是"预览歌词一个按钮都没有"（标题栏整个被裁掉）。
+    var headerTopInset: CGFloat = -30
+
+    /// 是否启用"划动时收起壳"（收起即「全屏歌词」）。
+    ///
+    /// 只有全屏要这个行为；内嵌预览是一张小卡片，收起壳只会剩一片空白，
+    /// 而且"停下不动就淡出 / 划动就收起"那套在预览里没有意义。
+    var hidesShellOnScroll: Bool = true
+
     /// 自绘的壳（标题栏 + 控件栏）是否被划动收起 —— 收起即「全屏歌词」。
     @State private var isShellHidden = false
     /// 待执行的「把壳调回来」任务；再次划动时取消，避免刚抬手就被旧定时器拉回来。
     @State private var shellRestoreTask: Task<Void, Never>?
     /// 松手后多久把壳调回来（这个窗口同时覆盖了松手后的惯性滚动阶段）。
     private let shellRestoreDelay: TimeInterval = 2
+
+    /// 壳当前是否真的不可见（预览里 `hidesShellOnScroll == false`，永远可见）。
+    private var isShellEffectivelyHidden: Bool {
+        hidesShellOnScroll && isShellHidden
+    }
 
     /// **无壳（内嵌预览）兜底路径**的顶部淡出结束位置（视口高度比例）—— 取自
     /// MeloX 的 `topOpaque: 0.08`。全屏有壳时不用它，改用 `fadeMaskStops`
@@ -387,8 +407,8 @@ struct AppleMusicLyricsPage: View {
                     }
                     .padding(.top, safeArea.top + 6)
                     .padding(.trailing, 12)
-                    .opacity(isShellHidden ? 0 : 1)
-                    .allowsHitTesting(!isShellHidden)
+                    .opacity(isShellEffectivelyHidden ? 0 : 1)
+                    .allowsHitTesting(!isShellEffectivelyHidden)
                 } else if let onClose {
                     closeButton(onClose)
                 }
@@ -412,8 +432,8 @@ struct AppleMusicLyricsPage: View {
                             .padding(.bottom, max(safeArea.bottom, 8))
                     }
                 }
-                .opacity(isShellHidden ? 0 : 1)
-                .allowsHitTesting(!isShellHidden)
+                .opacity(isShellEffectivelyHidden ? 0 : 1)
+                .allowsHitTesting(!isShellEffectivelyHidden)
             }
         }
     }
@@ -440,7 +460,11 @@ struct AppleMusicLyricsPage: View {
     // MARK: 划动时收起 / 恢复壳
 
     /// 划动中：立刻把壳收起来（标题栏 + 控件栏 + 关闭键淡出），歌词即为全屏。
+    ///
+    /// 预览卡片不参与这个行为（`hidesShellOnScroll == false`）—— 那张卡片上
+    /// 收起壳只会剩一片空白。
     private func hideShellWhileScrolling() {
+        guard hidesShellOnScroll else { return }
         shellRestoreTask?.cancel()
         shellRestoreTask = nil
         guard !isShellHidden else { return }
@@ -454,6 +478,7 @@ struct AppleMusicLyricsPage: View {
     /// 用「延迟任务」而不是立即恢复，是因为 SwiftUI 拿不到惯性滚动的结束时机
     /// （见上面 DragGesture 那段说明）—— 这个固定窗口同时也盖住了减速阶段。
     private func scheduleShellRestore() {
+        guard hidesShellOnScroll else { return }
         shellRestoreTask?.cancel()
         shellRestoreTask = Task { @MainActor in
             try? await Task.sleep(
@@ -496,7 +521,8 @@ struct AppleMusicLyricsPage: View {
     ) -> [Gradient.Stop] {
         let height = max(size.height, 1)
 
-        guard headerContent != nil || footerContent != nil, !isShellHidden else {
+        guard headerContent != nil || footerContent != nil,
+              !isShellEffectivelyHidden else {
             return legacyFadeStops
         }
 

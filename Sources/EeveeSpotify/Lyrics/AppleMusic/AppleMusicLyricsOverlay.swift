@@ -139,7 +139,12 @@ struct AppleMusicLyricsOverlayView: View {
                     closeContent: showsShell ? AnyView(shellClose) : nil,
                     // 全屏：曲名 + 歌手两行（62）；预览：一行「歌词」+ 两个按钮（39，
                     // 由宿主按"卡片高度 − 歌词视图高度"实测传入）。
-                    headerHeight: previewHeaderInset > 0 ? previewHeaderInset : 62
+                    headerHeight: previewHeaderInset > 0 ? previewHeaderInset : 62,
+                    // ⚠️ 预览必须传 0：卡片里 `safeArea.top == 0`，再用全屏那套 -30
+                    // 会把整条标题栏推到卡片外面 —— 表现就是"预览一个按钮都没有"。
+                    headerTopInset: showsProviderFooter ? -30 : 0,
+                    // 预览不参与"划动收起壳"：那张小卡片上收起壳只会剩一片空白。
+                    hidesShellOnScroll: showsProviderFooter
                 )
             }
         }
