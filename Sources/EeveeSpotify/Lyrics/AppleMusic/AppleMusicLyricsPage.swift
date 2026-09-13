@@ -177,7 +177,7 @@ struct AppleMusicLyricsPage: View {
     /// 底部壳（进度条 + 时间 + 三键）的占位高度（同理）。
     private let shellFooterHeight: CGFloat = 116
     /// 标题栏顶端相对安全区的偏移。**负数 = 往上抬**；想再抬/降只改这一处。
-    private let headerTopInset: CGFloat = -8
+    private let headerTopInset: CGFloat = -20
     /// 底部淡出带高度：从「控件栏上方这么多」开始渐隐，到「控件栏顶部」完全透明。
     private let fadeBottomBand: CGFloat = 40
 
@@ -290,7 +290,9 @@ struct AppleMusicLyricsPage: View {
                     // 旧 overlay 没这个问题：它首帧 `activeLineIndex = -1`，
                     // 必然走一次 `scrollToLine`。
                     .onAppear {
-                        guard let id = position.highlightedLyricID else { return }
+                        // 与 onChange 同理：首行之前高亮为 nil，这里要落到**第一行**上，
+                        // 否则全屏打开时若歌曲还在前奏，歌词会停在列表顶部。
+                        guard let id = position.highlightedLyricID ?? lines.first?.id else { return }
                         // 延后一帧再滚：`LazyVStack` 是先物化可见区域再响应 scrollTo 的，
                         // 在 onAppear 里立刻调用时目标行往往还没生成，会静默失效。
                         // 延后一帧仍然是不带动画的落位。
@@ -300,8 +302,20 @@ struct AppleMusicLyricsPage: View {
                         }
                     }
                     .onChange(of: position.highlightedLyricID) { _, newValue in
-                        guard let newValue else { return }
-                        guard shouldAutoScroll() else { return }
+                        // ⚠️ `nil` 不是"没事发生"：它表示播放位置落在**第一行之前**
+                        // （按上一首回到本曲开头、或把进度拖到 0，而首行要几秒后才开始）。
+                        // 旧写法 `guard let newValue else { return }` 把这一路直接吞掉，
+                        // 表现就是"回到开头时歌词不跟着回第一行"。
+                        guard let targetID = newValue ?? lines.first?.id else { return }
+
+                        // 回到开头这一路**绕过节流**：之后高亮会一直停在 nil（前奏可能
+                        // 十几秒），被节流吞掉就没有第二次补滚的机会。这里只避开"手指还在拖"。
+                        if newValue == nil {
+                            guard Date().timeIntervalSince(lastDragTime) > 0.15 else { return }
+                        } else {
+                            guard shouldAutoScroll() else { return }
+                        }
+
                         lastAutoScrollTime = Date()
                         withAnimation(
                             .spring(
@@ -310,7 +324,7 @@ struct AppleMusicLyricsPage: View {
                                 blendDuration: 0
                             )
                         ) {
-                            proxy.scrollTo(newValue, anchor: .center)
+                            proxy.scrollTo(targetID, anchor: .center)
                         }
                     }
                     // 滚动打断保护：用户一碰就暂停自动跟随。
@@ -447,28 +461,36 @@ struct AppleMusicLyricsPage: View {
 
     // MARK: 淡出遮罩停靠点
 
+    /// 改动前的整屏比例停靠点（MeloX 口径）。
+    ///
+    /// 两个场合用它：内嵌预览（本来就没有壳），以及**划动把壳收起**时的全屏歌词 ——
+    /// 壳收起后歌词占满整屏，再按壳的占位去算，淡出带会被挤到上下一小块里。
+    private var legacyFadeStops: [Gradient.Stop] {
+        [
+            .init(color: .clear, location: 0),
+            .init(color: .black, location: fadeTopRatio),
+            .init(color: .black, location: fadeBottomOpaqueRatio),
+            .init(color: .clear, location: 1),
+        ]
+    }
+
     /// 上下淡出带的渐变停靠点（相对滚动视图高度，取值 0…1）。
     ///
-    /// 有壳（全屏）时的口径：
+    /// 有壳且**没被收起**时的口径：
     ///   · 上淡出：标题顶部（透明）→ 标题栏底部（不透明）
     ///   · 下淡出：控件栏顶部上方 `fadeBottomBand`（不透明）→ 控件栏顶部（透明）
     /// 中间整段保持完全不透明 —— 也就是"歌词只在标题栏下方到控件栏上方之间淡出"，
     /// 而不是像以前那样贴在整屏的顶和底。
     ///
-    /// 无壳（内嵌预览）时退回整屏比例，与改动前完全一致。
+    /// 无壳（内嵌预览）或壳被划动收起时，退回 `legacyFadeStops`（改动前的整屏比例）。
     private func fadeMaskStops(
         size: CGSize,
         safeArea: EdgeInsets
     ) -> [Gradient.Stop] {
         let height = max(size.height, 1)
 
-        guard headerContent != nil || footerContent != nil else {
-            return [
-                .init(color: .clear, location: 0),
-                .init(color: .black, location: fadeTopRatio),
-                .init(color: .black, location: fadeBottomOpaqueRatio),
-                .init(color: .clear, location: 1),
-            ]
+        guard headerContent != nil || footerContent != nil, !isShellHidden else {
+            return legacyFadeStops
         }
 
         let headerTop = safeArea.top + headerTopInset
