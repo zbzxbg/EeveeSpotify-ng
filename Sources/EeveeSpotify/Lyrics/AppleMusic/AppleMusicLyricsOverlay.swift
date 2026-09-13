@@ -234,8 +234,10 @@ final class AppleMusicLyricsOverlayHost {
             return "no backdrop view"
         }
         let description = backdrop.clippingAncestorDescription()
+        // ⚠️ `NSCoder.string(for:)` 而不是 `NSStringFromCGRect(...)`：
+        // 后者是 C 函数、Swift 3 起弃用，当前工具链下直接报 error。
         writeDebugLog(
-            "[PreviewBackdrop] paint=\(NSStringFromCGRect(backdrop.paintRectForDiagnostics))"
+            "[PreviewBackdrop] paint=\(NSCoder.string(for: backdrop.paintRectForDiagnostics))"
                 + " chain=\(description)"
         )
         return description

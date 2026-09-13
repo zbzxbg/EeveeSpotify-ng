@@ -1140,8 +1140,11 @@ final class WordByWordHost {
             current = node.superview
             depth += 1
         }
+        // ⚠️ 用 `NSCoder.string(for:)` 而不是 `NSStringFromCGRect(...)`：
+        // 后者是 C 函数、在 Swift 3 就被弃用，当前工具链下直接报 error。
         writeDebugLog(
-            "[PreviewBackdrop] rect=\(NSStringFromCGRect(rect)) host=\(Int(host.bounds.width))x\(Int(host.bounds.height))"
+            "[PreviewBackdrop] rect=\(NSCoder.string(for: rect))"
+                + " host=\(Int(host.bounds.width))x\(Int(host.bounds.height))"
                 + " chain=\(chain.joined(separator: " < "))"
         )
     }
