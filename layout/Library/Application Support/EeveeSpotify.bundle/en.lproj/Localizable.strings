@@ -48,13 +48,13 @@ musixmatch_user_token = "Musixmatch User Token";
 user_token_placeholder = "Enter User Token or Paste Debug Info";
 
 ngzhwm_amll_preferred = "Prefer AMLL";
-ngzhwm_amll_preferred_description = "For this option to take effect, word-by-word lyrics must be enabled. When enabled, word-by-word lyrics are requested from AMLL first. If AMLL does not return word-by-word lyrics, it falls back to the lyrics source you selected yourself and that source's related settings. With this option enabled, lyrics no longer show lyric translations or romanization converted locally.";
+ngzhwm_amll_preferred_description = "For this option to take effect, word-by-word lyrics must be enabled. When enabled, word-by-word lyrics are requested from AMLL first. If AMLL does not return word-by-word lyrics, it falls back to the lyrics source you selected yourself and that source's related settings. With this option enabled, lyrics no longer show lyric translations.";
 
 genius_fallback = "Genius Fallback";
 genius_fallback_description = "Load lyrics from Genius if there is a problem with %@.";
 
 hide_lyrics_on_error = "Hide Lyrics Module";
-hide_lyrics_on_error_description = "Remove the lyrics module if lyrics fail to load.";
+hide_lyrics_on_error_description = "Hide the lyrics module if lyrics fail to load.";
 
 
 musixmatch_language = "Musixmatch Lyrics Language";
