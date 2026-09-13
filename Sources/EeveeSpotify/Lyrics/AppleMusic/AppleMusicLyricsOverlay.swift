@@ -130,7 +130,11 @@ struct AppleMusicLyricsOverlayView: View {
                     provider: currentLyricsProvider,
                     showsProviderFooter: showsProviderFooter,
                     primaryColor: primaryColor,
-                    headerContent: AnyView(showsProviderFooter ? shellHeader : previewHeader),
+                    // ⚠️ 两个分支要**各自**包成 AnyView，不能写成
+                    // `AnyView(cond ? a : b)`：`a`/`b` 虽然都是 `some View`，
+                    // 但是两个不同的具体类型，三元表达式本身没法统一它们
+                    // （`AnyView` 是在外面套的，救不了里面）。
+                    headerContent: showsProviderFooter ? AnyView(shellHeader) : AnyView(previewHeader),
                     footerContent: showsShell ? AnyView(shellFooter) : nil,
                     closeContent: showsShell ? AnyView(shellClose) : nil,
                     // 全屏：曲名 + 歌手两行（62）；预览：一行「歌词」+ 两个按钮（39，
