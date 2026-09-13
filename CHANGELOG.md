@@ -3,6 +3,15 @@
 <details open>
 <summary><b>2026</b> </summary>
 
+### 09.13
+
+<details>
+<summary><b>v6.0.0-beta.8(build 19)</b></summary>
+
+- Experimental: Further improved the display of Better Word-by-Word Lyrics.
+
+</details>
+
 ### 09.12
 
 <details>
