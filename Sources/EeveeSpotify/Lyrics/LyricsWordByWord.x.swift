@@ -893,6 +893,8 @@ final class WordByWordHost {
     private var isAttached = false
     /// 最近出现的内嵌歌词 VC（弱引用），全屏关闭后据此重新挂载。
     private weak var lastInlineController: UIViewController?
+    /// 关闭全屏时留在原宿主上的静态替身（见 `handOffToInlineKeepingStandIn`）。
+    private var transitionStandInView: UIView?
 
     func rememberInlineController(_ controller: UIViewController) {
         lastInlineController = controller
@@ -962,10 +964,12 @@ final class WordByWordHost {
             // 模糊封面 —— 把同一张模糊封面也铺到卡片容器上，"壳"和"肉"才统一。
             // 全屏自己有整屏背景，不需要这一层（传 nil 会把它摘掉）。
             //
-            // 注意容器取的是 `view.superview`（歌词视图的父视图 = 卡片）。
-            // 子视图出不了父视图 bounds，所以"壳"那一圈只能靠换挂载点来覆盖。
+            // ⚠️ 容器**不能**用 `view.superview`：实测那层比卡片矮 39pt
+            // （日志：`shell backdrop in UIView(374x261)`，而其父 `CardView(374x300)`），
+            // 差的正好是卡片顶部标题/按钮行的高度 —— 挂在那层上，卡片顶仍是纯专辑色。
+            // 所以按类名往上找 `CardView`，见 `cardContainer(for:)`。
             AppleMusicLyricsOverlayHost.shared.updateShellBackdrop(
-                in: showsProviderFooter ? nil : view.superview
+                in: showsProviderFooter ? nil : Self.cardContainer(for: view)
             )
             // 新层由主时钟驱动，旧 overlay 的回调必须清掉，否则两边同时渲染。
             WordByWordPlaybackClock.shared.onChange = nil
@@ -1040,6 +1044,83 @@ final class WordByWordHost {
         isAttached = false
         writeDebugLog("[WordByWord] overlay detached")
     }
+
+    // MARK: 关闭全屏的「静态替身」交接（C2）
+
+    /// 关闭全屏时用：先给当前层拍一张**静态替身**留在原宿主（全屏页）上，
+    /// 再把真正的 overlay 搬回内嵌卡片。
+    ///
+    /// 为什么必须这样：一个 overlay 视图没法同时挂在两个宿主上。直接在
+    /// `viewWillDisappear` 里 `detach()` 的话，整段下滑动画期间全屏页露出的都是
+    /// **Spotify 原生歌词 + 纯专辑色背景** —— 这就是"关闭时一闪"的成因。
+    /// 留一张 `snapshotView` 顶替它在原位置的画面之后：
+    ///   · 全屏页在整段关闭动画里仍是"我们的样子"（静态，但页面本来就在往下滑，看不出来）；
+    ///   · 真正的层已经挂回内嵌卡片，卡片被露出来时也已经是我们的渲染。
+    func handOffToInlineKeepingStandIn() {
+        installStandIn()
+        detach()
+        reattachToInline()
+    }
+
+    /// 全屏页彻底消失后清掉替身。
+    func removeStandIn() {
+        guard let standIn = transitionStandInView else { return }
+        standIn.removeFromSuperview()
+        transitionStandInView = nil
+        writeDebugLog("[Shell] stand-in removed")
+    }
+
+    /// 当前正在显示的那一层（Apple Music 层优先）。
+    private var currentOverlayView: UIView? {
+        if #available(iOS 26.0, *),
+           let view = AppleMusicLyricsOverlayHost.shared.overlayView {
+            return view
+        }
+        return overlay
+    }
+
+    private func installStandIn() {
+        removeStandIn()
+
+        guard let host = hostView,
+              let current = currentOverlayView,
+              let snapshot = current.snapshotView(afterScreenUpdates: false) else {
+            writeDebugLog("[Shell] ⚠️ stand-in unavailable (no host / view / snapshot)")
+            return
+        }
+
+        // 与原层同位置、同层级：插在它上面，就等于接替了它原来占的那一层
+        // （原生控件在我们之上，替身也在我们之上，层级关系不变）。
+        snapshot.frame = current.frame
+        snapshot.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        snapshot.isUserInteractionEnabled = false
+        host.insertSubview(snapshot, aboveSubview: current)
+        transitionStandInView = snapshot
+        writeDebugLog("[Shell] stand-in installed for dismissal")
+    }
+
+    // MARK: 卡片容器
+
+    /// 预览卡片的容器。
+    ///
+    /// Spotify 把歌词视图放在 `...CardView` 里，中间还夹着一层比卡片**矮 39pt**
+    /// 的普通 UIView（那 39pt 正是卡片顶部标题/按钮行的高度）。挂在那层上，
+    /// 卡片顶部一条就还是 Spotify 的纯专辑色。所以按类名往上找 `CardView`；
+    /// 找不到才退回 `superview`（结构不同的版本上不至于完全不生效）。
+    static func cardContainer(for view: UIView) -> UIView {
+        var fallback: UIView?
+        var current: UIView? = view.superview
+        var depth = 0
+        while let node = current, depth < 4 {
+            if fallback == nil { fallback = node }
+            if NSStringFromClass(type(of: node)).contains("CardView") {
+                return node
+            }
+            current = node.superview
+            depth += 1
+        }
+        return fallback ?? view
+    }
 }
 
 // MARK: - 挂载 hook（全屏歌词 VC）
@@ -1056,8 +1137,9 @@ final class WordByWordHost {
 // 它已经是主线程时是同步执行的，不改变任何时序；`viewWillDisappear` 里的清理
 // 因此仍然是同步的。
 //
-// 顺带：需要延后一拍再挂载的那两处（内嵌 / 全屏），沿用原有的
-// `DispatchQueue.main.async`，写在 `onMainThreadSync` 里面。
+// 顺带：**内嵌（预览）**那两处沿用原有的 `DispatchQueue.main.async` 延后一拍再挂载，
+// 写在 `onMainThreadSync` 里面；**全屏**那两处已改到 `viewWillAppear` 里直接挂 ——
+// 多拖一拍会让转场动画期间露出 Spotify 自己的全屏歌词（"进入时一闪"）。
 
 class LyricsWordByWordModernHostHook: ClassHook<UIViewController> {
     typealias Group = ModernLyricsGroup
@@ -1111,40 +1193,68 @@ class LyricsWordByWordFullscreenModernHostHook: ClassHook<UIViewController> {
     typealias Group = ModernLyricsGroup
     static let targetName = "Lyrics_FullscreenElementPageImpl.FullscreenElementViewController"
 
+    func viewWillAppear(_ animated: Bool) {
+        orig.viewWillAppear(animated)
+        let vc = target
+        // 挂载点：**整屏的 vc.view**，除此之外什么都不做。
+        //
+        // 这里曾经把 overlay 挂到「歌词内容」子模块
+        // `Lyrics_FullscreenElementPageImpl.LyricsView`（frame=0,104 414x570），
+        // 后果是背景只能铺在 570pt 的容器内、容器边界上留一道"壳 / 肉"接缝 ——
+        // 这是要消除的东西，所以改成挂整屏。
+        //
+        // ⚠️ 但"挂整屏"必须配上"不碰原生视图"。中间我试过更激进的一版
+        // （隐藏歌词容器 + 把整层插到最底 + 清宿主底色），真机结果是**整页空白、
+        // Spotify 菜单全没了**。原因见 `attach` 里的说明：这一页的 header / 歌词 /
+        // 控件栏都不是 vc.view 的直接子视图，藏一个就等于藏整页。
+        // 所以现在：原生 UI 一个都不动，靠我们自己的背景够暗来盖住它。
+        // 全屏左边距用 24（贴近 Spotify 原生歌词内容的 24pt 内缩）
+        //
+        // ⚠️ 时机从 `viewDidAppear` 提前到 `viewWillAppear`：前者是**转场动画播完**
+        // 才回调的，所以之前整段上滑动画期间露出的都是 Spotify 自己的全屏歌词
+        // （纯专辑色背景 + 原生歌词），动画结束我们的层才贴上去 —— 就是"进入时一闪"。
+        // 同时去掉 `DispatchQueue.main.async` 那一拍：它原本是"等布局"，而这一层的
+        // 约束贴死 vc.view 四边，布局变化会自动跟随，不需要等。
+        onMainThreadSync {
+            WordByWordHost.shared.attach(
+                to: vc,
+                sideInset: 24,
+                showsProviderFooter: true
+            )
+        }
+    }
+
     func viewDidAppear(_ animated: Bool) {
         orig.viewDidAppear(animated)
         let vc = target
         onMainThreadSync {
-            DispatchQueue.main.async {
-                // 挂载点：**整屏的 vc.view**，除此之外什么都不做。
-                //
-                // 这里曾经把 overlay 挂到「歌词内容」子模块
-                // `Lyrics_FullscreenElementPageImpl.LyricsView`（frame=0,104 414x570），
-                // 后果是背景只能铺在 570pt 的容器内、容器边界上留一道"壳 / 肉"接缝 ——
-                // 这是要消除的东西，所以改成挂整屏。
-                //
-                // ⚠️ 但"挂整屏"必须配上"不碰原生视图"。中间我试过更激进的一版
-                // （隐藏歌词容器 + 把整层插到最底 + 清宿主底色），真机结果是**整页空白、
-                // Spotify 菜单全没了**。原因见 `attach` 里的说明：这一页的 header / 歌词 /
-                // 控件栏都不是 vc.view 的直接子视图，藏一个就等于藏整页。
-                // 所以现在：原生 UI 一个都不动，靠我们自己的背景够暗来盖住它。
-                // 全屏左边距用 24（贴近 Spotify 原生歌词内容的 24pt 内缩）
-                WordByWordHost.shared.attach(
-                    to: vc,
-                    sideInset: 24,
-                    showsProviderFooter: true
-                )
-            }
+            // 兜底：万一 viewWillAppear 时逐词数据还没就绪（歌词仍在路上），这里再挂一次。
+            // 已经挂在同一宿主上时 `attach` 会直接 return，不会闪。
+            WordByWordHost.shared.attach(
+                to: vc,
+                sideInset: 24,
+                showsProviderFooter: true
+            )
         }
     }
 
     func viewWillDisappear(_ animated: Bool) {
         orig.viewWillDisappear(animated)
         onMainThreadSync {
-            WordByWordHost.shared.detach()
             // 全屏以 sheet 形式盖在内嵌之上，关闭时内嵌 VC 不会重新 viewDidAppear；
             // 用记住的内嵌 VC 把 overlay 挂回去。
-            WordByWordHost.shared.reattachToInline()
+            //
+            // C2：交接前先在全屏页上留一张静态替身 —— 否则整段下滑动画期间露出的
+            // 是 Spotify 原生歌词 + 纯专辑色背景，也就是"关闭时一闪"。
+            WordByWordHost.shared.handOffToInlineKeepingStandIn()
+        }
+    }
+
+    func viewDidDisappear(_ animated: Bool) {
+        orig.viewDidDisappear(animated)
+        onMainThreadSync {
+            // 关闭动画结束，替身可以撤掉了。
+            WordByWordHost.shared.removeStandIn()
         }
     }
 }
@@ -1158,37 +1268,57 @@ class LyricsWordByWordFullscreenLegacyHostHook: ClassHook<UIViewController> {
         }
     }
 
+    func viewWillAppear(_ animated: Bool) {
+        orig.viewWillAppear(animated)
+        let vc = target
+        // 挂到 vc.view（整屏）。
+        //
+        // ⚠️ 这里以前会取 `Ivars<UIView>(vc.view).headerView` 并当作
+        // `keepAboveView` 传下去，想让原生 header 浮在我们的 overlay 之上。
+        // 那个做法已被证伪，参数整个删掉了：
+        //   · Modern 全屏页上根本没有这个 ivar（`Ivars` 访问不存在的 ivar 是会崩的，
+        //     靠的只是"老版本上恰好存在"这种运气）；
+        //   · 就算取到，原生控件也不在这条视图链上，抬层级影响不到它们。
+        //
+        // 现在旧 overlay 的显隐完全由"有没有逐词数据"决定：有就画（盖住原生歌词），
+        // 没有就整层透明 + 触摸穿透（原生界面与控件原样可用）。
+        //
+        // ⚠️ 时机从 `viewDidAppear` 提前到 `viewWillAppear`（同 modern hook）：
+        // 避免转场动画期间露出 Spotify 自己的全屏歌词。
+        onMainThreadSync {
+            WordByWordHost.shared.attach(
+                to: vc,
+                sideInset: 24,
+                showsProviderFooter: true
+            )
+        }
+    }
+
     func viewDidAppear(_ animated: Bool) {
         orig.viewDidAppear(animated)
         let vc = target
         onMainThreadSync {
-            DispatchQueue.main.async {
-                // 挂到 vc.view（整屏）。
-                //
-                // ⚠️ 这里以前会取 `Ivars<UIView>(vc.view).headerView` 并当作
-                // `keepAboveView` 传下去，想让原生 header 浮在我们的 overlay 之上。
-                // 那个做法已被证伪，参数整个删掉了：
-                //   · Modern 全屏页上根本没有这个 ivar（`Ivars` 访问不存在的 ivar 是会崩的，
-                //     靠的只是"老版本上恰好存在"这种运气）；
-                //   · 就算取到，原生控件也不在这条视图链上，抬层级影响不到它们。
-                //
-                // 现在旧 overlay 的显隐完全由"有没有逐词数据"决定：有就画（盖住原生歌词），
-                // 没有就整层透明 + 触摸穿透（原生界面与控件原样可用）。
-                WordByWordHost.shared.attach(
-                    to: vc,
-                    sideInset: 24,
-                    showsProviderFooter: true
-                )
-            }
+            // 兜底重挂：已经挂在同一宿主上时 `attach` 会直接 return。
+            WordByWordHost.shared.attach(
+                to: vc,
+                sideInset: 24,
+                showsProviderFooter: true
+            )
         }
     }
 
     func viewWillDisappear(_ animated: Bool) {
         orig.viewWillDisappear(animated)
         onMainThreadSync {
-            WordByWordHost.shared.detach()
-            // 同 modern hook：关闭全屏时把 overlay 挂回内嵌歌词 VC
-            WordByWordHost.shared.reattachToInline()
+            // 同 modern hook：留静态替身 + 把 overlay 挂回内嵌歌词 VC。
+            WordByWordHost.shared.handOffToInlineKeepingStandIn()
+        }
+    }
+
+    func viewDidDisappear(_ animated: Bool) {
+        orig.viewDidDisappear(animated)
+        onMainThreadSync {
+            WordByWordHost.shared.removeStandIn()
         }
     }
 }

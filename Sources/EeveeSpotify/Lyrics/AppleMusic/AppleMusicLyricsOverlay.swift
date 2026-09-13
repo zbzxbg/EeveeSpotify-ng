@@ -182,6 +182,10 @@ final class AppleMusicLyricsOverlayHost {
 
     private var hostingController: UIHostingController<AppleMusicLyricsOverlayView>?
     private weak var hostView: UIView?
+
+    /// 当前挂着的 overlay 视图。关闭全屏时要给它拍一张静态替身
+    /// （见 `WordByWordHost.handOffToInlineKeepingStandIn`）。
+    var overlayView: UIView? { hostingController?.view }
     private let clock = AppleMusicLyricsClock()
     /// 播放状态投影（自绘壳用）。
     ///
