@@ -211,6 +211,13 @@ final class AppleMusicLyricsOverlayHost {
     /// 于是"壳是纯色、肉是模糊"。这块视图就是把同一张模糊封面铺到卡片容器上。
     private var shellBackdropView: LyricsBackdropView?
     private weak var shellBackdropHost: UIView?
+    /// 被我们清掉底色的「卡片面板」视图 → 原色，`detachShellBackdrop` 时还原。
+    ///
+    /// 为什么需要清：`insertSubview(at: 0)` 只保证"在兄弟之间最靠后"，
+    /// **管不了容器自己刷的底色** —— 卡片的 `backgroundColor` 是不透明的专辑色，
+    /// 它画在所有子视图之下、却盖在我们的背景之上，表现就是卡片顶栏那条 39pt
+    /// （「歌词」+ 分享/展开按钮那一行）始终是纯专辑色。截图实测确认过。
+    private var clearedShellPanelColors: [UIView: UIColor] = [:]
 
     private init() {}
 
@@ -382,6 +389,11 @@ final class AppleMusicLyricsOverlayHost {
             return
         }
 
+        // ⚠️ 清底色要放在最前面，**不能**放在下面那个 `guard backdrop.superview !== container`
+        // 之后：那个 guard 在"已经挂好了"时直接 return，清一次之后再没人补 ——
+        // 只要 Spotify 在换帧时又给我们上面那层刷回专辑色，就会闪回一次原色。
+        clearShellPanelBackgrounds(from: container)
+
         let backdrop: LyricsBackdropView
         if let existing = shellBackdropView {
             backdrop = existing
@@ -396,6 +408,7 @@ final class AppleMusicLyricsOverlayHost {
         backdrop.removeFromSuperview()
         backdrop.translatesAutoresizingMaskIntoConstraints = false
         // 插到最底层：不挡 Spotify 自己的按钮，也不动它们的层级。
+        // （容器自己那层底色由 `clearShellPanelBackgrounds` 负责清掉，否则会盖住它。）
         container.insertSubview(backdrop, at: 0)
         NSLayoutConstraint.activate([
             backdrop.leadingAnchor.constraint(equalTo: container.leadingAnchor),
@@ -413,7 +426,51 @@ final class AppleMusicLyricsOverlayHost {
         )
     }
 
+    /// 清掉卡片面板自己刷的不透明底色。
+    ///
+    /// 从容器往上走，把"不透明底色"的视图逐个清成透明 —— 卡片面板的颜色可能刷在
+    /// 容器本身，也可能刷在它上面那层同尺寸的中间视图上（实测两种都存在），
+    /// 所以两种都要处理。
+    ///
+    /// ⚠️ 这个方法**每帧**都会被调用（见 `LyricsWordByWord.x.swift` 里 tickHandler 的
+    /// 说明）：Spotify 会在换帧时把专辑色重新刷回去，只清一次就会闪回原色。
+    /// 已经清过的视图 `backgroundColor` 已是透明，会被 alpha 判据跳过，
+    /// 所以重复调用的开销只有几次属性读取。
+    ///
+    /// **不越界**：最多走 3 层，且遇到 `UITableView` / `UICollectionView` 就停 ——
+    /// 再往上就是滚动容器和页面级视图，清它们会波及卡片之外的东西。
+    func clearShellPanelBackgrounds(from container: UIView) {
+        var node: UIView? = container
+        var depth = 0
+
+        while let current = node, depth < 3 {
+            let className = NSStringFromClass(type(of: current))
+            if className.contains("TableView") || className.contains("CollectionView") { break }
+
+            if let color = current.backgroundColor, color.cgColor.alpha > 0.01 {
+                // 只记第一次的原值：清了之后它变透明，不会重复覆盖记录。
+                if clearedShellPanelColors[current] == nil {
+                    clearedShellPanelColors[current] = color
+                    writeDebugLog(
+                        "[AppleMusicLyrics] shell panel cleared "
+                            + "\(className) \(Self.describe(current)) color=\(color)"
+                    )
+                }
+                current.backgroundColor = .clear
+            }
+
+            node = current.superview
+            depth += 1
+        }
+    }
+
     func detachShellBackdrop() {
+        // 底色必须还回去：它是 Spotify 自己的视图，我们只是借用期间清掉。
+        for (view, color) in clearedShellPanelColors {
+            view.backgroundColor = color
+        }
+        clearedShellPanelColors.removeAll()
+
         guard let backdrop = shellBackdropView else { return }
         backdrop.removeFromSuperview()
         shellBackdropView = nil

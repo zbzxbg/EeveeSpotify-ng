@@ -975,6 +975,17 @@ final class WordByWordHost {
             WordByWordPlaybackClock.shared.onChange = nil
             WordByWordPlaybackClock.shared.tickHandler = { @MainActor ms in
                 AppleMusicLyricsOverlayHost.shared.tick(ms: ms)
+                // 预览卡片：**每帧**把容器自己刷的专辑底色清掉。
+                //
+                // 为什么不能只在挂载时清一次：Spotify 会在换帧时把那层专辑色重新
+                // 刷回去，清一次就会"闪回原色"（用户实测到的闪烁）。
+                // `updateShellBackdrop` 里已经清过的视图会被 alpha 判据跳过、
+                // 背景已挂好时还会提前 return，所以每帧调用的实际开销只有几次属性读取。
+                if !showsProviderFooter {
+                    AppleMusicLyricsOverlayHost.shared.clearShellPanelBackgrounds(
+                        from: Self.cardContainer(for: view)
+                    )
+                }
             }
             WordByWordPlaybackClock.shared.start()
             hostView = view
