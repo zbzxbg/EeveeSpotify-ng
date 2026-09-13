@@ -232,31 +232,6 @@ final class LyricsBackdropView: UIView {
         }
     }
 
-    /// 让背景**画到自己的 bounds 之外**：把画面铺满这个矩形（自己的坐标系）。
-    ///
-    /// 为什么需要它：内嵌预览时我们的层挂在歌词视图上，而"壳"（卡片顶栏那条
-    /// 「歌词」+ 分享/展开按钮、以及四周留白）在歌词视图**之外**、属于卡片容器。
-    /// 子视图默认只在父视图 bounds 内布局，所以那一圈永远轮不到我们的背景 ——
-    /// 它显示的是 Spotify 的纯专辑色，也就是那条粉色横杠。
-    ///
-    /// 传一个比 bounds 大的矩形（卡片在宿主坐标系里的 frame）之后：
-    ///   · `clipsToBounds` 关掉（否则画出去的部分立刻被裁掉）；
-    ///   · 封面 / 材质 / 渐变全部按这个矩形算，于是"壳"也被同一张模糊封面盖住。
-    /// 传 `nil` 恢复正常（等价于 bounds）。
-    ///
-    /// ⚠️ "画到父视图之外"是允许的（`draw(_:)` 与 layer 都能画出去），
-    /// 唯一要求是祖先链上没有 `clipsToBounds = true`。
-    /// 这和当年那个失败尝试（想用负 margin 让子视图在**布局上**占更大空间）不是一回事：
-    /// 那个在布局层面做不到，这个只是把绘制范围扩大。
-    var frameOverride: CGRect? {
-        didSet {
-            guard frameOverride != oldValue else { return }
-            // 要画到外面去，自己这一层必须先别裁。
-            clipsToBounds = frameOverride == nil
-            setNeedsLayout()
-        }
-    }
-
     override init(frame: CGRect) {
         super.init(frame: frame)
         setup()
@@ -291,52 +266,17 @@ final class LyricsBackdropView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
 
-        // 绘制参照矩形：默认就是自己的 bounds；给了 `frameOverride` 就用它 ——
-        // 那是"要覆盖的整块区域"（例如整张预览卡片），可以比 bounds 大。
-        let rect = paintRect
-
-        // overscan：比参照矩形略大并居中，模糊边缘不会露出底色。
-        let width = rect.width * overscan
-        let height = rect.height * overscan
+        // overscan：比 bounds 略大并居中，模糊边缘不会露出底色。
+        let width = bounds.width * overscan
+        let height = bounds.height * overscan
         blurredImageView.frame = CGRect(
-            x: rect.minX + (rect.width - width) / 2,
-            y: rect.minY + (rect.height - height) / 2,
+            x: (bounds.width - width) / 2,
+            y: (bounds.height - height) / 2,
             width: width,
             height: height
         )
-        scrimView.frame = rect
-        gradientLayer.frame = rect
-    }
-
-    /// 实际绘制的矩形（自己的坐标系）。
-    private var paintRect: CGRect {
-        frameOverride ?? bounds
-    }
-
-    /// 供诊断读取当前绘制矩形（`paintRect` 是 private，日志在别的文件里打）。
-    var paintRectForDiagnostics: CGRect { paintRect }
-
-    /// 上一层树里有没有人裁切（画到 bounds 之外能否成立只看这个）。
-    ///
-    /// 诊断用：`UIKit` 自己那几层（歌词视图 → 卡片）我们已经知道都**不裁**
-    /// （默认 `clipsToBounds = false`），但 SwiftUI 给 `UIViewRepresentable` 套的
-    /// `_UIHostingView` / `UIKitPlatformViewHost` 是它内部建的，是否裁切不受我们控制 ——
-    /// 这一行就是用来分辨"到底是被谁裁掉的"。
-    func clippingAncestorDescription() -> String {
-        var parts: [String] = []
-        var current: UIView? = self
-        var depth = 0
-        while let node = current, depth < 8 {
-            parts.append(
-                "\(NSStringFromClass(type(of: node)))"
-                    + "(\(Int(node.bounds.width))x\(Int(node.bounds.height))"
-                    + ",clip=\(node.clipsToBounds))"
-            )
-            // 遇到我们自己的宿主（歌词视图）就够了，再往上都是 Spotify 的层。
-            current = node.superview
-            depth += 1
-        }
-        return parts.joined(separator: " < ")
+        scrimView.frame = bounds
+        gradientLayer.frame = bounds
     }
 
     // MARK: 对外配置

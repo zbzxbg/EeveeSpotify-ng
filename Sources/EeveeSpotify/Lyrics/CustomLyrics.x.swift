@@ -370,8 +370,39 @@ func getLyricsDataForCurrentTrack(_ originalPath: String, originalLyrics: Lyrics
         }
     }
 
-    // 记录最终生效的歌词背景色（原始色或定制色），供逐字 overlay 复用，保证与原生模块同色
+    // 记录最终生效的歌词背景色（原始色或定制色），供逐字 overlay 复用，保证与原生模块同色。
+    //
+    // ⚠️ 必须在下面那个"清 alpha"之前读：overlay 要的是**原色**，
+    // 拿去当自己的兜底底色 / 判断明暗，不能是透明值。
     currentLyricsBackgroundColorARGB = lyrics.colors.backgroundColor
+
+    // ── 交给 Spotify 的那份背景色改成**全透明** ───────────────────────────────
+    //
+    // 为什么：Spotify 拿这个值去刷原生歌词界面的背景 —— 包括**卡片面板**自己那层。
+    // 而我们的层是"歌词视图的子视图"，**子视图永远盖不住父视图自己的背景**
+    // （绘制顺序是"父视图的 backgroundColor 先画、子视图后画"），
+    // 所以预览卡片顶部那条 39pt（「歌词」+ 分享/展开按钮那一行）永远是专辑纯色。
+    //
+    // 之前试过四种"盖住它"的办法（往卡片塞背景层 / 清容器底色 / 每帧重清 /
+    // 让我们的背景画到 bounds 之外），全都无效 —— 因为问题不在层级，在绘制顺序。
+    // 这次改成**让它别画**：把注入值的 alpha 清掉，面板就是透明，
+    // 露出来的正好是我们已经铺在歌词区上的模糊封面。
+    //
+    // 只动 alpha（高 8 位），RGB 原样保留：
+    //   · 「歌词」标题与分享/展开按钮是**画在面板背景之上**的独立视图，
+    //     颜色不受影响，位置和点击也不变；
+    //   · 我们自己的 overlay 用的是上面那个 `currentLyricsBackgroundColorARGB`（原值）。
+    let injected = lyrics.colors.backgroundColor
+    let transparentBackground = injected & 0x00FF_FFFF
+    if transparentBackground != injected {
+        lyrics.colors.backgroundColor = transparentBackground
+        writeDebugLog(
+            String(
+                format: "[Lyrics] injected background %08X -> %08X (transparent)",
+                injected, transparentBackground
+            )
+        )
+    }
 
     // 记录歌词提供者，供全屏 overlay 底部展示
     currentLyricsProvider = lyrics.data.providedBy

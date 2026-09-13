@@ -44,11 +44,6 @@ struct AppleMusicLyricsOverlayView: View {
     var backdropStyle: LyricsBackdropView.Style
     /// 背景是否走"实心"档（全屏）。
     var solidBackdrop: Bool
-    /// 背景的绘制覆盖范围（宿主坐标系）。预览时是整张卡片，全屏时 nil。
-    ///
-    /// 与 `backdropStyle` / `solidBackdrop` 同样是 `var`：卡片会随页面滚动和
-    /// 展开收起而移动，宿主每帧重新算一遍写进来。
-    var backdropFrameOverride: CGRect?
     /// 是否显示底部「歌词提供者」。
     ///
     /// ⚠️ 故意是 `var` 而不是 `let`：全屏 ↔ 预览切换时只改这个值 + `sideInset`，
@@ -91,8 +86,7 @@ struct AppleMusicLyricsOverlayView: View {
         ZStack {
             AppleMusicLyricsBackdrop.makeBackground(
                 style: backdropStyle,
-                solid: solidBackdrop,
-                frameOverride: backdropFrameOverride
+                solid: solidBackdrop
             )
 
             if lines.isEmpty {
@@ -221,41 +215,6 @@ final class AppleMusicLyricsOverlayHost {
         return true
     }
 
-    /// 诊断：把"我们的背景视图 → 祖先链"的裁切状态打一行日志。
-    ///
-    /// 覆盖矩形生效的前提是祖先链上没人 `clipsToBounds`。Spotify 那两层我们已经知道
-    /// 不裁，真正不确定的是 **SwiftUI 给 `UIViewRepresentable` 套的宿主**
-    /// （`_UIHostingView` / `UIKitPlatformViewHost`）—— 它是框架内部建的，
-    /// 会不会裁不受我们控制。这行日志就是用来分辨这件事的。
-    @discardableResult
-    func describeBackdropClipping() -> String {
-        guard let backdrop = Self.findBackdropView(in: hostingController?.view) else {
-            writeDebugLog("[PreviewBackdrop] chain=(no backdrop view found)")
-            return "no backdrop view"
-        }
-        let description = backdrop.clippingAncestorDescription()
-        // ⚠️ `NSCoder.string(for:)` 而不是 `NSStringFromCGRect(...)`：
-        // 后者是 C 函数、Swift 3 起弃用，当前工具链下直接报 error。
-        writeDebugLog(
-            "[PreviewBackdrop] paint=\(NSCoder.string(for: backdrop.paintRectForDiagnostics))"
-                + " chain=\(description)"
-        )
-        return description
-    }
-
-    /// 在宿主子树里找我们的背景视图。
-    ///
-    /// 不假设它在第几层：SwiftUI 会把 `UIViewRepresentable` 包进几层平台宿主
-    /// （`_UIHostingView` → `UIKitPlatformViewHost` → 我们的视图），层级不是我们能定的。
-    private static func findBackdropView(in view: UIView?) -> LyricsBackdropView? {
-        guard let view else { return nil }
-        if let backdrop = view as? LyricsBackdropView { return backdrop }
-        for subview in view.subviews {
-            if let found = findBackdropView(in: subview) { return found }
-        }
-        return nil
-    }
-
     /// 挂载或刷新。挂载时调用一次，之后由 `tick(ms:)` 每帧驱动时间。
     /// - Parameters:
     ///   - view: 挂到哪个视图上。全屏页传 VC 的根视图（整屏），内嵌预览传歌词容器。
@@ -277,8 +236,7 @@ final class AppleMusicLyricsOverlayHost {
         in view: UIView,
         sideInset: CGFloat,
         showsProviderFooter: Bool,
-        solidBackdrop: Bool = false,
-        backdropFrameOverride: CGRect? = nil
+        solidBackdrop: Bool = false
     ) {
         // 数据变了就重建视图（换歌 / 重新取词）。
         if currentVersion != currentLyricsVersion {
@@ -315,7 +273,6 @@ final class AppleMusicLyricsOverlayHost {
             currentSideInset = sideInset
             currentShowsProviderFooter = showsProviderFooter
             currentSolidBackdrop = solidBackdrop
-            currentBackdropFrameOverride = backdropFrameOverride
 
             if insetChanged || footerChanged {
                 hostingController.rootView.sideInset = sideInset
@@ -328,11 +285,6 @@ final class AppleMusicLyricsOverlayHost {
             if hostingController.rootView.trackArtist != currentTrackArtist {
                 hostingController.rootView.trackArtist = currentTrackArtist
             }
-            // 卡片位置会随滚动变化，这个矩形每帧重新写一次（`frameOverride` 自带
-            // 等值判断，没变就不会触发重排）。
-            if hostingController.rootView.backdropFrameOverride != backdropFrameOverride {
-                hostingController.rootView.backdropFrameOverride = backdropFrameOverride
-            }
             return
         }
 
@@ -342,7 +294,6 @@ final class AppleMusicLyricsOverlayHost {
             // 就地改这些参数：背景是 body 里按它们现算的，所以改完即为最新。
             hosting.rootView.backdropStyle = showsProviderFooter ? .stage : .card
             hosting.rootView.solidBackdrop = solidBackdrop
-            hosting.rootView.backdropFrameOverride = backdropFrameOverride
             hosting.rootView.sideInset = sideInset
             hosting.rootView.showsProviderFooter = showsProviderFooter
             // 壳文本也一起对齐（换歌 + 换挂载点可能同时发生）。
@@ -355,8 +306,7 @@ final class AppleMusicLyricsOverlayHost {
                     lines: lines,
                     sideInset: sideInset,
                     showsProviderFooter: showsProviderFooter,
-                    solidBackdrop: solidBackdrop,
-                    backdropFrameOverride: backdropFrameOverride
+                    solidBackdrop: solidBackdrop
                 )
             )
             hosting.view.backgroundColor = .clear
@@ -469,14 +419,12 @@ final class AppleMusicLyricsOverlayHost {
         lines: [LyricLine],
         sideInset: CGFloat,
         showsProviderFooter: Bool,
-        solidBackdrop: Bool,
-        backdropFrameOverride: CGRect?
+        solidBackdrop: Bool
     ) -> AppleMusicLyricsOverlayView {
         AppleMusicLyricsOverlayView(
             lines: lines,
             backdropStyle: showsProviderFooter ? .stage : .card,
             solidBackdrop: solidBackdrop,
-            backdropFrameOverride: backdropFrameOverride,
             showsProviderFooter: showsProviderFooter,
             sideInset: sideInset,
             onSeek: { time in
@@ -511,23 +459,17 @@ enum AppleMusicLyricsBackdrop {
     ///   · 全屏 → `.stage`：铺满整屏 + 均匀暗化
     ///   · 预览 → `.card`：只在卡片内，上下暗中间透
     ///
-    /// - Parameter frameOverride: 背景的**绘制覆盖范围**（宿主坐标系）。
-    ///   内嵌预览时传"整张预览卡片在宿主里的 frame" —— 卡片顶栏那条
-    ///   「歌词」+ 分享/展开按钮在歌词视图之外，只有让背景画出去才能盖住它。
-    ///   全屏传 nil（背景本来就铺满整屏）。
+    /// - Parameter solid: 全屏专档。见 `LyricsBackdropView.solidStageScrimAlpha`：
+    ///   全屏时背景要负责"压住"底下的原生页面（我们不再动任何原生视图），
+    ///   所以需要比默认更实。
     @ViewBuilder
     static func makeBackground(
         style: LyricsBackdropView.Style,
-        solid: Bool = false,
-        frameOverride: CGRect? = nil
+        solid: Bool = false
     ) -> AnyView {
         AnyView(
-            LyricsBackdropRepresentable(
-                style: style,
-                solid: solid,
-                frameOverride: frameOverride
-            )
-            .ignoresSafeArea()
+            LyricsBackdropRepresentable(style: style, solid: solid)
+                .ignoresSafeArea()
         )
     }
 }
@@ -541,8 +483,6 @@ private struct LyricsBackdropRepresentable: UIViewRepresentable {
     let style: LyricsBackdropView.Style
     /// 是否走"实心"档（全屏）。
     let solid: Bool
-    /// 绘制覆盖范围（宿主坐标系）。nil = 只画自己的 bounds。
-    let frameOverride: CGRect?
 
     func makeUIView(context: Context) -> LyricsBackdropView {
         let view = LyricsBackdropView()
@@ -556,7 +496,6 @@ private struct LyricsBackdropRepresentable: UIViewRepresentable {
             showsArtwork: true,
             material: NgzhwmSettingsViewModel.isLyricsBackdropMaterialEnabled
         )
-        view.frameOverride = frameOverride
         return view
     }
 
@@ -566,8 +505,5 @@ private struct LyricsBackdropRepresentable: UIViewRepresentable {
         uiView.style = style
         uiView.solid = solid
         uiView.isBackdropOpaque = true
-        // 卡片会随页面滚动 / 展开收起而移动，这个矩形每帧都会被重新算一遍，
-        // `frameOverride` 自己带等值判断，不变时不会触发重排。
-        uiView.frameOverride = frameOverride
     }
 }
