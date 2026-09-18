@@ -14,13 +14,13 @@ Beta and demo versions are not released to the public.
 | Current development version | [v6.0.0-beta.8(build 19)](CHANGELOG.md)|
 | Development version last updated | 2026/09/13 |
 
-## 🔧 Modifications
+##  Modifications
 
 - Added three additional lyrics sources: NetEase, SpicyLyrics, and AMLL.
 - Implemented word-by-word lyrics.
 - Various other modifications and improvements.
 
-## ⚠️ Notice
+##  Notice
 
 - It is recommended that you first familiarize yourself with whoeevee's original EeveeSpotify 9.1.0 before using this project.
 - **Verified environment:** iPhone 11 · iOS 26.6.1 · EeveeSpotify 9.1.0 · certificate-signed build · LCSign · rootless DEB.
@@ -28,7 +28,7 @@ Beta and demo versions are not released to the public.
 - No IPA package is provided.
 - Localization currently includes English and Simplified Chinese only. Localization files for other languages have been removed from this repository for maintenance purposes.
 
-## ❤️ Acknowledgements
+##  Acknowledgements
 
 - Thanks to [whoeevee](https://github.com/whoeevee) for the original EeveeSpotify project.
 - Thanks to [SideloadLabs](https://github.com/SideloadLabs/EeveeSpotifyReincarnated) for creating the SpicyLyrics lyrics provider, as well as the logging and export functionality. The relevant code has been modified to fit this project.
