@@ -4,8 +4,6 @@
 
 This fork is independently maintained by me and is not affiliated with the original author, whoeevee.
 
-Due to school commitments, the update frequency will be reduced for the time being. I’ll try to push out a new release on every public holiday.
-
 Beta and demo versions are not released to the public.
 
 | | Version |
