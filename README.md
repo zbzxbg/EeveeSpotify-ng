@@ -6,9 +6,9 @@ This fork is independently maintained by me and is not affiliated with the origi
 
 | | Version |
 | --- | --- |
-| Latest public release | v5.1.2 |
-| Current development version | [v6.0.0-beta.8(build 19)](CHANGELOG.md)|
-| Development version last updated | 2026/09/13 |
+| Latest public release | v6.0.0 |
+| Current development version | [None](CHANGELOG.md)|
+| Development version last updated | 2026/09/19 |
 
 ##  Modifications
 
