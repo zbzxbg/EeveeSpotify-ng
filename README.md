@@ -19,7 +19,7 @@ This fork is independently maintained by me and is not affiliated with the origi
 ##  Notice
 
 - It is recommended that you first familiarize yourself with whoeevee's original EeveeSpotify 9.1.0 before using this project.
-- **Verified environment:** iPhone 11 · iOS 26.6.1 · EeveeSpotify 9.1.0 · certificate-signed build · LCSign · rootless DEB.
+- **Verified environment:** iPhone 11 · iOS 27 · EeveeSpotify 9.1.0 · certificate-signed build · LCSign · rootless DEB.
 - The modified features in this fork have been verified to work in this environment.
 - No IPA package is provided.
 - Localization currently includes English and Simplified Chinese only. Localization files for other languages have been removed from this repository for maintenance purposes.
