@@ -35,5 +35,5 @@ This fork is independently maintained by me and is not affiliated with the origi
 | --- | --- |
 | Status | Archived |
 | Latest public release | v6.0.0 |
-| Current development version | None (archived) |
+| Current development version | N/A (archived) |
 | Development version last updated | 2026/09/19 |
