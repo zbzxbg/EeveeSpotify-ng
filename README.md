@@ -21,7 +21,7 @@
 >
 > </details>
 >
-> Please consider using [EeveeSpotifyEvolved](<link>) instead.
+> Please consider using [EeveeSpotifyEvolved](https://github.com/zbzxbg/EeveeSpotifyEvolved) instead.
 
 ---
 
